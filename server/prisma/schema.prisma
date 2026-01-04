@@ -1,0 +1,73 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  createdAt DateTime @default(now())
+  hostId    String
+  settings  String   @default("{}")
+
+  players   Player[]
+  rounds    Round[]
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  roomId    String
+  name      String
+  status    String   @default("active")
+  strikes   Int      @default(0)
+  joinedAt  DateTime @default(now())
+  lastSeen  DateTime @default(now())
+
+  room           Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  votes          Vote[]
+  currentRounds  Round[] @relation("RoundCurrentPlayer")
+}
+
+model Round {
+  id              String   @id @default(cuid())
+  roomId          String
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+  currentPlayerId String?
+  mode            String?
+  timerSeconds    Int
+  phase           String   @default("idle")
+  result          String?
+
+  room           Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  currentPlayer  Player? @relation("RoundCurrentPlayer", fields: [currentPlayerId], references: [id], onDelete: SetNull)
+  spins          Spin[]
+  votes          Vote[]
+}
+
+model Spin {
+  id           String @id @default(cuid())
+  roundId      String @unique
+  wheel1Result String
+  wheel2Result String
+  finalText    String
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+}
+
+model Vote {
+  id            String   @id @default(cuid())
+  roundId       String
+  voterPlayerId String
+  vote          String
+  createdAt     DateTime @default(now())
+
+  round Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  voter Player @relation(fields: [voterPlayerId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, voterPlayerId])
+}
