@@ -26,6 +26,10 @@ npm run db:migrate
 npm run db:seed
 npm run build
 npm run start
+
+cd C:\cloudflared
+.\cloudflared.exe tunnel --url http://localhost:3001
+
 ```
 
 Сервер отдаёт API и статический клиент из `client/dist`.

@@ -3,13 +3,25 @@ const path = require("path");
 
 let cached = null;
 
+function loadTruthQuestions() {
+  const filePath = path.join(__dirname, "..", "..", "data", "truth-questions.json");
+  try {
+    const raw = fs.readFileSync(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
 function loadWheelData() {
   if (cached) {
     return cached;
   }
   const filePath = path.join(__dirname, "..", "..", "data", "wheels.json");
   const raw = fs.readFileSync(filePath, "utf8");
-  cached = JSON.parse(raw);
+  const data = JSON.parse(raw);
+  cached = { ...data, truthQuestions: loadTruthQuestions() };
   return cached;
 }
 
@@ -35,8 +47,19 @@ function pickWheel2(categoryId) {
   return { item: items[index], index, category };
 }
 
+function pickTruthQuestion() {
+  const data = loadWheelData();
+  const questions = data.truthQuestions || [];
+  if (!questions.length) {
+    return null;
+  }
+  const index = Math.floor(Math.random() * questions.length);
+  return { question: questions[index], index };
+}
+
 module.exports = {
   getWheelData,
   pickWheel1,
-  pickWheel2
+  pickWheel2,
+  pickTruthQuestion
 };

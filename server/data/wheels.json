@@ -8,85 +8,133 @@
           "id": "call-01",
           "label": "Другу в трубку",
           "text": "Позвони другу и попроси рассказать самую короткую смешную историю за минуту.",
-          "tags": ["call", "friend"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "friend"
+          ],
+          "rating": "general",
+          "shortTitle": "Друг"
         },
         {
           "id": "call-02",
           "label": "Случайный контакт",
           "text": "Позвони знакомому, которому давно не писал, и спроси как у него дела.",
-          "tags": ["call", "catchup"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "catchup"
+          ],
+          "rating": "general",
+          "shortTitle": "Встреча"
         },
         {
           "id": "call-03",
           "label": "Спасибо",
           "text": "Позвони человеку, которому давно хотел сказать спасибо, и скажи это вслух.",
-          "tags": ["call", "gratitude"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "gratitude"
+          ],
+          "rating": "general",
+          "shortTitle": "Спасибо"
         },
         {
           "id": "call-04",
           "label": "Комплимент",
           "text": "Позвони знакомому и сделай один искренний комплимент.",
-          "tags": ["call", "compliment"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "compliment"
+          ],
+          "rating": "general",
+          "shortTitle": "Комплимент"
         },
         {
           "id": "call-05",
           "label": "План на выходные",
           "text": "Позвони другу и предложи идею для совместного занятия на выходных.",
-          "tags": ["call", "plans"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "plans"
+          ],
+          "rating": "general",
+          "shortTitle": "План"
         },
         {
           "id": "call-06",
           "label": "Смешной вопрос",
           "text": "Позвони знакомому и задай неожиданный смешной вопрос (например: \"Если бы у тебя был домашний робот, как бы ты его назвал?\").",
-          "tags": ["call", "fun"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "fun"
+          ],
+          "rating": "general",
+          "shortTitle": "Шутка"
         },
         {
           "id": "call-07",
           "label": "Мини-интервью",
           "text": "Позвони и задай три коротких вопроса о том, что радует человека сейчас.",
-          "tags": ["call", "interview"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "interview"
+          ],
+          "rating": "general",
+          "shortTitle": "Интервью"
         },
         {
           "id": "call-08",
           "label": "Прогноз дня",
           "text": "Позвони и попроси дать прогноз твоего дня одним словом.",
-          "tags": ["call", "playful"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "playful"
+          ],
+          "rating": "general",
+          "shortTitle": "Флирт"
         },
         {
           "id": "call-09",
           "label": "Узнай настроение",
           "text": "Позвони и попроси человека оценить настроение по шкале от 1 до 10.",
-          "tags": ["call", "checkin"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "checkin"
+          ],
+          "rating": "general",
+          "shortTitle": "Чек-ин"
         },
         {
           "id": "call-10",
           "label": "Общий мем",
           "text": "Позвони и опиши смешной мем, который видел, не показывая его.",
-          "tags": ["call", "meme"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "meme"
+          ],
+          "rating": "general",
+          "shortTitle": "Мем"
         },
         {
           "id": "call-11",
           "label": "Поздравь заранее",
           "text": "Позвони знакомому и поздравь его с ближайшим событием (днем рождения, экзаменом и т.д.).",
-          "tags": ["call", "support"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "support"
+          ],
+          "rating": "general",
+          "shortTitle": "Поддержка"
         },
         {
           "id": "call-12",
           "label": "Секретная миссия",
           "text": "Позвони и предложи другу маленькую миссию на сегодня: сделать доброе дело.",
-          "tags": ["call", "mission"],
-          "rating": "general"
+          "tags": [
+            "call",
+            "mission"
+          ],
+          "rating": "general",
+          "shortTitle": "Задание"
         }
       ]
     },
@@ -98,85 +146,133 @@
           "id": "text-01",
           "label": "Доброе слово",
           "text": "Напиши человеку короткое теплое сообщение без повода.",
-          "tags": ["text", "kindness"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "kindness"
+          ],
+          "rating": "general",
+          "shortTitle": "Добро"
         },
         {
           "id": "text-02",
           "label": "Мем-тест",
           "text": "Отправь мем и спроси, на сколько он смешной по шкале от 1 до 10.",
-          "tags": ["text", "meme"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "meme"
+          ],
+          "rating": "general",
+          "shortTitle": "Мем"
         },
         {
           "id": "text-03",
           "label": "Быстрый опрос",
           "text": "Напиши двум людям один и тот же короткий вопрос и сравни ответы.",
-          "tags": ["text", "poll"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "poll"
+          ],
+          "rating": "general",
+          "shortTitle": "Опрос"
         },
         {
           "id": "text-04",
           "label": "Фильм недели",
           "text": "Напиши другу и попроси порекомендовать фильм/сериал.",
-          "tags": ["text", "recommend"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "recommend"
+          ],
+          "rating": "general",
+          "shortTitle": "Рекоменд"
         },
         {
           "id": "text-05",
           "label": "Песня дня",
           "text": "Напиши человеку и попроси посоветовать одну песню под настроение.",
-          "tags": ["text", "music"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "music"
+          ],
+          "rating": "general",
+          "shortTitle": "Плейлист"
         },
         {
           "id": "text-06",
           "label": "Смайл-батл",
           "text": "Отправь цепочку из 5 случайных смайлов и попроси расшифровать смысл.",
-          "tags": ["text", "emoji"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "emoji"
+          ],
+          "rating": "general",
+          "shortTitle": "Эмодзи"
         },
         {
           "id": "text-07",
           "label": "Фото дня",
           "text": "Попроси человека отправить фото того, что его сейчас радует.",
-          "tags": ["text", "photo"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "photo"
+          ],
+          "rating": "general",
+          "shortTitle": "Фото"
         },
         {
           "id": "text-08",
           "label": "Мини-челлендж",
           "text": "Напиши другу маленький челлендж на сегодня (например, пройти 5 минут пешком).",
-          "tags": ["text", "challenge"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "challenge"
+          ],
+          "rating": "general",
+          "shortTitle": "Челлендж"
         },
         {
           "id": "text-09",
           "label": "Список 3",
           "text": "Попроси человека назвать три вещи, которые делают день лучше.",
-          "tags": ["text", "list"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "list"
+          ],
+          "rating": "general",
+          "shortTitle": "Список"
         },
         {
           "id": "text-10",
           "label": "Смешной факт",
           "text": "Напиши знакомому забавный факт и спроси, правда это или нет.",
-          "tags": ["text", "fun"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "fun"
+          ],
+          "rating": "general",
+          "shortTitle": "Шутка"
         },
         {
           "id": "text-11",
           "label": "География",
           "text": "Спроси у друга, где бы он хотел проснуться завтра, если бы мог выбрать любое место.",
-          "tags": ["text", "dream"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "dream"
+          ],
+          "rating": "general",
+          "shortTitle": "Мечта"
         },
         {
           "id": "text-12",
           "label": "Старый чат",
           "text": "Найди старый чат и отправь туда короткое \"Привет, вспомнил о тебе, как ты?\".",
-          "tags": ["text", "catchup"],
-          "rating": "general"
+          "tags": [
+            "text",
+            "catchup"
+          ],
+          "rating": "general",
+          "shortTitle": "Встреча"
         }
       ]
     },
@@ -188,85 +284,133 @@
           "id": "outside-01",
           "label": "Короткая прогулка",
           "text": "Выйди на улицу и пройди 5 минут, отмечая три приятные детали вокруг.",
-          "tags": ["outside", "walk"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "walk"
+          ],
+          "rating": "general",
+          "shortTitle": "Прогулка"
         },
         {
           "id": "outside-02",
           "label": "Фото неба",
           "text": "Сделай фото неба и покажи его комнате.",
-          "tags": ["outside", "photo"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "photo"
+          ],
+          "rating": "general",
+          "shortTitle": "Фото"
         },
         {
           "id": "outside-03",
           "label": "Новый маршрут",
           "text": "Пройди до ближайшего места по маршруту, которым обычно не ходишь.",
-          "tags": ["outside", "explore"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "explore"
+          ],
+          "rating": "general",
+          "shortTitle": "Поиск"
         },
         {
           "id": "outside-04",
           "label": "Случайный объект",
           "text": "Найди вокруг самый необычный предмет и расскажи о нем.",
-          "tags": ["outside", "observe"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "observe"
+          ],
+          "rating": "general",
+          "shortTitle": "Наблюдение"
         },
         {
           "id": "outside-05",
           "label": "Пять шагов",
           "text": "Сделай 50 шагов в любую сторону и опиши, что нового увидел.",
-          "tags": ["outside", "steps"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "steps"
+          ],
+          "rating": "general",
+          "shortTitle": "Шаги"
         },
         {
           "id": "outside-06",
           "label": "Звук улицы",
           "text": "Запомни один звук вокруг и попробуй описать его словами.",
-          "tags": ["outside", "sound"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "sound"
+          ],
+          "rating": "general",
+          "shortTitle": "Звук"
         },
         {
           "id": "outside-07",
           "label": "Смена места",
           "text": "Смени локацию: перейди в другую комнату или место и расскажи, как изменилось настроение.",
-          "tags": ["outside", "change"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "change"
+          ],
+          "rating": "general",
+          "shortTitle": "Перемена"
         },
         {
           "id": "outside-08",
           "label": "Витрина",
           "text": "Подойди к ближайшей витрине/окну и опиши одну деталь, которую раньше не замечал.",
-          "tags": ["outside", "observe"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "observe"
+          ],
+          "rating": "general",
+          "shortTitle": "Наблюдение"
         },
         {
           "id": "outside-09",
           "label": "Следуй цвету",
           "text": "Найди вокруг предметы одного выбранного цвета (минимум 3) и перечисли их.",
-          "tags": ["outside", "color"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "color"
+          ],
+          "rating": "general",
+          "shortTitle": "Цвет"
         },
         {
           "id": "outside-10",
           "label": "Привет миру",
           "text": "Скажи \"Привет, мир!\" достаточно громко, чтобы услышал кто-то рядом (если это комфортно).",
-          "tags": ["outside", "voice"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "voice"
+          ],
+          "rating": "general",
+          "shortTitle": "Голос"
         },
         {
           "id": "outside-11",
           "label": "Короткое видео",
           "text": "Сними 5-секундное видео с улицы и покажи его.",
-          "tags": ["outside", "video"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "video"
+          ],
+          "rating": "general",
+          "shortTitle": "Видео"
         },
         {
           "id": "outside-12",
           "label": "Следы",
           "text": "Найди что-то, что оставляет следы (колеса, следы на снегу) и опиши, что произошло.",
-          "tags": ["outside", "observe"],
-          "rating": "general"
+          "tags": [
+            "outside",
+            "observe"
+          ],
+          "rating": "general",
+          "shortTitle": "Наблюдение"
         }
       ]
     },
@@ -278,85 +422,133 @@
           "id": "social-01",
           "label": "Мини-трейлер",
           "text": "Сделай 10-секундный \"трейлер\" своей жизни сегодня и расскажи его комнате.",
-          "tags": ["social", "performance"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "performance"
+          ],
+          "rating": "general",
+          "shortTitle": "Выступление"
         },
         {
           "id": "social-02",
           "label": "Режиссер",
           "text": "Озвучь происходящее вокруг как будто это фильм-боевик.",
-          "tags": ["social", "voice"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "voice"
+          ],
+          "rating": "general",
+          "shortTitle": "Голос"
         },
         {
           "id": "social-03",
           "label": "Секунда тишины",
           "text": "Сделай одну минуту тишины и потом скажи, что почувствовал.",
-          "tags": ["social", "mindful"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "mindful"
+          ],
+          "rating": "general",
+          "shortTitle": "Осознанность"
         },
         {
           "id": "social-04",
           "label": "Слоган дня",
           "text": "Придумай слоган дня из трех слов и скажи его.",
-          "tags": ["social", "creative"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "creative"
+          ],
+          "rating": "general",
+          "shortTitle": "Импровизация"
         },
         {
           "id": "social-05",
           "label": "Импровизация",
           "text": "Импровизируй 15 секунд рекламу любимого предмета.",
-          "tags": ["social", "performance"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "performance"
+          ],
+          "rating": "general",
+          "shortTitle": "Выступление"
         },
         {
           "id": "social-06",
           "label": "Пантомима",
           "text": "Покажи пантомимой любимый фильм, не называя его.",
-          "tags": ["social", "pantomime"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "pantomime"
+          ],
+          "rating": "general",
+          "shortTitle": "Пантомима"
         },
         {
           "id": "social-07",
           "label": "Мини-репортаж",
           "text": "Сделай короткий репортаж о том, что происходит вокруг тебя.",
-          "tags": ["social", "report"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "report"
+          ],
+          "rating": "general",
+          "shortTitle": "Репорт"
         },
         {
           "id": "social-08",
           "label": "Смена роли",
           "text": "Расскажи одну фразу от лица предмета рядом.",
-          "tags": ["social", "roleplay"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "roleplay"
+          ],
+          "rating": "general",
+          "shortTitle": "Ролевая"
         },
         {
           "id": "social-09",
           "label": "Ритм",
           "text": "Похлопай или постучи простой ритм и предложи комнате повторить.",
-          "tags": ["social", "rhythm"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "rhythm"
+          ],
+          "rating": "general",
+          "shortTitle": "Ритм"
         },
         {
           "id": "social-10",
           "label": "Поза героя",
           "text": "Встань в \"позу героя\" на 5 секунд и опиши ощущение.",
-          "tags": ["social", "pose"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "pose"
+          ],
+          "rating": "general",
+          "shortTitle": "Поза"
         },
         {
           "id": "social-11",
           "label": "Слово дня",
           "text": "Придумай новое слово и объясни, что оно означает.",
-          "tags": ["social", "creative"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "creative"
+          ],
+          "rating": "general",
+          "shortTitle": "Импровизация"
         },
         {
           "id": "social-12",
           "label": "Тост",
           "text": "Скажи короткий позитивный тост (без алкоголя) на 10 секунд.",
-          "tags": ["social", "speech"],
-          "rating": "general"
+          "tags": [
+            "social",
+            "speech"
+          ],
+          "rating": "general",
+          "shortTitle": "Речь"
         }
       ]
     }

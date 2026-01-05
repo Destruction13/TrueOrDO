@@ -8,7 +8,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const { PrismaClient } = require("@prisma/client");
 const { customAlphabet } = require("nanoid");
-const { getWheelData, pickWheel1, pickWheel2 } = require("./game/wheels");
+const { getWheelData, pickWheel1, pickWheel2, pickTruthQuestion } = require("./game/wheels");
 
 const prisma = new PrismaClient();
 
@@ -134,6 +134,8 @@ function serializeRound(round, spin, voteCounts) {
   const wheel2Item = wheel1Category && spin && spin.wheel2Result
     ? wheel1Category.items.find((item) => item.id === spin.wheel2Result)
     : null;
+  const wheel1Id = spin?.wheel1Result || null;
+  const wheel2Id = spin?.wheel2Result || null;
 
   return {
     id: round.id,
@@ -146,9 +148,9 @@ function serializeRound(round, spin, voteCounts) {
     phase: round.phase,
     result: round.result,
     wheel1Result: wheel1Category ? wheel1Category.title : null,
-    wheel1Id: spin ? spin.wheel1Result : null,
-    wheel2Result: wheel2Item ? wheel2Item.label : null,
-    wheel2Id: spin ? spin.wheel2Result : null,
+    wheel1Id,
+    wheel2Result: wheel2Item ? wheel2Item.shortTitle || wheel2Item.label : null,
+    wheel2Id,
     finalText: spin ? spin.finalText : null,
     voteCounts
   };
@@ -618,6 +620,47 @@ io.on("connection", (socket) => {
       }
       return;
     }
+    if (mode === "truth") {
+      const selection = pickTruthQuestion();
+      if (!selection) {
+        if (ack) {
+          ack({ ok: false, error: "Truth questions missing" });
+        }
+        return;
+      }
+      const finalText = selection.question;
+      await prisma.spin.upsert({
+        where: { roundId: round.id },
+        create: {
+          roundId: round.id,
+          wheel1Result: "",
+          wheel2Result: "",
+          finalText
+        },
+        update: {
+          wheel1Result: "",
+          wheel2Result: "",
+          finalText
+        }
+      });
+      await prisma.round.update({
+        where: { id: round.id },
+        data: { mode, phase: "task" }
+      });
+      io.to(room.id).emit("spin:final", {
+        roundId: round.id,
+        finalText,
+        mode
+      });
+      await emitRoomState(room.id);
+      await startTimer(room.id, round.id, round.timerSeconds || 120);
+
+      if (ack) {
+        ack({ ok: true });
+      }
+      return;
+    }
+
     await prisma.round.update({
       where: { id: round.id },
       data: { mode, phase: "wheel1" }
@@ -764,7 +807,7 @@ io.on("connection", (socket) => {
     io.to(room.id).emit("spin:wheel2_result", {
       roundId: round.id,
       itemId: selection.item.id,
-      itemLabel: selection.item.label,
+      itemLabel: selection.item.shortTitle || selection.item.label,
       itemText: selection.item.text,
       index: selection.index
     });
@@ -812,6 +855,55 @@ io.on("connection", (socket) => {
       return;
     }
     await endTimer(room.id, round.id, "done");
+    if (ack) {
+      ack({ ok: true });
+    }
+  });
+
+  socket.on("round:refuse", async (payload, ack) => {
+    await touchPlayer(socket);
+    if (!socket.data.roomId) {
+      if (ack) {
+        ack({ ok: false, error: "Not in room" });
+      }
+      return;
+    }
+    const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
+    const round = await prisma.round.findFirst({
+      where: { roomId: room.id, endedAt: null },
+      orderBy: { startedAt: "desc" }
+    });
+    if (!round || round.phase !== "task") {
+      if (ack) {
+        ack({ ok: false, error: "Round not in task" });
+      }
+      return;
+    }
+    if (round.mode !== "truth") {
+      if (ack) {
+        ack({ ok: false, error: "Refuse only for truth" });
+      }
+      return;
+    }
+    if (
+      socket.data.playerId !== round.currentPlayerId &&
+      (!room || !ensureHost(room, socket))
+    ) {
+      if (ack) {
+        ack({ ok: false, error: "Not allowed" });
+      }
+      return;
+    }
+    stopTimer(room.id);
+    if (round.currentPlayerId) {
+      await applyStrike(round.currentPlayerId, room.id);
+    }
+    await prisma.round.update({
+      where: { id: round.id },
+      data: { phase: "complete", result: "report", endedAt: new Date() }
+    });
+    io.to(room.id).emit("round:refuse", { roundId: round.id });
+    await emitRoomState(room.id);
     if (ack) {
       ack({ ok: true });
     }

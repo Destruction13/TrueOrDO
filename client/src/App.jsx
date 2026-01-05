@@ -220,6 +220,10 @@ function App() {
         const response = await emitWithAck("round:done", {});
         return handleAck(response);
       },
+      refuseTruth: async () => {
+        const response = await emitWithAck("round:refuse", {});
+        return handleAck(response);
+      },
       castVote: async (vote) => {
         const response = await emitWithAck("vote:cast", { vote });
         const result = handleAck(response);

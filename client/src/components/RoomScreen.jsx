@@ -1,5 +1,6 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import Wheel from "./Wheel";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import CategorySelector from "./CategorySelector";
+import ScenarioReel from "./ScenarioReel";
 
 function formatTimer(seconds) {
   if (seconds == null || Number.isNaN(seconds)) {
@@ -24,6 +25,7 @@ function RoomScreen({
 }) {
   const { room, players, round, content } = roomState;
   const [selectedPlayerId, setSelectedPlayerId] = useState("");
+  const [categoryReady, setCategoryReady] = useState(false);
 
   useEffect(() => {
     if (selectedPlayerId && !players.some((player) => player.id === selectedPlayerId)) {
@@ -38,14 +40,32 @@ function RoomScreen({
     : null;
   const isMeCurrent = round?.currentPlayerId === meId;
   const phase = round?.phase;
+  const isTruth = round?.mode === "truth";
+  const isDare = round?.mode === "dare";
+
+  useEffect(() => {
+    if (!round || !isDare || !round.wheel1Id) {
+      setCategoryReady(false);
+      return;
+    }
+    const delay = wheel1Spin.index != null ? 220 : 0;
+    const timeoutId = window.setTimeout(() => setCategoryReady(true), delay);
+    return () => window.clearTimeout(timeoutId);
+  }, [round?.id, round?.wheel1Id, isDare, wheel1Spin.index]);
 
   const categories = content?.categories || [];
-  const wheel1Items = categories.map((category) => category.title);
-  const wheel1SelectedIndex = categories.findIndex((category) => category.id === round?.wheel1Id);
   const selectedCategory = categories.find((category) => category.id === round?.wheel1Id);
   const wheel2Items = selectedCategory?.items || [];
-  const wheel2Labels = wheel2Items.map((item) => item.label);
-  const wheel2SelectedIndex = wheel2Items.findIndex((item) => item.id === round?.wheel2Id);
+  const showDareFlow = Boolean(
+    round &&
+      isDare &&
+      (phase === "wheel1" ||
+        phase === "wheel2" ||
+        phase === "task" ||
+        phase === "voting" ||
+        phase === "complete")
+  );
+  const showScenarioReel = showDareFlow && round?.wheel1Id && categoryReady;
 
   const canStartRound = isHost && (!round || round.phase === "complete");
   const canPickMode = round && phase === "mode" && (isMeCurrent || isHost);
@@ -73,6 +93,13 @@ function RoomScreen({
     }
     return "Не засчитано";
   }, [round?.result]);
+
+  const handleStartTask = useCallback(() => {
+    if (!canResetTimer) {
+      return;
+    }
+    actions.resetTimer();
+  }, [actions, canResetTimer]);
 
   return (
     <div className="app-shell">
@@ -211,38 +238,65 @@ function RoomScreen({
             </div>
           ) : null}
 
-          {round && (phase === "wheel1" || phase === "mode") ? (
-            <div className="wheel-stage">
-              <Wheel
-                title="Колесо категорий"
-                items={wheel1Items}
-                spinning={wheel1Spin.spinning}
-                spinIndex={wheel1Spin.index}
-                spinTick={wheel1Spin.tick}
-                selectedIndex={wheel1SelectedIndex}
-              />
-              {canSpinWheel1 ? (
-                <button className="btn primary" type="button" onClick={actions.spinWheel1}>
-                  Крутить колесо 1
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+          {showDareFlow ? (
+            <div className="dare-stage">
+              <div className="dare-block">
+                <CategorySelector
+                  categories={categories}
+                  activeId={round?.wheel1Id}
+                  spinning={wheel1Spin.spinning}
+                  spinTick={wheel1Spin.tick}
+                />
+                {phase === "wheel1" ? (
+                  canSpinWheel1 ? (
+                    <button
+                      className="btn primary"
+                      type="button"
+                      onClick={actions.spinWheel1}
+                      disabled={wheel1Spin.spinning}
+                    >
+                      Выбрать категорию
+                    </button>
+                  ) : (
+                    <div className="round-hint">
+                      Ждём выбора от {currentPlayer?.name || "игрока"}.
+                    </div>
+                  )
+                ) : null}
+              </div>
 
-          {round && phase !== "mode" && phase !== "wheel1" && round.wheel1Id ? (
-            <div className="wheel-stage">
-              <Wheel
-                title="Колесо сценариев"
-                items={wheel2Labels}
-                spinning={wheel2Spin.spinning}
-                spinIndex={wheel2Spin.index}
-                spinTick={wheel2Spin.tick}
-                selectedIndex={wheel2SelectedIndex}
-              />
-              {canSpinWheel2 ? (
-                <button className="btn primary" type="button" onClick={actions.spinWheel2}>
-                  Крутить колесо 2
-                </button>
+              {round?.wheel1Id ? (
+                <div className={`dare-block${showScenarioReel ? " is-ready" : ""}`}>
+                  {showScenarioReel ? (
+                    <ScenarioReel
+                      key={`${round?.id || "round"}-${round?.wheel1Id || "none"}`}
+                      items={wheel2Items}
+                      targetId={round?.wheel2Id}
+                      targetIndex={wheel2Spin.index}
+                      spinTick={wheel2Spin.tick}
+                      spinning={wheel2Spin.spinning}
+                      onStartTask={handleStartTask}
+                    />
+                  ) : (
+                    <div className="round-hint">Готовим ленту сценариев...</div>
+                  )}
+                  {phase === "wheel2" ? (
+                    canSpinWheel2 ? (
+                      <button
+                        className="btn primary"
+                        type="button"
+                        onClick={actions.spinWheel2}
+                        disabled={wheel2Spin.spinning}
+                      >
+                        Запустить ленту
+                      </button>
+                    ) : (
+                      <div className="round-hint">
+                        Ждём запуска от {currentPlayer?.name || "игрока"}.
+                      </div>
+                    )
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ) : null}
@@ -251,15 +305,22 @@ function RoomScreen({
             <div className="task-card">
               <div className="task-header">
                 <div>
-                  <div className="label">Задание</div>
-                  <div className="value">{round.finalText || "—"}</div>
+                  <div className="label">{isTruth ? "Вопрос" : "Задание"}</div>
+                  <div className="value">{round.finalText || "-"}</div>
                 </div>
                 <div className="timer">{formatTimer(timerRemaining)}</div>
               </div>
               {canMarkDone ? (
-                <button className="btn ghost" type="button" onClick={actions.markDone}>
-                  Я сделал
-                </button>
+                <div className="stage-actions">
+                  <button className="btn ghost" type="button" onClick={actions.markDone}>
+                    {isTruth ? "Ответил" : "Я сделал"}
+                  </button>
+                  {isTruth ? (
+                    <button className="btn ghost" type="button" onClick={actions.refuseTruth}>
+                      Отказываюсь
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ) : null}
