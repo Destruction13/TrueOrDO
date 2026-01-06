@@ -136,11 +136,19 @@ select:focus {
   background: linear-gradient(120deg, var(--accent), var(--accent-3));
   color: #041018;
   box-shadow: 0 12px 28px rgba(46, 230, 255, 0.4);
+  margin-left: 0px;
+  margin-right: 0px;
+  margin-top: 16px;
+  margin-bottom: 16px;
 }
 .btn.ghost {
   background: transparent;
   color: var(--text);
   border: 1px solid rgba(46, 230, 255, 0.4);
+  height: 43px;
+  width: 127px;
+  margin-top: 16px;
+  margin-bottom: 16px;
 }
 .btn.tiny {
   padding: 6px 12px;
@@ -586,8 +594,16 @@ select:focus {
   background: transparent;
   border: none;
   overflow: visible;
-  animation: overlayPop 0.45s ease both;
   z-index: 1;
+}
+.reel-overlay__anim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  animation: overlayPop 0.45s ease both;
 }
 .reel-overlay__spline-frame {
   position: relative;
@@ -596,6 +612,8 @@ select:focus {
   background: transparent;
   border: none;
   overflow: visible;
+  z-index: 1;
+  animation: overlayReveal 0.35s ease both;
 }
 .reel-overlay__spline-wrap {
   position: absolute;
@@ -646,6 +664,16 @@ select:focus {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+@keyframes overlayReveal {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
   }
 }
 @media (max-width: 1200px) {

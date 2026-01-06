@@ -13,9 +13,15 @@ const SPIN_DECEL_MIN = 1800; // минимум времени замедлени
 const OVERLAY_DELAY = 180;
 const MIN_FILL = VISIBLE_COUNT + 4;
 const DECEL_DISTANCE_MIN = 0.36;
-const TILT_MAX = 8; // максимум наклона карточки
+const TILT_MAX = 18; // максимум наклона карточки
 const TILT_LERP = 0.18;
 const SPLINE_ZOOM = 1.25;
+const SPLINE_START_BUTTON_NAMES = new Set([
+  "Rectangle2",
+  "UI_StartBtn",
+  "ULStartBtn",
+  "StartButtonHitbox"
+]);
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -38,6 +44,16 @@ function easeInQuad(t) {
 function easeOutQuint(t) {
   return 1 - Math.pow(1 - t, 5);
 }
+function isStartButtonName(name) {
+  if (!name) {
+    return false;
+  }
+  if (SPLINE_START_BUTTON_NAMES.has(name)) {
+    return true;
+  }
+  const normalized = name.toLowerCase();
+  return normalized.includes("start") && (normalized.includes("btn") || normalized.includes("button"));
+}
 function ScenarioReel({
   items = [],
   targetId,
@@ -55,9 +71,15 @@ function ScenarioReel({
   const splineFrameRef = useRef(null);
   const splineLogRef = useRef(false);
   const splineVarsLogRef = useRef(false);
-  const splineEventLogRef = useRef(false);
   const splineSizeLogRef = useRef(false);
+  const splineSizeRetryRef = useRef(0);
+  const splineSizeWarnRef = useRef(false);
   const splineWarnRef = useRef({ text: false });
+  const splineRuntimeCleanupRef = useRef(null);
+  const splinePressCleanupRef = useRef(null);
+  const splinePressTargetNameRef = useRef(null);
+  const splinePressTargetIdRef = useRef(null);
+  const splinePressActiveRef = useRef(false);
   const pendingTextRef = useRef({ title: "", desc: "" });
   const trackRef = useRef(null);
   const viewportRef = useRef(null);
@@ -127,9 +149,17 @@ function ScenarioReel({
     return null;
   }, [items, targetId, targetIndex]);
   const selectedItemRef = useRef(selectedItem);
+  const overlayVisibleRef = useRef(overlayVisible);
+  const onStartTaskRef = useRef(onStartTask);
   useEffect(() => {
     selectedItemRef.current = selectedItem;
   }, [selectedItem]);
+  useEffect(() => {
+    overlayVisibleRef.current = overlayVisible;
+  }, [overlayVisible]);
+  useEffect(() => {
+    onStartTaskRef.current = onStartTask;
+  }, [onStartTask]);
   const applySplineText = useCallback((titleText, descText) => {
     const spline = splineRef.current;
     if (!spline) {
@@ -155,6 +185,146 @@ function ScenarioReel({
       console.info("[Spline] Variables updated (vTitle/vDesc).");
     }
   }, []);
+  const clearSplinePressState = useCallback(() => {
+    splinePressTargetNameRef.current = null;
+    splinePressTargetIdRef.current = null;
+    splinePressActiveRef.current = false;
+    if (splinePressCleanupRef.current) {
+      splinePressCleanupRef.current();
+      splinePressCleanupRef.current = null;
+    }
+  }, []);
+  const triggerSplineStart = useCallback(() => {
+    if (!overlayVisibleRef.current) {
+      return;
+    }
+    overlayVisibleRef.current = false;
+    if (import.meta.env.DEV) {
+      console.info("[Spline] closing overlay");
+    }
+    setOverlayVisible(false);
+    const startHandler = onStartTaskRef.current;
+    if (typeof startHandler === "function") {
+      startHandler(selectedItemRef.current);
+    }
+  }, []);
+  const finalizeSplinePress = useCallback(
+    (source) => {
+      if (!splinePressActiveRef.current) {
+        return;
+      }
+      const targetName = splinePressTargetNameRef.current;
+      const targetId = splinePressTargetIdRef.current;
+      if (import.meta.env.DEV) {
+        console.info(
+          `[Spline] runtime press released (${source}): ${targetName || "unknown"}${
+            targetId ? ` (id: ${targetId})` : ""
+          }`
+        );
+      }
+      clearSplinePressState();
+      if (isStartButtonName(targetName)) {
+        triggerSplineStart();
+      }
+    },
+    [clearSplinePressState, triggerSplineStart]
+  );
+  const cancelSplinePress = useCallback(
+    (source) => {
+      if (!splinePressActiveRef.current) {
+        return;
+      }
+      if (import.meta.env.DEV) {
+        console.info(`[Spline] runtime press cancelled (${source}).`);
+      }
+      clearSplinePressState();
+    },
+    [clearSplinePressState]
+  );
+  const attachGlobalSplinePressListeners = useCallback(() => {
+    if (splinePressCleanupRef.current) {
+      return;
+    }
+    const handlePointerUp = () => finalizeSplinePress("pointerup");
+    const handlePointerCancel = () => cancelSplinePress("pointercancel");
+    const handleBlur = () => cancelSplinePress("blur");
+    const handleVisibility = () => {
+      if (document.hidden) {
+        cancelSplinePress("visibilitychange");
+      }
+    };
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+    window.addEventListener("blur", handleBlur);
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("mouseup", handlePointerUp);
+    window.addEventListener("touchend", handlePointerUp);
+    window.addEventListener("touchcancel", handlePointerCancel);
+    splinePressCleanupRef.current = () => {
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+      window.removeEventListener("blur", handleBlur);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("mouseup", handlePointerUp);
+      window.removeEventListener("touchend", handlePointerUp);
+      window.removeEventListener("touchcancel", handlePointerCancel);
+    };
+  }, [cancelSplinePress, finalizeSplinePress]);
+  const handleSplineRuntimeMouseDown = useCallback(
+    (event) => {
+      const targetName = event?.target?.name;
+      const targetId = event?.target?.id;
+      if (import.meta.env.DEV) {
+        console.info(
+          `[Spline] runtime mouseDown target: ${targetName || "unknown"}${targetId ? ` (id: ${targetId})` : ""}`
+        );
+      }
+      if (!overlayVisibleRef.current) {
+        return;
+      }
+      if (!isStartButtonName(targetName)) {
+        return;
+      }
+      splinePressTargetNameRef.current = targetName || null;
+      splinePressTargetIdRef.current = targetId ?? null;
+      splinePressActiveRef.current = true;
+      attachGlobalSplinePressListeners();
+    },
+    [attachGlobalSplinePressListeners]
+  );
+  const handleSplineRuntimeMouseUp = useCallback(
+    (event) => {
+      const targetName = event?.target?.name;
+      const targetId = event?.target?.id;
+      if (import.meta.env.DEV) {
+        console.info(
+          `[Spline] runtime mouseUp target: ${targetName || "unknown"}${targetId ? ` (id: ${targetId})` : ""}`
+        );
+      }
+      finalizeSplinePress("mouseUp");
+    },
+    [finalizeSplinePress]
+  );
+  const attachSplineRuntimeListeners = useCallback(
+    (splineApp) => {
+      if (!splineApp || typeof splineApp.addEventListener !== "function") {
+        return null;
+      }
+      splineApp.addEventListener("mouseDown", handleSplineRuntimeMouseDown);
+      splineApp.addEventListener("mouseUp", handleSplineRuntimeMouseUp);
+      if (import.meta.env.DEV) {
+        console.info("[Spline] runtime listener attached (mouseDown/mouseUp).");
+      }
+      return () => {
+        splineApp.removeEventListener("mouseDown", handleSplineRuntimeMouseDown);
+        splineApp.removeEventListener("mouseUp", handleSplineRuntimeMouseUp);
+        if (import.meta.env.DEV) {
+          console.info("[Spline] runtime listener removed (mouseDown/mouseUp).");
+        }
+      };
+    },
+    [handleSplineRuntimeMouseDown, handleSplineRuntimeMouseUp]
+  );
   const handleSplineLoad = useCallback(
     (spline) => {
       splineRef.current = spline;
@@ -165,69 +335,59 @@ function ScenarioReel({
       if (typeof spline.setZoom === "function") {
         spline.setZoom(SPLINE_ZOOM);
       }
-      const titleObj = spline.findObjectByName("ULTitle");
-      const descObj = spline.findObjectByName("ULDesc");
-      const startObj = spline.findObjectByName("ULStartBtn");
       if (import.meta.env.DEV && !splineLogRef.current) {
         splineLogRef.current = true;
         const missing = [];
-        if (!titleObj) missing.push("ULTitle");
-        if (!descObj) missing.push("ULDesc");
-        if (!startObj) missing.push("ULStartBtn");
         if (missing.length) {
           console.warn(
             `[Spline] Missing objects: ${missing.join(", ")}. Check Spline object names.`
           );
         } else {
-          console.info("[Spline] Objects ready: ULTitle, ULDesc, ULStartBtn.");
+          console.info("[Spline] Objects ready: ULTitle, ULDesc.");
         }
       }
       const pending = pendingTextRef.current;
       applySplineText(pending.title, pending.desc);
+      if (splineRuntimeCleanupRef.current) {
+        splineRuntimeCleanupRef.current();
+      }
+      splineRuntimeCleanupRef.current = attachSplineRuntimeListeners(spline);
       if (import.meta.env.DEV && !splineSizeLogRef.current) {
-        splineSizeLogRef.current = true;
-        requestAnimationFrame(() => {
+        splineSizeRetryRef.current = 0;
+        splineSizeWarnRef.current = false;
+        const logSplineSize = () => {
           const frame = splineFrameRef.current;
           const frameRect = frame ? frame.getBoundingClientRect() : null;
           const canvas = frame ? frame.querySelector("canvas") : null;
           const canvasRect = canvas ? canvas.getBoundingClientRect() : null;
-          const frameLabel = frameRect
-            ? `${Math.round(frameRect.width)}x${Math.round(frameRect.height)}`
-            : "n/a";
-          const canvasLabel = canvasRect
-            ? `${Math.round(canvasRect.width)}x${Math.round(canvasRect.height)}`
-            : "n/a";
+          const frameReady =
+            frameRect && frameRect.width > 0 && frameRect.height > 0;
+          const canvasReady =
+            canvasRect && canvasRect.width > 0 && canvasRect.height > 0;
+          if (!frameReady || !canvasReady) {
+            splineSizeRetryRef.current += 1;
+            if (splineSizeRetryRef.current <= 6 && overlayVisibleRef.current) {
+              requestAnimationFrame(logSplineSize);
+              return;
+            }
+            if (!splineSizeWarnRef.current) {
+              splineSizeWarnRef.current = true;
+              console.info("[Spline] Frame/canvas size not ready; skipping size log.");
+            }
+            return;
+          }
+          splineSizeLogRef.current = true;
+          const frameLabel = `${Math.round(frameRect.width)}x${Math.round(frameRect.height)}`;
+          const canvasLabel = `${Math.round(canvasRect.width)}x${Math.round(canvasRect.height)}`;
           const bufferLabel = canvas ? `${canvas.width}x${canvas.height}` : "n/a";
           console.info(
             `[Spline] Frame ${frameLabel}; Canvas rect ${canvasLabel}; Canvas buffer ${bufferLabel}.`
           );
-        });
+        };
+        requestAnimationFrame(logSplineSize);
       }
     },
-    [applySplineText]
-  );
-  const handleSplineMouseDown = useCallback(
-    (event) => {
-      const targetName = event?.target?.name;
-      if (import.meta.env.DEV && !splineEventLogRef.current) {
-        splineEventLogRef.current = true;
-        console.info(
-          `[Spline] onSplineMouseDown target: ${targetName || "unknown"}`
-        );
-      }
-      const isStartButton = targetName === "ULStartBtn" || targetName === "Rectangle2";
-      if (!isStartButton) {
-        return;
-      }
-      if (import.meta.env.DEV) {
-        console.info(`Spline start pressed: ${targetName || "unknown"}`);
-      }
-      setOverlayVisible(false);
-      if (typeof onStartTask === "function") {
-        onStartTask(selectedItem);
-      }
-    },
-    [onStartTask, selectedItem]
+    [applySplineText, attachSplineRuntimeListeners]
   );
   const setTranslateX = useCallback((x, snap = false) => {
     const track = trackRef.current;
@@ -400,10 +560,17 @@ function ScenarioReel({
   }, []);
   useEffect(() => {
     if (!overlayVisible) {
+      if (splineRuntimeCleanupRef.current) {
+        splineRuntimeCleanupRef.current();
+        splineRuntimeCleanupRef.current = null;
+      }
+      clearSplinePressState();
       splineRef.current = null;
+      splineSizeRetryRef.current = 0;
+      splineSizeWarnRef.current = false;
       splineSizeLogRef.current = false;
     }
-  }, [overlayVisible]);
+  }, [clearSplinePressState, overlayVisible]);
   useEffect(() => {
     if (!overlayVisible) {
       return;
@@ -560,6 +727,10 @@ function ScenarioReel({
         cancelAnimationFrame(tiltRef.current.frame);
         tiltRef.current.frame = null;
       }
+      if (splineRuntimeCleanupRef.current) {
+        splineRuntimeCleanupRef.current();
+        splineRuntimeCleanupRef.current = null;
+      }
       isSpinningRef.current = false;
       setTrackWillChange("auto");
     };
@@ -637,19 +808,23 @@ function ScenarioReel({
       </div>
       {overlayVisible && selectedItem
         ? createPortal(
-            <div className="reel-overlay" onClick={handleClose}>
-              <div className="reel-overlay__backdrop" aria-hidden="true" />
+            <div className="reel-overlay">
               <div
-                className="reel-overlay__stage"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="reel-overlay__spline-frame" ref={splineFrameRef}>
-                  <div className="reel-overlay__spline-wrap">
-                    <Spline
-                      className="reel-overlay__spline"
+                className="reel-overlay__backdrop"
+                aria-hidden="true"
+                onClick={handleClose}
+              />
+                <div
+                  className="reel-overlay__stage"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="reel-overlay__anim" aria-hidden="true" />
+                  <div className="reel-overlay__spline-frame" ref={splineFrameRef}>
+                    <div className="reel-overlay__spline-wrap">
+                      <Spline
+                        className="reel-overlay__spline"
                       scene="https://prod.spline.design/G4ffd9GW5IJbuhml/scene.splinecode"
                       onLoad={handleSplineLoad}
-                      onSplineMouseDown={handleSplineMouseDown}
                     />
                   </div>
                 </div>
