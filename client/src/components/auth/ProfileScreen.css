@@ -1,0 +1,220 @@
+.profile-screen {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 480px;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Header */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(46, 230, 255, 0.15);
+}
+
+.profile-header h2 {
+  margin: 0;
+  flex: 1;
+}
+
+.profile-back {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.profile-back:hover {
+  background: rgba(46, 230, 255, 0.1);
+}
+
+/* Verification Banner */
+.profile-verify-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: rgba(255, 200, 50, 0.1);
+  border-bottom: 1px solid rgba(255, 200, 50, 0.2);
+  font-size: 0.85rem;
+}
+
+.profile-verify-banner span:first-child {
+  flex: 1;
+  color: #ffc832;
+}
+
+.profile-verify-banner button {
+  background: rgba(255, 200, 50, 0.2);
+  border: 1px solid rgba(255, 200, 50, 0.4);
+  border-radius: 4px;
+  padding: 6px 12px;
+  color: #ffc832;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.profile-verify-banner button:hover:not(:disabled) {
+  background: rgba(255, 200, 50, 0.3);
+}
+
+.profile-verify-banner button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.banner-message {
+  width: 100%;
+  font-size: 0.8rem;
+  color: rgba(255, 200, 50, 0.8);
+}
+
+/* Avatar */
+.profile-avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+}
+
+.profile-avatar {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 3px solid rgba(46, 230, 255, 0.4);
+  background: rgba(46, 230, 255, 0.1);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.profile-avatar:hover {
+  border-color: var(--accent);
+  transform: scale(1.02);
+}
+
+.profile-avatar:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-avatar__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 40px;
+  font-weight: bold;
+  color: var(--accent);
+  font-family: "Orbitron", sans-serif;
+}
+
+.profile-avatar__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  font-size: 24px;
+}
+
+.profile-avatar:hover .profile-avatar__overlay {
+  opacity: 1;
+}
+
+.profile-avatar-hint {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: rgba(234, 242, 255, 0.5);
+}
+
+/* Form */
+.profile-form {
+  padding: 0 24px 24px;
+}
+
+.profile-form .field {
+  margin-bottom: 16px;
+}
+
+.profile-form textarea {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(4, 16, 24, 0.6);
+  border: 1px solid rgba(46, 230, 255, 0.3);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.profile-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(46, 230, 255, 0.15);
+}
+
+.field-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Messages */
+.profile-error {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.profile-success {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: rgba(124, 255, 107, 0.15);
+  border: 1px solid rgba(124, 255, 107, 0.3);
+  border-radius: 8px;
+  color: #7cff6b;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Footer */
+.profile-footer {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(46, 230, 255, 0.1);
+  text-align: center;
+}

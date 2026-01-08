@@ -1,0 +1,238 @@
+/* ==========================================================================
+   Auth Screen Styles
+   ========================================================================== */
+
+.auth-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Tabs */
+.auth-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(46, 230, 255, 0.2);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 16px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.auth-tab::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-3));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.auth-tab:hover {
+  background: rgba(46, 230, 255, 0.05);
+}
+
+.auth-tab.active {
+  color: var(--accent);
+}
+
+.auth-tab.active::after {
+  opacity: 1;
+}
+
+/* Form */
+.auth-form {
+  padding: 24px;
+}
+
+.auth-form h2 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  text-align: center;
+}
+
+.auth-subtitle {
+  margin: 0 0 20px;
+  font-size: 0.85rem;
+  color: rgba(234, 242, 255, 0.6);
+  text-align: center;
+}
+
+.auth-form .field {
+  margin-bottom: 16px;
+}
+
+/* Error & Message */
+.auth-error {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.auth-message {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: rgba(124, 255, 107, 0.15);
+  border: 1px solid rgba(124, 255, 107, 0.3);
+  border-radius: 8px;
+  color: #7cff6b;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Links */
+.auth-links {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.auth-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.auth-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   OAuth Section
+   ========================================================================== */
+.auth-oauth {
+  margin-top: 24px;
+}
+
+.auth-oauth__divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.auth-oauth__divider::before,
+.auth-oauth__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(46, 230, 255, 0.3), transparent);
+}
+
+.auth-oauth__divider span {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(234, 242, 255, 0.5);
+}
+
+.auth-oauth__buttons {
+  display: flex;
+  gap: 12px;
+}
+
+/* OAuth Button Base */
+.oauth-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.oauth-btn svg {
+  flex-shrink: 0;
+}
+
+/* Discord Button */
+.oauth-btn--discord {
+  background: rgba(88, 101, 242, 0.15);
+  border-color: rgba(88, 101, 242, 0.4);
+  color: #5865F2;
+}
+
+.oauth-btn--discord:hover {
+  background: rgba(88, 101, 242, 0.25);
+  border-color: rgba(88, 101, 242, 0.6);
+  box-shadow: 0 4px 20px rgba(88, 101, 242, 0.25);
+  transform: translateY(-2px);
+}
+
+.oauth-btn--discord:active {
+  transform: translateY(0);
+}
+
+/* Google Button */
+.oauth-btn--google {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+
+.oauth-btn--google:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.oauth-btn--google:active {
+  transform: translateY(0);
+}
+
+/* Responsive */
+@media (max-width: 400px) {
+  .auth-oauth__buttons {
+    flex-direction: column;
+  }
+  
+  .oauth-btn span {
+    display: none;
+  }
+  
+  .oauth-btn {
+    justify-content: center;
+    padding: 14px;
+  }
+}

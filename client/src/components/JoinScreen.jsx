@@ -2,34 +2,58 @@ import { useState } from "react";
 import Button from "./ui/Button";
 import PulseButton from "./ui/PulseButton";
 
-function JoinScreen({ connected, error, onCreate, onJoin }) {
+function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin }) {
   const [createName, setCreateName] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Имя для создания: никнейм пользователя или введённое вручную
+  const effectiveCreateName = user?.nickname || createName.trim();
+  const effectiveJoinName = user?.nickname || joinName.trim();
+
   const handleCreate = async (event) => {
     event.preventDefault();
-    if (!createName.trim()) {
+    if (!effectiveCreateName) {
       return;
     }
     setLoading(true);
-    await onCreate(createName.trim());
+    await onCreate(effectiveCreateName);
     setLoading(false);
   };
 
   const handleJoin = async (event) => {
     event.preventDefault();
-    if (!joinName.trim() || !joinCode.trim()) {
+    if (!effectiveJoinName || !joinCode.trim()) {
       return;
     }
     setLoading(true);
-    await onJoin(joinName.trim(), joinCode.trim().toUpperCase());
+    await onJoin(effectiveJoinName, joinCode.trim().toUpperCase());
     setLoading(false);
   };
 
   return (
     <div className="app-shell">
+      {/* User header */}
+      <div className="user-header">
+        {user ? (
+          <button className="user-header__profile" onClick={onProfile} type="button">
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="user-header__avatar" />
+            ) : (
+              <span className="user-header__avatar-placeholder">
+                {(user.nickname || user.email)?.[0]?.toUpperCase() || "?"}
+              </span>
+            )}
+            <span className="user-header__name">{user.nickname || user.email}</span>
+          </button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={onLogin}>
+            Войти
+          </Button>
+        )}
+      </div>
+
       <div className="hero">
         <div className="hero-tag">True or Do</div>
         <h1>Правда или Действие</h1>
@@ -39,20 +63,36 @@ function JoinScreen({ connected, error, onCreate, onJoin }) {
       <div className="join-screen">
         <form className="glass-card" onSubmit={handleCreate}>
           <h2>Создать комнату</h2>
-          <label className="field">
-            <span>Твоё имя</span>
-            <input
-              type="text"
-              value={createName}
-              onChange={(event) => setCreateName(event.target.value)}
-              placeholder="Введите имя"
-            />
-          </label>
+          {user?.nickname ? (
+            <div className="field-info">
+              <span>Играете как</span>
+              <div className="field-user">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="field-user__avatar" />
+                ) : (
+                  <span className="field-user__avatar-placeholder">
+                    {user.nickname[0].toUpperCase()}
+                  </span>
+                )}
+                <span className="field-user__name">{user.nickname}</span>
+              </div>
+            </div>
+          ) : (
+            <label className="field">
+              <span>Твоё имя</span>
+              <input
+                type="text"
+                value={createName}
+                onChange={(event) => setCreateName(event.target.value)}
+                placeholder="Введите имя"
+              />
+            </label>
+          )}
           <PulseButton
             size="lg"
             type="submit"
             loading={loading}
-            disabled={!connected}
+            disabled={!connected || !effectiveCreateName}
             fullWidth
           >
             Создать
@@ -70,21 +110,37 @@ function JoinScreen({ connected, error, onCreate, onJoin }) {
               placeholder="Например: A1B2C3"
             />
           </label>
-          <label className="field">
-            <span>Твоё имя</span>
-            <input
-              type="text"
-              value={joinName}
-              onChange={(event) => setJoinName(event.target.value)}
-              placeholder="Введите имя"
-            />
-          </label>
+          {user?.nickname ? (
+            <div className="field-info">
+              <span>Играете как</span>
+              <div className="field-user">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="field-user__avatar" />
+                ) : (
+                  <span className="field-user__avatar-placeholder">
+                    {user.nickname[0].toUpperCase()}
+                  </span>
+                )}
+                <span className="field-user__name">{user.nickname}</span>
+              </div>
+            </div>
+          ) : (
+            <label className="field">
+              <span>Твоё имя</span>
+              <input
+                type="text"
+                value={joinName}
+                onChange={(event) => setJoinName(event.target.value)}
+                placeholder="Введите имя"
+              />
+            </label>
+          )}
           <Button
             variant="secondary"
             size="md"
             type="submit"
             loading={loading}
-            disabled={!connected}
+            disabled={!connected || !effectiveJoinName}
             fullWidth
           >
             Войти

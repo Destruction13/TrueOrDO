@@ -5,10 +5,15 @@ const path = require("path");
 const http = require("http");
 const express = require("express");
 const cors = require("cors");
+const session = require("express-session");
+const cookieParser = require("cookie-parser");
 const { Server } = require("socket.io");
 const { PrismaClient } = require("@prisma/client");
 const { customAlphabet } = require("nanoid");
 const { getWheelData, pickWheel1, pickWheel2, pickTruthQuestion } = require("./game/wheels");
+const { PrismaSessionStore } = require("./auth/session-store");
+const { createAuthRouter } = require("./auth/routes");
+const { createOAuthRouter } = require("./auth/oauth");
 
 const prisma = new PrismaClient();
 
@@ -17,11 +22,56 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 const ROOM_CODE_LENGTH = 6;
 const MAX_PLAYERS = 20;
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-change-in-production";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 const app = express();
-app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
-app.use(express.json());
 
+// Trust proxy для корректной работы за reverse proxy (Cloudflare, nginx и т.д.)
+app.set("trust proxy", 1);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MIDDLEWARE
+// ═══════════════════════════════════════════════════════════════════════════
+app.use(cors({ 
+  origin: CLIENT_ORIGIN, 
+  credentials: true 
+}));
+app.use(express.json());
+app.use(cookieParser());
+
+// Session store
+const sessionStore = new PrismaSessionStore(prisma, {
+  ttl: 7 * 24 * 60 * 60 * 1000 // 7 дней
+});
+
+// Session middleware
+const sessionMiddleware = session({
+  name: "sid",
+  secret: SESSION_SECRET,
+  store: sessionStore,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: IS_PRODUCTION ? "strict" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 дней
+  }
+});
+
+app.use(sessionMiddleware);
+
+// Static files for avatars
+const uploadsDir = path.join(__dirname, "..", "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadsDir));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API ROUTES
+// ═══════════════════════════════════════════════════════════════════════════
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
@@ -30,20 +80,50 @@ app.get("/api/wheels", (req, res) => {
   res.json(getWheelData());
 });
 
+// Auth routes
+app.use("/api", createAuthRouter(prisma, sessionStore));
+
+// OAuth routes (Discord, Google)
+app.use("/api", createOAuthRouter(prisma));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATIC FILES (Client)
+// ═══════════════════════════════════════════════════════════════════════════
 const clientDist = path.join(__dirname, "..", "..", "client", "dist");
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
-  app.get("*", (req, res) => {
+  app.get("*", (req, res, next) => {
+    // Не перехватываем API и uploads
+    if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
+      return next();
+    }
     res.sendFile(path.join(clientDist, "index.html"));
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SOCKET.IO
+// ═══════════════════════════════════════════════════════════════════════════
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: CLIENT_ORIGIN,
     credentials: true
   }
+});
+
+// Интеграция session с Socket.IO
+io.use((socket, next) => {
+  sessionMiddleware(socket.request, {}, next);
+});
+
+// Добавляем userId в socket.data если авторизован
+io.use((socket, next) => {
+  const session = socket.request.session;
+  if (session && session.userId) {
+    socket.data.userId = session.userId;
+  }
+  next();
 });
 
 const makeRoomCode = customAlphabet(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
@@ -385,6 +465,17 @@ io.on("connection", (socket) => {
       }
       return;
     }
+    
+    // Получаем avatarUrl если пользователь авторизован
+    let avatarUrl = null;
+    if (socket.data.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: socket.data.userId },
+        select: { avatarUrl: true }
+      });
+      avatarUrl = user?.avatarUrl || null;
+    }
+    
     const code = await generateRoomCode();
     const settings = getDefaultSettings();
 
@@ -398,7 +489,8 @@ io.on("connection", (socket) => {
     const player = await prisma.player.create({
       data: {
         roomId: room.id,
-        name
+        name,
+        avatarUrl
       }
     });
     await prisma.room.update({
@@ -451,10 +543,21 @@ io.on("connection", (socket) => {
     const takenNames = players.map((player) => player.name.toLowerCase());
     const finalName = makeUniqueName(name, takenNames);
 
+    // Получаем avatarUrl если пользователь авторизован
+    let avatarUrl = null;
+    if (socket.data.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: socket.data.userId },
+        select: { avatarUrl: true }
+      });
+      avatarUrl = user?.avatarUrl || null;
+    }
+
     const player = await prisma.player.create({
       data: {
         roomId: room.id,
-        name: finalName
+        name: finalName,
+        avatarUrl
       }
     });
 

@@ -2,6 +2,12 @@
 import { io } from "socket.io-client";
 import JoinScreen from "./components/JoinScreen";
 import RoomScreen from "./components/RoomScreen";
+import AuthScreen from "./components/auth/AuthScreen";
+import ProfileScreen from "./components/auth/ProfileScreen";
+import VerifyEmail from "./components/auth/VerifyEmail";
+import ResetPassword from "./components/auth/ResetPassword";
+import EmailVerifyBanner from "./components/auth/EmailVerifyBanner";
+import { useAuth } from "./context/AuthContext";
 
 const socket = io(import.meta.env.VITE_SERVER_URL || "/", {
   autoConnect: false
@@ -11,10 +17,37 @@ const socket = io(import.meta.env.VITE_SERVER_URL || "/", {
 let isLeavingRoom = false;
 
 // DEBUG: Логирование
-const DEBUG = true;
+const DEBUG = false; // Отключаем для продакшена
 const log = (...args) => DEBUG && console.log("[App]", ...args);
 
+// Простой роутинг по URL
+function getRoute() {
+  const path = window.location.pathname;
+  const params = new URLSearchParams(window.location.search);
+  
+  if (path === "/verify-email" || params.has("verify")) {
+    return { page: "verify-email", token: params.get("token") || params.get("verify") };
+  }
+  if (path === "/reset-password" || params.has("reset")) {
+    return { page: "reset-password", token: params.get("token") || params.get("reset") };
+  }
+  if (path === "/profile") {
+    return { page: "profile" };
+  }
+  if (path === "/login" || path === "/register") {
+    return { page: "auth" };
+  }
+  return { page: "game" };
+}
+
+function navigate(path) {
+  window.history.pushState({}, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
 function App() {
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const [route, setRoute] = useState(getRoute);
   const [connected, setConnected] = useState(false);
   const [roomState, setRoomState] = useState(null);
   const [meId, setMeId] = useState(null);
@@ -24,6 +57,13 @@ function App() {
   const [wheel2Spin, setWheel2Spin] = useState({ index: null, spinning: false, tick: 0 });
   const [voteCounts, setVoteCounts] = useState({ approve: 0, report: 0, total: 0, eligibleCount: 0 });
   const [myVote, setMyVote] = useState(null);
+
+  // Обработка изменения URL
+  useEffect(() => {
+    const handlePopState = () => setRoute(getRoute());
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     socket.connect();
@@ -323,30 +363,95 @@ function App() {
     []
   );
 
-  if (!roomState) {
+  // Показываем загрузку пока проверяем авторизацию
+  if (authLoading) {
     return (
-      <JoinScreen
-        connected={connected}
-        error={error}
-        onCreate={actions.createRoom}
-        onJoin={actions.joinRoom}
+      <div className="app-loading">
+        <div className="app-loading__spinner" />
+        <p>Загрузка...</p>
+      </div>
+    );
+  }
+
+  // Роутинг для auth страниц (доступны всем)
+  if (route.page === "verify-email") {
+    return (
+      <VerifyEmail
+        token={route.token}
+        onSuccess={() => navigate("/")}
+        onBack={() => navigate("/")}
       />
     );
   }
 
+  if (route.page === "reset-password") {
+    return (
+      <ResetPassword
+        token={route.token}
+        onSuccess={() => navigate("/login")}
+        onBack={() => navigate("/login")}
+      />
+    );
+  }
+
+  if (route.page === "auth") {
+    // Если уже авторизован — редирект на главную
+    if (isAuthenticated) {
+      navigate("/");
+      return null;
+    }
+    return (
+      <AuthScreen onSuccess={() => navigate("/")} />
+    );
+  }
+
+  if (route.page === "profile") {
+    // Профиль требует авторизации
+    if (!isAuthenticated) {
+      navigate("/login");
+      return null;
+    }
+    return (
+      <ProfileScreen onBack={() => navigate("/")} />
+    );
+  }
+
+  // Основная игра
+  if (!roomState) {
+    return (
+      <>
+        {/* Баннер верификации email */}
+        <EmailVerifyBanner />
+        <JoinScreen
+          connected={connected}
+          error={error}
+          onCreate={actions.createRoom}
+          onJoin={actions.joinRoom}
+          user={user}
+          onProfile={() => navigate("/profile")}
+          onLogin={() => navigate("/login")}
+        />
+      </>
+    );
+  }
+
   return (
-    <RoomScreen
-      connected={connected}
-      error={error}
-      meId={meId}
-      roomState={roomState}
-      timerRemaining={timerRemaining}
-      voteCounts={voteCounts}
-      myVote={myVote}
-      wheel1Spin={wheel1Spin}
-      wheel2Spin={wheel2Spin}
-      actions={actions}
-    />
+    <>
+      {/* Баннер верификации email */}
+      <EmailVerifyBanner />
+      <RoomScreen
+        connected={connected}
+        error={error}
+        meId={meId}
+        roomState={roomState}
+        timerRemaining={timerRemaining}
+        voteCounts={voteCounts}
+        myVote={myVote}
+        wheel1Spin={wheel1Spin}
+        wheel2Spin={wheel2Spin}
+        actions={actions}
+      />
+    </>
   );
 }
 

@@ -1,0 +1,49 @@
+.email-verify-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: linear-gradient(90deg, rgba(255, 200, 50, 0.15), rgba(255, 150, 50, 0.1));
+  border-bottom: 1px solid rgba(255, 200, 50, 0.25);
+}
+
+.email-verify-banner__icon {
+  font-size: 1.1rem;
+}
+
+.email-verify-banner__text {
+  flex: 1;
+  color: #ffc832;
+  font-size: 0.9rem;
+}
+
+.email-verify-banner__button {
+  background: rgba(255, 200, 50, 0.2);
+  border: 1px solid rgba(255, 200, 50, 0.4);
+  border-radius: 6px;
+  padding: 8px 16px;
+  color: #ffc832;
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.email-verify-banner__button:hover:not(:disabled) {
+  background: rgba(255, 200, 50, 0.3);
+  border-color: rgba(255, 200, 50, 0.6);
+}
+
+.email-verify-banner__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.email-verify-banner__message {
+  width: 100%;
+  font-size: 0.8rem;
+  color: rgba(255, 200, 50, 0.9);
+}

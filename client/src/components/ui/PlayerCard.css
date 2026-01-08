@@ -1,0 +1,286 @@
+/* ==========================================================================
+   PlayerCard V2 — Красивые карточки игроков в стиле 21st.dev
+   ========================================================================== */
+
+.player-card-v2 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  min-height: 80px;
+  background: rgba(12, 20, 40, 0.6);
+  border: 1px solid rgba(46, 230, 255, 0.15);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+  overflow: visible;
+}
+
+.player-card-v2:hover {
+  background: rgba(12, 20, 40, 0.8);
+  border-color: rgba(46, 230, 255, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Текущий игрок — яркая подсветка */
+.player-card-v2--current {
+  background: rgba(46, 230, 255, 0.08);
+  border-color: rgba(46, 230, 255, 0.4);
+  box-shadow: 
+    0 0 20px rgba(46, 230, 255, 0.15),
+    0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.player-card-v2--current:hover {
+  border-color: rgba(46, 230, 255, 0.5);
+}
+
+/* Glow effect */
+.player-card-v2__glow {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at center,
+    rgba(46, 230, 255, 0.15) 0%,
+    transparent 50%
+  );
+  animation: glow-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* Я - лёгкая зелёная рамка */
+.player-card-v2--me {
+  border-color: rgba(124, 255, 107, 0.3);
+}
+
+.player-card-v2--me:hover {
+  border-color: rgba(124, 255, 107, 0.5);
+}
+
+/* Дисквалифицирован */
+.player-card-v2--dq {
+  opacity: 0.6;
+  border-color: rgba(255, 107, 107, 0.2);
+}
+
+.player-card-v2--dq:hover {
+  opacity: 0.8;
+  border-color: rgba(255, 107, 107, 0.3);
+}
+
+/* --------------------------------------------------------------------------
+   Avatar
+   -------------------------------------------------------------------------- */
+.player-card-v2__avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.player-card-v2__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(46, 230, 255, 0.3);
+  transition: border-color 0.3s ease;
+}
+
+.player-card-v2--current .player-card-v2__avatar {
+  border-color: rgba(46, 230, 255, 0.6);
+  box-shadow: 0 0 12px rgba(46, 230, 255, 0.3);
+}
+
+.player-card-v2__avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.25), rgba(124, 255, 107, 0.2));
+  border: 2px solid rgba(46, 230, 255, 0.3);
+  font-family: "Orbitron", sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  transition: all 0.3s ease;
+}
+
+.player-card-v2--current .player-card-v2__avatar-placeholder {
+  border-color: rgba(46, 230, 255, 0.6);
+  box-shadow: 0 0 12px rgba(46, 230, 255, 0.3);
+}
+
+/* Status dot */
+.player-card-v2__status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(12, 20, 40, 0.9);
+  transition: background 0.3s ease;
+  background: #555;
+}
+
+.player-card-v2__status-dot.active {
+  background: #7cff6b;
+  box-shadow: 0 0 8px rgba(124, 255, 107, 0.5);
+}
+
+.player-card-v2__status-dot.disqualified {
+  background: #ff6b6b;
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+}
+
+/* Crown for host */
+.player-card-v2__crown {
+  position: absolute;
+  top: -8px;
+  right: -4px;
+  font-size: 16px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  animation: crown-float 2s ease-in-out infinite;
+}
+
+@keyframes crown-float {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-3px) rotate(5deg); }
+}
+
+/* --------------------------------------------------------------------------
+   Info
+   -------------------------------------------------------------------------- */
+.player-card-v2__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-card-v2__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-card-v2__me-tag {
+  padding: 2px 8px;
+  background: rgba(124, 255, 107, 0.2);
+  border: 1px solid rgba(124, 255, 107, 0.3);
+  border-radius: 999px;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7cff6b;
+}
+
+.player-card-v2__meta {
+  margin-top: 4px;
+}
+
+/* Strikes */
+.player-card-v2__strikes {
+  display: flex;
+  gap: 4px;
+}
+
+.player-card-v2__strike {
+  font-size: 0.7rem;
+  color: rgba(255, 107, 107, 0.3);
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.player-card-v2__strike.active {
+  color: #ff6b6b;
+  transform: scale(1.2);
+  text-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+}
+
+/* DQ label */
+.player-card-v2__dq-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #ff6b6b;
+}
+
+/* --------------------------------------------------------------------------
+   Kick Button
+   -------------------------------------------------------------------------- */
+.player-card-v2__kick {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 50%;
+  color: #ff6b6b;
+  font-size: 0.7rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.player-card-v2:hover .player-card-v2__kick {
+  opacity: 1;
+}
+
+.player-card-v2__kick:hover {
+  background: rgba(255, 107, 107, 0.3);
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
+/* --------------------------------------------------------------------------
+   Current Badge
+   -------------------------------------------------------------------------- */
+.player-card-v2__current-badge {
+  position: absolute;
+  top: -1px;
+  right: 16px;
+  padding: 4px 12px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-3));
+  border-radius: 0 0 8px 8px;
+  font-size: 0.6rem;
+  font-family: "Orbitron", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #041018;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(46, 230, 255, 0.3);
+}
+
+/* --------------------------------------------------------------------------
+   Grid Layout Update
+   -------------------------------------------------------------------------- */
+.player-grid-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (min-width: 1200px) {
+  .player-grid-v2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

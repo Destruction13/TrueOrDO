@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import CategorySelector from "./CategorySelector";
 import ScenarioReel from "./ScenarioReel";
 import Button from "./ui/Button";
 import LeaveButton from "./ui/LeaveButton";
+import PlayerCard from "./ui/PlayerCard";
 
 function formatTimer(seconds) {
   if (seconds == null || Number.isNaN(seconds)) {
@@ -164,47 +166,27 @@ function RoomScreen({
         <section className="panel players-panel">
           <div className="panel-header">
             <h2>Игроки</h2>
-            <p>Статусы и страйки синхронизируются в реальном времени.</p>
           </div>
-          <div className="player-grid">
-            {players.map((player) => (
-              <div key={player.id} className={`player-card ${player.status}`}>
-                <div className="player-name">
-                  {player.name}
-                  {player.id === room.hostId ? <span className="tag">Ведущий</span> : null}
-                </div>
-                <div className="player-meta">
-                  <span>
-                    Статус:{" "}
-                    {player.status === "active"
-                      ? "активен"
-                      : player.status === "disqualified"
-                      ? "дисквалифицирован"
-                      : player.status}
-                  </span>
-                  <span>Страйки: {player.strikes}/2</span>
-                </div>
-                {player.status === "disqualified" ? (
-                  <div className="player-warning">Не участвует в следующем ходе</div>
-                ) : null}
-                {isHost && player.id !== meId ? (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => actions.kickPlayer(player.id)}
-                  >
-                    Удалить
-                  </Button>
-                ) : null}
-              </div>
-            ))}
+          <div className="player-grid-v2">
+            <AnimatePresence mode="popLayout">
+              {players.map((player) => (
+                <PlayerCard
+                  key={player.id}
+                  player={player}
+                  isHost={player.id === room.hostId}
+                  isMe={player.id === meId}
+                  isCurrent={round?.currentPlayerId === player.id}
+                  showKickButton={isHost && player.id !== meId}
+                  onKick={actions.kickPlayer}
+                />
+              ))}
+            </AnimatePresence>
           </div>
         </section>
 
         <section className="panel round-panel">
           <div className="panel-header">
             <h2>Раунд</h2>
-            <p>Крутите колеса, выполняйте задание и голосуйте.</p>
           </div>
 
           <div className="round-info">
@@ -221,10 +203,6 @@ function RoomScreen({
                   ? "Действие"
                   : "—"}
               </div>
-            </div>
-            <div>
-              <div className="label">Фаза</div>
-              <div className="value">{phase || "ожидание"}</div>
             </div>
           </div>
 

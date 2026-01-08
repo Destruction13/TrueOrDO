@@ -2,13 +2,16 @@
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import ShaderBackground from "./components/ShaderBackground";
+import { AuthProvider } from "./context/AuthContext";
 import "./styles/index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    {/* Фоновый шейдер - z-index: -10, pointer-events: none */}
-    <ShaderBackground />
-    {/* Основной UI поверх шейдера */}
-    <App />
+    <AuthProvider>
+      {/* Фоновый шейдер - z-index: -10, pointer-events: none */}
+      <ShaderBackground />
+      {/* Основной UI поверх шейдера */}
+      <App />
+    </AuthProvider>
   </React.StrictMode>
 );

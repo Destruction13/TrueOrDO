@@ -1,11 +1,79 @@
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTH MODELS
+// ═══════════════════════════════════════════════════════════════════════════
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String?   // Опционально для OAuth пользователей
+  emailVerifiedAt DateTime?
+  nickname        String?   @unique
+  avatarUrl       String?
+  bio             String?
+  
+  // OAuth провайдеры
+  discordId       String?   @unique
+  googleId        String?   @unique
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions                Session[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  sid       String   @unique
+  userId    String
+  data      String   // JSON session data
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAME MODELS
+// ═══════════════════════════════════════════════════════════════════════════
 
 model Room {
   id        String   @id @default(cuid())
@@ -22,6 +90,7 @@ model Player {
   id        String   @id @default(cuid())
   roomId    String
   name      String
+  avatarUrl String?
   status    String   @default("active")
   strikes   Int      @default(0)
   joinedAt  DateTime @default(now())

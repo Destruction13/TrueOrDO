@@ -124,8 +124,145 @@ select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(46, 230, 255, 0.2);
 }
+
+/* Field info - показ авторизованного пользователя */
+.field-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.field-info > span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(234, 242, 255, 0.6);
+}
+
+.field-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(46, 230, 255, 0.08);
+  border: 1px solid rgba(46, 230, 255, 0.25);
+  border-radius: 12px;
+}
+
+.field-user__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(46, 230, 255, 0.4);
+}
+
+.field-user__avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.3), rgba(124, 255, 107, 0.3));
+  color: var(--text);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.field-user__name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
 /* Legacy .btn styles removed - now using Button design system component */
 /* See: client/src/components/ui/Button.css */
+
+/* ==========================================================================
+   App Loading
+   ========================================================================== */
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 16px;
+  color: var(--text);
+}
+
+.app-loading__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(46, 230, 255, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: app-spin 0.8s linear infinite;
+}
+
+@keyframes app-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   User Header
+   ========================================================================== */
+.user-header {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+}
+
+.user-header__profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 6px;
+  background: rgba(4, 16, 24, 0.7);
+  border: 1px solid rgba(46, 230, 255, 0.25);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-header__profile:hover {
+  background: rgba(4, 16, 24, 0.9);
+  border-color: rgba(46, 230, 255, 0.4);
+}
+
+.user-header__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-header__avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(46, 230, 255, 0.2);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.user-header__name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .status-bar {
   display: flex;
   justify-content: space-between;
