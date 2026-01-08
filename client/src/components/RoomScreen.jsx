@@ -1,6 +1,8 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CategorySelector from "./CategorySelector";
 import ScenarioReel from "./ScenarioReel";
+import Button from "./ui/Button";
+import LeaveButton from "./ui/LeaveButton";
 
 function formatTimer(seconds) {
   if (seconds == null || Number.isNaN(seconds)) {
@@ -26,6 +28,8 @@ function RoomScreen({
   const { room, players, round, content } = roomState;
   const [selectedPlayerId, setSelectedPlayerId] = useState("");
   const [categoryReady, setCategoryReady] = useState(false);
+  const [taskAccepted, setTaskAccepted] = useState(false);
+  const pendingCategoryIdRef = useRef(null);
 
   useEffect(() => {
     if (selectedPlayerId && !players.some((player) => player.id === selectedPlayerId)) {
@@ -46,12 +50,41 @@ function RoomScreen({
   useEffect(() => {
     if (!round || !isDare || !round.wheel1Id) {
       setCategoryReady(false);
+      pendingCategoryIdRef.current = null;
       return;
     }
-    const delay = wheel1Spin.index != null ? 220 : 0;
-    const timeoutId = window.setTimeout(() => setCategoryReady(true), delay);
-    return () => window.clearTimeout(timeoutId);
-  }, [round?.id, round?.wheel1Id, isDare, wheel1Spin.index]);
+    pendingCategoryIdRef.current = round.wheel1Id;
+  }, [round?.id, round?.wheel1Id, isDare]);
+
+  useEffect(() => {
+    if (wheel1Spin.spinning) {
+      setCategoryReady(false);
+    }
+  }, [wheel1Spin.spinning]);
+
+  useEffect(() => {
+    if (
+      !round ||
+      !isDare ||
+      !round.wheel1Id ||
+      wheel1Spin.spinning ||
+      categoryReady ||
+      wheel1Spin.tick !== 0
+    ) {
+      return;
+    }
+    setCategoryReady(true);
+  }, [
+    categoryReady,
+    isDare,
+    round?.wheel1Id,
+    wheel1Spin.spinning,
+    wheel1Spin.tick
+  ]);
+
+  useEffect(() => {
+    setTaskAccepted(false);
+  }, [round?.id, round?.wheel2Id]);
 
   const categories = content?.categories || [];
   const selectedCategory = categories.find((category) => category.id === round?.wheel1Id);
@@ -65,7 +98,8 @@ function RoomScreen({
         phase === "voting" ||
         phase === "complete")
   );
-  const showScenarioReel = showDareFlow && round?.wheel1Id && categoryReady;
+  const hasScenarioItems = wheel2Items.length > 0;
+  const showScenarioReel = showDareFlow && round?.wheel1Id && categoryReady && hasScenarioItems;
 
   const canStartRound = isHost && (!round || round.phase === "complete");
   const canPickMode = round && phase === "mode" && (isMeCurrent || isHost);
@@ -95,11 +129,19 @@ function RoomScreen({
   }, [round?.result]);
 
   const handleStartTask = useCallback(() => {
+    setTaskAccepted(true);
     if (!canResetTimer) {
       return;
     }
     actions.resetTimer();
   }, [actions, canResetTimer]);
+
+  const handleCategoryReveal = useCallback((revealedId) => {
+    if (!revealedId || revealedId !== pendingCategoryIdRef.current) {
+      return;
+    }
+    setCategoryReady(true);
+  }, []);
 
   return (
     <div className="app-shell">
@@ -115,6 +157,7 @@ function RoomScreen({
           <span className="pill">{players.length}/20 игроков</span>
           {isHost ? <span className="pill accent">Ведущий</span> : null}
         </div>
+        <LeaveButton onLeave={actions.leaveRoom} />
       </header>
 
       <main className="room-layout">
@@ -145,13 +188,13 @@ function RoomScreen({
                   <div className="player-warning">Не участвует в следующем ходе</div>
                 ) : null}
                 {isHost && player.id !== meId ? (
-                  <button
-                    className="btn tiny ghost"
-                    type="button"
+                  <Button
+                    variant="danger"
+                    size="sm"
                     onClick={() => actions.kickPlayer(player.id)}
                   >
                     Удалить
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             ))}
@@ -206,9 +249,9 @@ function RoomScreen({
                   ))}
                 </select>
               </div>
-              <button className="btn primary" type="button" onClick={() => actions.startRound(selectedPlayerId || null)}>
+              <Button variant="primary" size="md" onClick={() => actions.startRound(selectedPlayerId || null)}>
                 Старт раунда
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -223,14 +266,12 @@ function RoomScreen({
               <div className="stage-title">Выбор режима</div>
               {canPickMode ? (
                 <div className="stage-actions">
-                  <button className="btn primary" type="button" onClick={() => actions.setMode("truth")}
-                  >
+                  <Button variant="primary" size="md" onClick={() => actions.setMode("truth")}>
                     Правда
-                  </button>
-                  <button className="btn ghost" type="button" onClick={() => actions.setMode("dare")}
-                  >
+                  </Button>
+                  <Button variant="secondary" size="md" onClick={() => actions.setMode("dare")}>
                     Действие
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <div className="round-hint">Ждём выбора от {currentPlayer?.name || "игрока"}.</div>
@@ -243,20 +284,22 @@ function RoomScreen({
               <div className="dare-block">
                 <CategorySelector
                   categories={categories}
-                  activeId={round?.wheel1Id}
+                  activeId={categoryReady ? round?.wheel1Id : null}
+                  targetId={round?.wheel1Id}
                   spinning={wheel1Spin.spinning}
                   spinTick={wheel1Spin.tick}
+                  onReveal={handleCategoryReveal}
                 />
                 {phase === "wheel1" ? (
                   canSpinWheel1 ? (
-                    <button
-                      className="btn primary"
-                      type="button"
+                    <Button
+                      variant="primary"
+                      size="md"
                       onClick={actions.spinWheel1}
                       disabled={wheel1Spin.spinning}
                     >
                       Выбрать категорию
-                    </button>
+                    </Button>
                   ) : (
                     <div className="round-hint">
                       Ждём выбора от {currentPlayer?.name || "игрока"}.
@@ -282,14 +325,14 @@ function RoomScreen({
                   )}
                   {phase === "wheel2" ? (
                     canSpinWheel2 ? (
-                      <button
-                        className="btn primary"
-                        type="button"
+                      <Button
+                        variant="primary"
+                        size="md"
                         onClick={actions.spinWheel2}
                         disabled={wheel2Spin.spinning}
                       >
                         Запустить ленту
-                      </button>
+                      </Button>
                     ) : (
                       <div className="round-hint">
                         Ждём запуска от {currentPlayer?.name || "игрока"}.
@@ -301,7 +344,9 @@ function RoomScreen({
             </div>
           ) : null}
 
-          {round && (phase === "task" || phase === "voting" || phase === "complete") ? (
+          {round &&
+              (phase === "task" || phase === "voting" || phase === "complete") &&
+              (isTruth || taskAccepted) ? (
             <div className="task-card">
               <div className="task-header">
                 <div>
@@ -312,13 +357,13 @@ function RoomScreen({
               </div>
               {canMarkDone ? (
                 <div className="stage-actions">
-                  <button className="btn ghost" type="button" onClick={actions.markDone}>
+                  <Button variant="primary" size="md" onClick={actions.markDone}>
                     {isTruth ? "Ответил" : "Я сделал"}
-                  </button>
+                  </Button>
                   {isTruth ? (
-                    <button className="btn ghost" type="button" onClick={actions.refuseTruth}>
+                    <Button variant="ghost" size="md" onClick={actions.refuseTruth}>
                       Отказываюсь
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               ) : null}
@@ -344,22 +389,22 @@ function RoomScreen({
                 </div>
               ) : null}
               <div className="stage-actions">
-                <button
-                  className="btn primary"
-                  type="button"
+                <Button
+                  variant="primary"
+                  size="md"
                   disabled={!canVote}
                   onClick={() => actions.castVote("approve")}
                 >
                   Засчитано
-                </button>
-                <button
-                  className="btn ghost"
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="md"
                   disabled={!canVote}
                   onClick={() => actions.castVote("report")}
                 >
                   Репорт
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
@@ -374,16 +419,16 @@ function RoomScreen({
           {isHost ? (
             <div className="admin-actions">
               {canResetTimer ? (
-                <button className="btn ghost" type="button" onClick={actions.resetTimer}>
+                <Button variant="ghost" size="sm" onClick={actions.resetTimer}>
                   Сбросить таймер
-                </button>
+                </Button>
               ) : null}
-              <button className="btn ghost" type="button" onClick={actions.skipRound}>
+              <Button variant="ghost" size="sm" onClick={actions.skipRound}>
                 Пропустить раунд
-              </button>
-              <button className="btn ghost" type="button" onClick={actions.resetRoom}>
+              </Button>
+              <Button variant="danger" size="sm" onClick={actions.resetRoom}>
                 Сбросить комнату
-              </button>
+              </Button>
             </div>
           ) : null}
 

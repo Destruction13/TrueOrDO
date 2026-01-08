@@ -1,0 +1,243 @@
+/* ==========================================================================
+   PulseButton — Премиальная кнопка с эффектом бегущих лучей
+   ========================================================================== */
+
+.pulse-btn {
+  /* Reset */
+  appearance: none;
+  border: none;
+  background: none;
+  margin: 0;
+  padding: 0;
+  
+  /* Layout */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* Sizing — должны совпадать с SVG */
+  --pulse-width-sm: 140px;
+  --pulse-height-sm: 36px;
+  --pulse-width-md: 180px;
+  --pulse-height-md: 44px;
+  --pulse-width-lg: 220px;
+  --pulse-height-lg: 52px;
+  
+  width: var(--pulse-width-md);
+  height: var(--pulse-height-md);
+  
+  /* Typography */
+  font-family: "Orbitron", "Space Grotesk", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  color: #041018;
+  
+  /* Interaction */
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  
+  /* Transitions */
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* --------------------------------------------------------------------------
+   Size Variants
+   -------------------------------------------------------------------------- */
+.pulse-btn--sm {
+  width: var(--pulse-width-sm);
+  height: var(--pulse-height-sm);
+  font-size: 11px;
+}
+
+.pulse-btn--lg {
+  width: var(--pulse-width-lg);
+  height: var(--pulse-height-lg);
+  font-size: 15px;
+}
+
+.pulse-btn--full {
+  width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   SVG Layer (бегущие лучи) — растягивается на всю кнопку
+   -------------------------------------------------------------------------- */
+.pulse-btn__svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   Background Layer
+   -------------------------------------------------------------------------- */
+.pulse-btn__bg {
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #2ee6ff, #7cff6b);
+  box-shadow: 
+    0 4px 20px rgba(46, 230, 255, 0.4),
+    0 8px 40px rgba(46, 230, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: box-shadow 200ms ease;
+}
+
+.pulse-btn:hover:not(:disabled) .pulse-btn__bg {
+  box-shadow: 
+    0 6px 28px rgba(46, 230, 255, 0.5),
+    0 12px 50px rgba(46, 230, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   Glow Effect (hover sweep)
+   -------------------------------------------------------------------------- */
+.pulse-btn__glow {
+  position: absolute;
+  inset: 1px;
+  z-index: 2;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.2) 45%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.2) 55%,
+    transparent 80%
+  );
+  background-size: 250% 100%;
+  background-position: 100% 0;
+  transition: opacity 150ms ease;
+}
+
+.pulse-btn:hover:not(:disabled) .pulse-btn__glow {
+  opacity: 1;
+  animation: pulse-glow-sweep 0.6s ease forwards;
+}
+
+@keyframes pulse-glow-sweep {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -50% 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Content Layer
+   -------------------------------------------------------------------------- */
+.pulse-btn__content {
+  position: relative;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 150ms ease;
+}
+
+.pulse-btn__text {
+  display: inline-flex;
+  align-items: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* --------------------------------------------------------------------------
+   Active State (press effect)
+   -------------------------------------------------------------------------- */
+.pulse-btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.pulse-btn:active:not(:disabled) .pulse-btn__bg {
+  box-shadow: 
+    0 2px 12px rgba(46, 230, 255, 0.4),
+    0 4px 20px rgba(46, 230, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* --------------------------------------------------------------------------
+   Disabled State
+   -------------------------------------------------------------------------- */
+.pulse-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.pulse-btn:disabled .pulse-btn__svg path[stroke^="url"] {
+  animation: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Focus Visible (доступность)
+   -------------------------------------------------------------------------- */
+.pulse-btn:focus {
+  outline: none;
+}
+
+.pulse-btn:focus-visible {
+  outline: 2px solid #2ee6ff;
+  outline-offset: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   Loading State
+   -------------------------------------------------------------------------- */
+.pulse-btn--loading .pulse-btn__content {
+  opacity: 0;
+}
+
+.pulse-btn__spinner {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pulse-btn__spinner svg {
+  width: 1.4em;
+  height: 1.4em;
+  animation: pulse-spin 0.8s linear infinite;
+}
+
+@keyframes pulse-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* --------------------------------------------------------------------------
+   Reduced Motion
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-btn,
+  .pulse-btn__bg,
+  .pulse-btn__glow,
+  .pulse-btn__content,
+  .pulse-btn__spinner svg {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  
+  .pulse-btn__svg path,
+  .pulse-btn__svg linearGradient {
+    animation: none !important;
+  }
+}

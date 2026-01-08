@@ -7,6 +7,13 @@ const socket = io(import.meta.env.VITE_SERVER_URL || "/", {
   autoConnect: false
 });
 
+// Флаг для предотвращения обновления состояния после выхода
+let isLeavingRoom = false;
+
+// DEBUG: Логирование
+const DEBUG = true;
+const log = (...args) => DEBUG && console.log("[App]", ...args);
+
 function App() {
   const [connected, setConnected] = useState(false);
   const [roomState, setRoomState] = useState(null);
@@ -33,6 +40,13 @@ function App() {
     socket.on("disconnect", handleDisconnect);
 
     socket.on("room:state", (state) => {
+      log("room:state received, isLeavingRoom:", isLeavingRoom, "state:", state?.room?.code);
+      // Игнорируем обновления если мы в процессе выхода
+      if (isLeavingRoom) {
+        log("room:state IGNORED (isLeavingRoom=true)");
+        return;
+      }
+      
       setRoomState(state);
       if (state?.round?.voteCounts) {
         const eligibleCount = state.players?.length
@@ -142,6 +156,26 @@ function App() {
       setError("Вы были удалены ведущим.");
     });
 
+    socket.on("player:left", (payload) => {
+      setRoomState((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          players: prev.players.filter((p) => p.id !== payload.playerId)
+        };
+      });
+    });
+
+    socket.on("room:host_changed", (payload) => {
+      setRoomState((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          hostId: payload.newHostId
+        };
+      });
+    });
+
     return () => {
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
@@ -157,6 +191,8 @@ function App() {
       socket.off("vote:update");
       socket.off("vote:result");
       socket.off("admin:kick");
+      socket.off("player:left");
+      socket.off("room:host_changed");
     };
   }, []);
 
@@ -247,6 +283,41 @@ function App() {
       resetTimer: async () => {
         const response = await emitWithAck("admin:reset_timer", {});
         return handleAck(response);
+      },
+      leaveRoom: async () => {
+        log("leaveRoom() called");
+        
+        // Устанавливаем флаг ДО отправки запроса
+        isLeavingRoom = true;
+        log("isLeavingRoom set to TRUE");
+        
+        // Сбрасываем состояние СРАЗУ, не дожидаясь ответа сервера
+        // Это гарантирует выход на клиенте независимо от сервера
+        log("Setting roomState to null IMMEDIATELY...");
+        setRoomState(null);
+        setMeId(null);
+        setError("");
+        log("State reset complete");
+        
+        // Отправляем запрос на сервер в фоне (fire and forget)
+        try {
+          log("Emitting room:leave (fire and forget)...");
+          // Не ждём ответа, просто отправляем
+          socket.emit("room:leave", {}, (response) => {
+            log("room:leave callback response:", response);
+          });
+        } catch (error) {
+          console.error("leaveRoom emit error:", error);
+          log("leaveRoom emit error:", error);
+        }
+        
+        // Сбрасываем флаг после небольшой задержки
+        setTimeout(() => {
+          isLeavingRoom = false;
+          log("isLeavingRoom set to FALSE");
+        }, 500);
+        
+        return { ok: true };
       }
     }),
     []

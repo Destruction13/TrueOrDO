@@ -555,9 +555,6 @@ function ScenarioReel({
     }
     setOverlayVisible(false);
   }, [spinning]);
-  const handleClose = useCallback(() => {
-    setOverlayVisible(false);
-  }, []);
   useEffect(() => {
     if (!overlayVisible) {
       if (splineRuntimeCleanupRef.current) {
@@ -571,18 +568,6 @@ function ScenarioReel({
       splineSizeLogRef.current = false;
     }
   }, [clearSplinePressState, overlayVisible]);
-  useEffect(() => {
-    if (!overlayVisible) {
-      return;
-    }
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        handleClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [overlayVisible, handleClose]);
   const beginSpin = useCallback(() => {
     if (!trackItems.length || targetTrackIndex == null) {
       return;
@@ -756,10 +741,11 @@ function ScenarioReel({
     selectedItem?.label ||
     selectedItem?.title ||
     "Задание";
+  // Текст задания/сценария для отображения на Spline-карточке
   const descText =
-    selectedItem?.description ||
-    selectedItem?.task ||
     selectedItem?.text ||
+    selectedItem?.description ||
+    selectedItem?.finalText ||
     "";
   useEffect(() => {
     pendingTextRef.current = { title: titleText, desc: descText };
@@ -770,6 +756,10 @@ function ScenarioReel({
       applySplineText(titleText, descText);
     }
   }, [applySplineText, descText, overlayVisible, titleText]);
+  if (!trackItems.length) {
+    return null;
+  }
+
   return (
     <div className={`scenario-reel${isBusy ? " is-spinning" : ""}`}>
       <div className="scenario-reel__header">
@@ -778,42 +768,33 @@ function ScenarioReel({
       </div>
       <div className="reel-viewport" ref={viewportRef}>
         <div className="reel-centerline" aria-hidden="true" />
-        {trackItems.length ? (
-          <div className="reel-track" ref={trackRef}>
-            {trackItems.map((item, index) => {
-              const isSelected =
-                targetTrackIndex != null &&
-                index === targetTrackIndex &&
-                !isBusy;
-              return (
-                <div
-                  key={`${item.id}-${index}`}
-                  className={`reel-card${isSelected ? " is-selected" : ""}`}
-                  style={{ "--card-hue": (index * 34) % 360 }}
-                  onPointerMove={handlePointerMove}
-                  onPointerLeave={handlePointerLeave}
-                >
-                  <div className="reel-card__glow" aria-hidden="true" />
-                  <div className="reel-card__title">
-                    {item.shortTitle || item.label}
-                  </div>
-                  <div className="reel-card__meta">{item.rating || "general"}</div>
+        <div className="reel-track" ref={trackRef}>
+          {trackItems.map((item, index) => {
+            const isSelected =
+              targetTrackIndex != null &&
+              index === targetTrackIndex &&
+              !isBusy;
+            return (
+              <div
+                key={`${item.id}-${index}`}
+                className={`reel-card${isSelected ? " is-selected" : ""}`}
+                style={{ "--card-hue": (index * 34) % 360 }}
+                onPointerMove={handlePointerMove}
+                onPointerLeave={handlePointerLeave}
+              >
+                <div className="reel-card__glow" aria-hidden="true" />
+                <div className="reel-card__title">
+                  {item.shortTitle || item.label}
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="reel-empty">Нет данных для ленты</div>
-        )}
+              </div>
+            );
+          })}
+        </div>
       </div>
       {overlayVisible && selectedItem
         ? createPortal(
             <div className="reel-overlay">
-              <div
-                className="reel-overlay__backdrop"
-                aria-hidden="true"
-                onClick={handleClose}
-              />
+              <div className="reel-overlay__backdrop" aria-hidden="true" />
                 <div
                   className="reel-overlay__stage"
                   onClick={(event) => event.stopPropagation()}

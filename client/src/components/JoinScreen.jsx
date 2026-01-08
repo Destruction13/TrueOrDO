@@ -1,4 +1,6 @@
-﻿import { useState } from "react";
+import { useState } from "react";
+import Button from "./ui/Button";
+import PulseButton from "./ui/PulseButton";
 
 function JoinScreen({ connected, error, onCreate, onJoin }) {
   const [createName, setCreateName] = useState("");
@@ -46,9 +48,15 @@ function JoinScreen({ connected, error, onCreate, onJoin }) {
               placeholder="Введите имя"
             />
           </label>
-          <button className="btn primary" type="submit" disabled={loading || !connected}>
+          <PulseButton
+            size="lg"
+            type="submit"
+            loading={loading}
+            disabled={!connected}
+            fullWidth
+          >
             Создать
-          </button>
+          </PulseButton>
         </form>
 
         <form className="glass-card" onSubmit={handleJoin}>
@@ -71,9 +79,16 @@ function JoinScreen({ connected, error, onCreate, onJoin }) {
               placeholder="Введите имя"
             />
           </label>
-          <button className="btn ghost" type="submit" disabled={loading || !connected}>
+          <Button
+            variant="secondary"
+            size="md"
+            type="submit"
+            loading={loading}
+            disabled={!connected}
+            fullWidth
+          >
             Войти
-          </button>
+          </Button>
         </form>
       </div>
 

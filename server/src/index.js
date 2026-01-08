@@ -986,6 +986,96 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // room:leave — Игрок добровольно покидает комнату
+  // ───────────────────────────────────────────────────────────────────────────
+  socket.on("room:leave", async (payload, ack) => {
+    if (!socket.data.roomId || !socket.data.playerId) {
+      if (ack) {
+        ack({ ok: false, error: "Not in room" });
+      }
+      return;
+    }
+
+    const roomId = socket.data.roomId;
+    const playerId = socket.data.playerId;
+
+    try {
+      const room = await prisma.room.findUnique({ where: { id: roomId } });
+      if (!room) {
+        if (ack) {
+          ack({ ok: false, error: "Room not found" });
+        }
+        return;
+      }
+
+      // Если игрок сейчас выполняет задание — завершаем раунд
+      const activeRound = await prisma.round.findFirst({
+        where: { roomId, endedAt: null },
+        orderBy: { startedAt: "desc" }
+      });
+      if (activeRound && activeRound.currentPlayerId === playerId) {
+        stopTimer(roomId);
+        await prisma.round.update({
+          where: { id: activeRound.id },
+          data: { phase: "complete", result: "skipped", endedAt: new Date() }
+        });
+        io.to(roomId).emit("admin:skip_round", { roundId: activeRound.id });
+      }
+
+      // Удаляем игрока
+      await prisma.player.delete({ where: { id: playerId } });
+      playerSockets.delete(playerId);
+
+      // Покидаем socket.io комнату
+      socket.leave(roomId);
+      socket.data.roomId = null;
+      socket.data.playerId = null;
+
+      // Проверяем, был ли это хост
+      const isHost = room.hostId === playerId;
+      
+      if (isHost) {
+        // Передаём хоста следующему игроку
+        const remainingPlayers = await prisma.player.findMany({
+          where: { roomId },
+          orderBy: { joinedAt: "asc" }
+        });
+
+        if (remainingPlayers.length > 0) {
+          const newHost = remainingPlayers[0];
+          await prisma.room.update({
+            where: { id: roomId },
+            data: { hostId: newHost.id }
+          });
+          io.to(roomId).emit("room:host_changed", { 
+            newHostId: newHost.id, 
+            newHostName: newHost.name 
+          });
+        } else {
+          // Комната пуста — удаляем её
+          stopTimer(roomId);
+          await prisma.vote.deleteMany({ where: { round: { roomId } } });
+          await prisma.round.deleteMany({ where: { roomId } });
+          await prisma.room.delete({ where: { id: roomId } });
+        }
+      }
+
+      // Уведомляем оставшихся игроков
+      io.to(roomId).emit("player:left", { playerId });
+      await emitRoomState(roomId);
+
+      if (ack) {
+        ack({ ok: true });
+      }
+    } catch (error) {
+      console.error("room:leave error:", error);
+      if (ack) {
+        ack({ ok: false, error: "Failed to leave room" });
+      }
+    }
+  });
+
   socket.on("admin:kick", async (payload, ack) => {
     await touchPlayer(socket);
     if (!socket.data.roomId) {
