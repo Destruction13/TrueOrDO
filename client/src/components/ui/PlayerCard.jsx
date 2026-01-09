@@ -13,14 +13,24 @@ export default function PlayerCard({
   onKick,
   showKickButton = false
 }) {
-  const { name, status, strikes, avatarUrl } = player;
+  const { name, status, strikes, avatarUrl, shameTitle, truthStreak = 0, dareStreak = 0 } = player;
   
-  const isDisqualified = status === "disqualified";
+  const isChaos = status === "chaos";
+  const isShamed = status === "shamed";
   const initial = name?.[0]?.toUpperCase() || "?";
+
+  // Build class names
+  const classNames = [
+    "player-card-v2",
+    isChaos && "player-card-v2--chaos",
+    isShamed && "player-card-v2--shamed",
+    isCurrent && "player-card-v2--current",
+    isMe && "player-card-v2--me"
+  ].filter(Boolean).join(" ");
 
   return (
     <motion.div
-      className={`player-card-v2 ${isDisqualified ? "player-card-v2--dq" : ""} ${isCurrent ? "player-card-v2--current" : ""} ${isMe ? "player-card-v2--me" : ""}`}
+      className={classNames}
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -20, scale: 0.95 }}
@@ -58,16 +68,20 @@ export default function PlayerCard({
       {/* Информация */}
       <div className="player-card-v2__info">
         <div className="player-card-v2__name">
-          {name}
+          <span className="player-card-v2__name-text" title={name}>{name}</span>
           {isMe && <span className="player-card-v2__me-tag">Вы</span>}
+          {isChaos && <span className="player-card-v2__chaos-tag">🔥 ХАОС</span>}
+          {isShamed && <span className="player-card-v2__shamed-tag">⏱️ -25%</span>}
         </div>
         
         <div className="player-card-v2__meta">
-          {isDisqualified ? (
-            <span className="player-card-v2__dq-label">Дисквалифицирован</span>
+          {isChaos ? (
+            <span className="player-card-v2__chaos-label">Хаос решает за тебя</span>
+          ) : isShamed && shameTitle ? (
+            <span className="player-card-v2__shame-title">{shameTitle}</span>
           ) : (
             <div className="player-card-v2__strikes">
-              {[0, 1].map((i) => (
+              {[0, 1, 2].map((i) => (
                 <span
                   key={i}
                   className={`player-card-v2__strike ${i < strikes ? "active" : ""}`}
@@ -97,6 +111,34 @@ export default function PlayerCard({
       {isCurrent && (
         <div className="player-card-v2__current-badge">
           <span>Ходит</span>
+        </div>
+      )}
+
+      {/* Streak минибар под карточкой (не показывать для chaos) */}
+      {!isChaos && (
+        <div className="player-card-v2__streak-bar">
+          <div className={`player-card-v2__streak-item player-card-v2__streak-item--truth${truthStreak >= 2 ? " blocked" : ""}`}>
+            <span className="player-card-v2__streak-label">Правда</span>
+            <div className="player-card-v2__streak-dots">
+              {[0, 1].map((i) => (
+                <span 
+                  key={i} 
+                  className={`player-card-v2__streak-dot${i < truthStreak ? " active" : ""}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className={`player-card-v2__streak-item player-card-v2__streak-item--dare${dareStreak >= 2 ? " blocked" : ""}`}>
+            <span className="player-card-v2__streak-label">Действие</span>
+            <div className="player-card-v2__streak-dots">
+              {[0, 1].map((i) => (
+                <span 
+                  key={i} 
+                  className={`player-card-v2__streak-dot${i < dareStreak ? " active" : ""}`}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </motion.div>

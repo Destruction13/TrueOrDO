@@ -57,6 +57,8 @@ function App() {
   const [wheel2Spin, setWheel2Spin] = useState({ index: null, spinning: false, tick: 0 });
   const [voteCounts, setVoteCounts] = useState({ approve: 0, report: 0, total: 0, eligibleCount: 0 });
   const [myVote, setMyVote] = useState(null);
+  const [forcedMode, setForcedMode] = useState(null);
+  const [reelItems, setReelItems] = useState(null);
 
   // Обработка изменения URL
   useEffect(() => {
@@ -147,6 +149,10 @@ function App() {
         spinning: false,
         tick: prev.tick + 1
       }));
+      // Store reelItems for chaos mode
+      if (payload.reelItems) {
+        setReelItems(payload.reelItems);
+      }
       setRoomState((prev) =>
         prev && prev.round
           ? {
@@ -164,11 +170,20 @@ function App() {
     });
 
     socket.on("spin:final", (payload) => {
+      // Track forced mode for chaos players
+      if (payload.forcedMode) {
+        setForcedMode(payload.forcedMode);
+      }
       setRoomState((prev) =>
         prev && prev.round
           ? { ...prev, round: { ...prev.round, finalText: payload.finalText } }
           : prev
       );
+    });
+
+    socket.on("round:mode_forced", (payload) => {
+      // Chaos player's mode was forced by server
+      setForcedMode(payload.mode);
     });
 
     socket.on("vote:update", (payload) => {
@@ -216,6 +231,20 @@ function App() {
       });
     });
 
+    socket.on("player:update_streak", (payload) => {
+      setRoomState((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          players: prev.players.map((p) =>
+            p.id === payload.playerId
+              ? { ...p, truthStreak: payload.truthStreak, dareStreak: payload.dareStreak }
+              : p
+          )
+        };
+      });
+    });
+
     return () => {
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
@@ -233,6 +262,8 @@ function App() {
       socket.off("admin:kick");
       socket.off("player:left");
       socket.off("room:host_changed");
+      socket.off("round:mode_forced");
+      socket.off("player:update_streak");
     };
   }, []);
 
@@ -242,6 +273,8 @@ function App() {
     setVoteCounts({ approve: 0, report: 0, total: 0, eligibleCount: 0 });
     setWheel1Spin({ index: null, spinning: false, tick: 0 });
     setWheel2Spin({ index: null, spinning: false, tick: 0 });
+    setForcedMode(null);
+    setReelItems(null);
   }, [roomState?.round?.id]);
 
   const emitWithAck = (event, payload) =>
@@ -449,6 +482,8 @@ function App() {
         myVote={myVote}
         wheel1Spin={wheel1Spin}
         wheel2Spin={wheel2Spin}
+        forcedMode={forcedMode}
+        reelItems={reelItems}
         actions={actions}
       />
     </>

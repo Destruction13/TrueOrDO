@@ -10,7 +10,7 @@ const cookieParser = require("cookie-parser");
 const { Server } = require("socket.io");
 const { PrismaClient } = require("@prisma/client");
 const { customAlphabet } = require("nanoid");
-const { getWheelData, pickWheel1, pickWheel2, pickTruthQuestion } = require("./game/wheels");
+const { getWheelData, pickWheel1, pickWheel2, pickWheel2ForChaos, pickTruthQuestion, pickChaosTruthQuestion, getRandomShameTitle } = require("./game/wheels");
 const { PrismaSessionStore } = require("./auth/session-store");
 const { createAuthRouter } = require("./auth/routes");
 const { createOAuthRouter } = require("./auth/oauth");
@@ -317,9 +317,9 @@ function selectNextPlayer(players, startIndex, allowDisqualified) {
   for (let offset = 0; offset < total; offset += 1) {
     const idx = (startIndex + offset) % total;
     const candidate = players[idx];
-    if (allowDisqualified || candidate.status === "active") {
-      return { player: candidate, nextIndex: (idx + 1) % total };
-    }
+    // All players can play now - no disqualified status
+    // Status can be "active", "shamed", or "chaos" - all playable
+    return { player: candidate, nextIndex: (idx + 1) % total };
   }
   return null;
 }
@@ -371,27 +371,195 @@ function getMajorityThreshold(eligibleCount) {
 }
 
 async function applyStrike(playerId, roomId) {
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
+  if (!player) {
+    return;
+  }
+  
+  const newStrikes = player.strikes + 1;
+  let newStatus = player.status;
+  let shameTitle = player.shameTitle;
+  let shameClearProgress = player.shameClearProgress;
+  let chaosClearProgress = player.chaosClearProgress;
+  
+  // Determine new status based on strikes
+  if (newStrikes >= 3 && player.status !== "chaos") {
+    // 3+ strikes = chaos mode
+    newStatus = "chaos";
+    chaosClearProgress = 0;
+  } else if (newStrikes >= 2 && player.status === "active") {
+    // 2 strikes = shamed mode (only if coming from active)
+    newStatus = "shamed";
+    shameTitle = getRandomShameTitle();
+    shameClearProgress = 0;
+  }
+  
+  // Reset shamed progress on any strike while in shamed status
+  if (player.status === "shamed") {
+    shameClearProgress = 0;
+  }
+  
   const updated = await prisma.player.update({
     where: { id: playerId },
-    data: { strikes: { increment: 1 } }
+    data: {
+      strikes: newStrikes,
+      status: newStatus,
+      shameTitle,
+      shameClearProgress,
+      chaosClearProgress
+    }
   });
+  
   io.to(roomId).emit("player:strike", { playerId, strikes: updated.strikes });
+  io.to(roomId).emit("player:update_status", {
+    playerId,
+    status: updated.status,
+    shameTitle: updated.shameTitle,
+    shameClearProgress: updated.shameClearProgress,
+    chaosClearProgress: updated.chaosClearProgress
+  });
+}
 
-  if (updated.strikes >= 2 && updated.status !== "disqualified") {
-    const disqualified = await prisma.player.update({
+/**
+ * Update player progress after successful round completion
+ * Called when round ends with "approved" result
+ */
+async function updatePlayerProgress(playerId, roomId, wasReported) {
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
+  if (!player) {
+    console.log("[Progress] Player not found:", playerId);
+    return;
+  }
+  
+  console.log("[Progress] Updating progress for player:", {
+    playerId,
+    status: player.status,
+    wasReported,
+    chaosClearProgress: player.chaosClearProgress,
+    shameClearProgress: player.shameClearProgress
+  });
+  
+  let newStatus = player.status;
+  let shameTitle = player.shameTitle;
+  let shameClearProgress = player.shameClearProgress;
+  let chaosClearProgress = player.chaosClearProgress;
+  let newStrikes = player.strikes;
+  let statusChanged = false;
+  
+  if (player.status === "chaos") {
+    // Chaos player completed a task - increment progress (even if reported, chaos needs to do tasks)
+    // Only increment if NOT reported - reported rounds don't count as completed
+    if (!wasReported) {
+      chaosClearProgress += 1;
+      console.log("[Progress] Chaos player progress incremented to:", chaosClearProgress);
+      if (chaosClearProgress >= 2) {
+        // Clear chaos status - reduce strikes by 1 (worked off one strike)
+        chaosClearProgress = 0;
+        newStrikes = Math.max(player.strikes - 1, 0);
+        // Go to shamed if still has 2+ strikes, otherwise active
+        if (newStrikes >= 2) {
+          newStatus = "shamed";
+          shameTitle = getRandomShameTitle();
+          shameClearProgress = 0;
+          console.log("[Progress] Chaos -> Shamed transition, strikes now:", newStrikes);
+        } else {
+          newStatus = "active";
+          shameTitle = null;
+          console.log("[Progress] Chaos -> Active transition, strikes now:", newStrikes);
+        }
+        statusChanged = true;
+      }
+    } else {
+      console.log("[Progress] Chaos player was reported, no progress");
+    }
+  } else if (player.status === "shamed") {
+    if (wasReported) {
+      // Reset progress on report
+      shameClearProgress = 0;
+      console.log("[Progress] Shamed player reported, progress reset");
+    } else {
+      // Success - increment progress
+      shameClearProgress += 1;
+      console.log("[Progress] Shamed player progress incremented to:", shameClearProgress);
+      if (shameClearProgress >= 2) {
+        // Clear shamed status - fully reset strikes (player redeemed themselves)
+        newStatus = "active";
+        shameTitle = null;
+        shameClearProgress = 0;
+        newStrikes = 0;
+        statusChanged = true;
+        console.log("[Progress] Shamed -> Active transition, strikes reset to 0");
+      }
+    }
+  } else {
+    console.log("[Progress] Player status is", player.status, "- no progress tracking");
+  }
+  
+  if (statusChanged || shameClearProgress !== player.shameClearProgress || chaosClearProgress !== player.chaosClearProgress || newStrikes !== player.strikes) {
+    console.log("[Progress] Saving changes:", { newStatus, chaosClearProgress, shameClearProgress, newStrikes });
+    const updated = await prisma.player.update({
       where: { id: playerId },
-      data: { status: "disqualified" }
+      data: {
+        status: newStatus,
+        shameTitle,
+        shameClearProgress,
+        chaosClearProgress,
+        strikes: newStrikes
+      }
     });
+    
     io.to(roomId).emit("player:update_status", {
       playerId,
-      status: disqualified.status
+      status: updated.status,
+      shameTitle: updated.shameTitle,
+      shameClearProgress: updated.shameClearProgress,
+      chaosClearProgress: updated.chaosClearProgress,
+      strikes: updated.strikes
     });
+  } else {
+    console.log("[Progress] No changes to save");
   }
 }
 
+/**
+ * Update player streak counters after round completion
+ * truthStreak increments on truth, resets dareStreak
+ * dareStreak increments on dare, resets truthStreak
+ */
+async function updatePlayerStreak(playerId, roomId, mode) {
+  if (!playerId || !mode) return;
+  
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
+  if (!player) return;
+  
+  let truthStreak = player.truthStreak;
+  let dareStreak = player.dareStreak;
+  
+  if (mode === "truth") {
+    truthStreak += 1;
+    dareStreak = 0;
+  } else if (mode === "dare") {
+    dareStreak += 1;
+    truthStreak = 0;
+  }
+  
+  const updated = await prisma.player.update({
+    where: { id: playerId },
+    data: { truthStreak, dareStreak }
+  });
+  
+  io.to(roomId).emit("player:update_streak", {
+    playerId,
+    truthStreak: updated.truthStreak,
+    dareStreak: updated.dareStreak
+  });
+}
+
 async function maybeFinalizeVote(roomId, roundId) {
+  console.log("[Vote] maybeFinalizeVote called for round:", roundId);
   const round = await prisma.round.findUnique({ where: { id: roundId } });
   if (!round || round.phase !== "voting") {
+    console.log("[Vote] Round not in voting phase, skipping. Phase:", round?.phase);
     return;
   }
   const playersCount = await prisma.player.count({ where: { roomId } });
@@ -411,14 +579,27 @@ async function maybeFinalizeVote(roomId, roundId) {
     { approve: 0, report: 0, total: 0 }
   );
 
+  console.log("[Vote] Vote counts:", counts, "Eligible:", eligibleCount);
+
   if (eligibleCount === 0) {
+    console.log("[Vote] No eligible voters, auto-approving for solo play");
+    // Solo play - auto-approve the task
     await prisma.round.update({
       where: { id: roundId },
-      data: { phase: "complete", result: "not_approved", endedAt: new Date() }
+      data: { phase: "complete", result: "approved", endedAt: new Date() }
     });
+    
+    // Update player progress for status clearing (solo play counts as success)
+    if (round.currentPlayerId) {
+      console.log("[Vote] Calling updatePlayerProgress for solo player:", round.currentPlayerId);
+      await updatePlayerProgress(round.currentPlayerId, roomId, false);
+      // Update streak counters
+      await updatePlayerStreak(round.currentPlayerId, roomId, round.mode);
+    }
+    
     io.to(roomId).emit("vote:result", {
       roundId,
-      result: "not_approved",
+      result: "approved",
       counts,
       threshold: 0
     });
@@ -427,6 +608,7 @@ async function maybeFinalizeVote(roomId, roundId) {
   }
 
   if (counts.total < eligibleCount) {
+    console.log("[Vote] Not all votes in yet:", counts.total, "/", eligibleCount);
     return;
   }
 
@@ -438,6 +620,8 @@ async function maybeFinalizeVote(roomId, roundId) {
     result = "report";
   }
 
+  console.log("[Vote] Finalizing with result:", result, "currentPlayerId:", round.currentPlayerId);
+
   await prisma.round.update({
     where: { id: roundId },
     data: { phase: "complete", result, endedAt: new Date() }
@@ -445,6 +629,17 @@ async function maybeFinalizeVote(roomId, roundId) {
 
   if (result === "report" && round.currentPlayerId) {
     await applyStrike(round.currentPlayerId, roomId);
+  }
+  
+  // Update player progress for status clearing
+  if (round.currentPlayerId) {
+    console.log("[Vote] Calling updatePlayerProgress for:", round.currentPlayerId);
+    const wasReported = result === "report";
+    await updatePlayerProgress(round.currentPlayerId, roomId, wasReported);
+    // Update streak counters (only on approved, not on report)
+    if (result === "approved") {
+      await updatePlayerStreak(round.currentPlayerId, roomId, round.mode);
+    }
   }
 
   io.to(roomId).emit("vote:result", {
@@ -690,7 +885,7 @@ io.on("connection", (socket) => {
 
   socket.on("round:mode", async (payload, ack) => {
     await touchPlayer(socket);
-    const mode = payload?.mode;
+    let mode = payload?.mode;
     if (!socket.data.roomId) {
       if (ack) {
         ack({ ok: false, error: "Not in room" });
@@ -708,23 +903,72 @@ io.on("connection", (socket) => {
       return;
     }
     const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
-    if (
-      socket.data.playerId !== round.currentPlayerId &&
-      (!room || !ensureHost(room, socket))
-    ) {
-      if (ack) {
-        ack({ ok: false, error: "Not allowed" });
+    
+    // Check if current player is in chaos mode
+    const currentPlayer = round.currentPlayerId 
+      ? await prisma.player.findUnique({ where: { id: round.currentPlayerId } })
+      : null;
+    const isChaosModePlayer = currentPlayer?.status === "chaos";
+    
+    // For chaos players, server decides the mode (50/50)
+    let forcedMode = null;
+    if (isChaosModePlayer) {
+      // Chaos mode: 50/50 random, but still respecting streak limits
+      let availableModes = [];
+      if (currentPlayer.truthStreak < 2) availableModes.push("truth");
+      if (currentPlayer.dareStreak < 2) availableModes.push("dare");
+      
+      if (availableModes.length === 0) {
+        // Edge case: both at max, reset and allow both
+        availableModes = ["truth", "dare"];
       }
-      return;
-    }
-    if (mode !== "truth" && mode !== "dare") {
-      if (ack) {
-        ack({ ok: false, error: "Invalid mode" });
+      
+      forcedMode = availableModes[Math.floor(Math.random() * availableModes.length)];
+      mode = forcedMode;
+      // Emit forced mode notification
+      io.to(room.id).emit("round:mode_forced", {
+        roundId: round.id,
+        mode: forcedMode,
+        currentPlayerId: round.currentPlayerId
+      });
+    } else {
+      // Normal player - validate permissions
+      if (
+        socket.data.playerId !== round.currentPlayerId &&
+        (!room || !ensureHost(room, socket))
+      ) {
+        if (ack) {
+          ack({ ok: false, error: "Not allowed" });
+        }
+        return;
       }
-      return;
+      if (mode !== "truth" && mode !== "dare") {
+        if (ack) {
+          ack({ ok: false, error: "Invalid mode" });
+        }
+        return;
+      }
+      
+      // Validate streak limits for normal players
+      if (currentPlayer) {
+        if (mode === "truth" && currentPlayer.truthStreak >= 2) {
+          if (ack) {
+            ack({ ok: false, error: "Cannot choose truth 3 times in a row" });
+          }
+          return;
+        }
+        if (mode === "dare" && currentPlayer.dareStreak >= 2) {
+          if (ack) {
+            ack({ ok: false, error: "Cannot choose dare 3 times in a row" });
+          }
+          return;
+        }
+      }
     }
+    
     if (mode === "truth") {
-      const selection = pickTruthQuestion();
+      // For chaos players, use chaos truth questions
+      const selection = isChaosModePlayer ? pickChaosTruthQuestion() : pickTruthQuestion();
       if (!selection) {
         if (ack) {
           ack({ ok: false, error: "Truth questions missing" });
@@ -750,13 +994,21 @@ io.on("connection", (socket) => {
         where: { id: round.id },
         data: { mode, phase: "task" }
       });
+      
+      // Calculate timer (shamed players get 25% less time)
+      let timerSeconds = round.timerSeconds || 120;
+      if (currentPlayer?.status === "shamed") {
+        timerSeconds = Math.floor(timerSeconds * 0.75);
+      }
+      
       io.to(room.id).emit("spin:final", {
         roundId: round.id,
         finalText,
-        mode
+        mode,
+        forcedMode: forcedMode || undefined
       });
       await emitRoomState(room.id);
-      await startTimer(room.id, round.id, round.timerSeconds || 120);
+      await startTimer(room.id, round.id, timerSeconds);
 
       if (ack) {
         ack({ ok: true });
@@ -771,7 +1023,8 @@ io.on("connection", (socket) => {
     io.to(room.id).emit("round:start", {
       roundId: round.id,
       currentPlayerId: round.currentPlayerId,
-      mode
+      mode,
+      forcedMode: forcedMode || undefined
     });
     await emitRoomState(room.id);
 
@@ -883,9 +1136,27 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // Check if current player is in chaos mode
+    const currentPlayer = round.currentPlayerId 
+      ? await prisma.player.findUnique({ where: { id: round.currentPlayerId } })
+      : null;
+    const isChaosModePlayer = currentPlayer?.status === "chaos";
+
     io.to(room.id).emit("spin:wheel2_start", { roundId: round.id });
 
-    const selection = pickWheel2(spin.wheel1Result);
+    // Use chaos wheel selection for chaos players
+    let selection;
+    let reelItems = null;
+    
+    if (isChaosModePlayer) {
+      selection = pickWheel2ForChaos(spin.wheel1Result);
+      if (selection) {
+        reelItems = selection.reelItems;
+      }
+    } else {
+      selection = pickWheel2(spin.wheel1Result);
+    }
+    
     if (!selection) {
       if (ack) {
         ack({ ok: false, error: "Wheel2 data missing" });
@@ -907,13 +1178,21 @@ io.on("connection", (socket) => {
       data: { phase: "task" }
     });
 
-    io.to(room.id).emit("spin:wheel2_result", {
+    // Build wheel2_result with reelItems for chaos players
+    const wheel2ResultPayload = {
       roundId: round.id,
       itemId: selection.item.id,
       itemLabel: selection.item.shortTitle || selection.item.label,
       itemText: selection.item.text,
       index: selection.index
-    });
+    };
+    
+    // Include reelItems for chaos players so client can render the correct reel
+    if (reelItems) {
+      wheel2ResultPayload.reelItems = reelItems;
+    }
+    
+    io.to(room.id).emit("spin:wheel2_result", wheel2ResultPayload);
     io.to(room.id).emit("spin:final", {
       roundId: round.id,
       finalText,
@@ -922,7 +1201,13 @@ io.on("connection", (socket) => {
     });
 
     await emitRoomState(room.id);
-    await startTimer(room.id, round.id, round.timerSeconds || 120);
+    
+    // Calculate timer (shamed players get 25% less time)
+    let timerSeconds = round.timerSeconds || 120;
+    if (currentPlayer?.status === "shamed") {
+      timerSeconds = Math.floor(timerSeconds * 0.75);
+    }
+    await startTimer(room.id, round.id, timerSeconds);
 
     if (ack) {
       ack({ ok: true });
@@ -1262,7 +1547,15 @@ io.on("connection", (socket) => {
     await prisma.round.deleteMany({ where: { roomId: room.id } });
     await prisma.player.updateMany({
       where: { roomId: room.id },
-      data: { strikes: 0, status: "active" }
+      data: { 
+        strikes: 0, 
+        status: "active",
+        shameTitle: null,
+        shameClearProgress: 0,
+        chaosClearProgress: 0,
+        truthStreak: 0,
+        dareStreak: 0
+      }
     });
     const settings = { ...normalizeSettings(room.settings), turnIndex: 0 };
     await prisma.room.update({

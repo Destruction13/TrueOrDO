@@ -87,14 +87,19 @@ model Room {
 }
 
 model Player {
-  id        String   @id @default(cuid())
-  roomId    String
-  name      String
-  avatarUrl String?
-  status    String   @default("active")
-  strikes   Int      @default(0)
-  joinedAt  DateTime @default(now())
-  lastSeen  DateTime @default(now())
+  id                  String   @id @default(cuid())
+  roomId              String
+  name                String
+  avatarUrl           String?
+  status              String   @default("active") // "active" | "shamed" | "chaos"
+  strikes             Int      @default(0)
+  shameTitle          String?                      // язвительная фраза для shamed
+  shameClearProgress  Int      @default(0)         // прогресс снятия shamed (0..2)
+  chaosClearProgress  Int      @default(0)         // прогресс снятия chaos (0..2)
+  truthStreak         Int      @default(0)         // количество Правд подряд (макс 2)
+  dareStreak          Int      @default(0)         // количество Действий подряд (макс 2)
+  joinedAt            DateTime @default(now())
+  lastSeen            DateTime @default(now())
 
   room           Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
   votes          Vote[]

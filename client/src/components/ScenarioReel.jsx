@@ -56,6 +56,7 @@ function isStartButtonName(name) {
 }
 function ScenarioReel({
   items = [],
+  reelItems: serverReelItems,
   targetId,
   targetIndex,
   spinTick = 0,
@@ -65,6 +66,8 @@ function ScenarioReel({
   onReveal,
   onStartTask
 }) {
+  // If server provides reelItems (for chaos mode), use those instead
+  const hasChaosReel = serverReelItems && serverReelItems.length > 0;
   const [isAnimating, setIsAnimating] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const splineRef = useRef(null);
@@ -99,12 +102,26 @@ function ScenarioReel({
     currentY: 0
   });
   const normalizedItems = useMemo(() => {
+    // If we have chaos reel items from server, use them directly
+    if (hasChaosReel) {
+      // Map server reel items to the expected format
+      const chaosItems = serverReelItems.map((ri) => ({
+        id: ri.id,
+        shortTitle: ri.title,
+        label: ri.title,
+        isChaos: ri.isChaos
+      }));
+      const minLength = Math.max(chaosItems.length, MIN_FILL);
+      return Array.from({ length: minLength }, (_, index) => chaosItems[index % chaosItems.length]);
+    }
+    
+    // Normal flow - use items from category
     if (!Array.isArray(items) || items.length === 0) {
       return [];
     }
     const minLength = Math.max(items.length, MIN_FILL);
     return Array.from({ length: minLength }, (_, index) => items[index % items.length]);
-  }, [items]);
+  }, [items, hasChaosReel, serverReelItems]);
   const loops = useMemo(() => {
     if (!normalizedItems.length) {
       return 0;
@@ -774,15 +791,17 @@ function ScenarioReel({
               targetTrackIndex != null &&
               index === targetTrackIndex &&
               !isBusy;
+            const isChaosCard = item.isChaos === true;
             return (
               <div
                 key={`${item.id}-${index}`}
-                className={`reel-card${isSelected ? " is-selected" : ""}`}
-                style={{ "--card-hue": (index * 34) % 360 }}
+                className={`reel-card${isSelected ? " is-selected" : ""}${isChaosCard ? " is-chaos" : ""}`}
+                style={{ "--card-hue": isChaosCard ? 0 : (index * 34) % 360 }}
                 onPointerMove={handlePointerMove}
                 onPointerLeave={handlePointerLeave}
               >
                 <div className="reel-card__glow" aria-hidden="true" />
+                {isChaosCard && <div className="reel-card__embers" aria-hidden="true" />}
                 <div className="reel-card__title">
                   {item.shortTitle || item.label}
                 </div>
