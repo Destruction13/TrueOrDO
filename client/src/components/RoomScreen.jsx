@@ -5,6 +5,8 @@ import ScenarioReel from "./ScenarioReel";
 import Button from "./ui/Button";
 import LeaveButton from "./ui/LeaveButton";
 import PlayerCard from "./ui/PlayerCard";
+import TargetPlayerSelector from "./ui/TargetPlayerSelector";
+import ConfirmEndGameModal from "./ui/ConfirmEndGameModal";
 
 function formatTimer(seconds) {
   if (seconds == null || Number.isNaN(seconds)) {
@@ -30,19 +32,20 @@ function RoomScreen({
   actions
 }) {
   const { room, players, round, content } = roomState;
-  const [selectedPlayerId, setSelectedPlayerId] = useState("");
   const [categoryReady, setCategoryReady] = useState(false);
   const [taskAccepted, setTaskAccepted] = useState(false);
+  const [showEndGameModal, setShowEndGameModal] = useState(false);
   const pendingCategoryIdRef = useRef(null);
-
-  useEffect(() => {
-    if (selectedPlayerId && !players.some((player) => player.id === selectedPlayerId)) {
-      setSelectedPlayerId("");
-    }
-  }, [players, selectedPlayerId]);
 
   const isHost = room.hostId === meId;
   const disqualifiedCanPlay = room.settings?.disqualifiedCanPlay;
+  
+  // currentTurnPlayerId - игрок, чей сейчас ход (выбирает кому задать вопрос)
+  const currentTurnPlayerId = room.currentTurnPlayerId;
+  const currentTurnPlayer = players.find((player) => player.id === currentTurnPlayerId);
+  const isMyTurn = currentTurnPlayerId === meId;
+  
+  // currentPlayer - игрок, выполняющий задание (targetPlayer)
   const currentPlayer = round
     ? players.find((player) => player.id === round.currentPlayerId)
     : null;
@@ -68,16 +71,16 @@ function RoomScreen({
       phase,
       isCurrentPlayerChaos,
       isMeCurrent,
-      isHost,
       triggerRef: chaosModeTriggerRef.current,
       currentPlayerStatus: currentPlayer?.status
     });
     
+    // Только текущий игрок (в хаосе) может запустить выбор режима, хост НЕ может делать это за него
     if (
       round &&
       phase === "mode" &&
       isCurrentPlayerChaos &&
-      (isMeCurrent || isHost) &&
+      isMeCurrent &&
       !chaosModeTriggerRef.current
     ) {
       console.log("[Chaos] Starting chaos mode selection...");
@@ -101,7 +104,7 @@ function RoomScreen({
     if (!round || phase !== "mode") {
       chaosModeTriggerRef.current = false;
     }
-  }, [round?.id, phase, isCurrentPlayerChaos, isMeCurrent, isHost, actions, currentPlayer?.status]);
+  }, [round?.id, phase, isCurrentPlayerChaos, isMeCurrent, actions, currentPlayer?.status]);
   
   // When forcedMode arrives, show it with dramatic reveal after delay
   useEffect(() => {
@@ -209,11 +212,13 @@ function RoomScreen({
   const hasScenarioItems = wheel2Items.length > 0;
   const showScenarioReel = showDareFlow && round?.wheel1Id && categoryReady && hasScenarioItems;
 
-  const canStartRound = isHost && (!round || round.phase === "complete");
-  const canPickMode = round && phase === "mode" && (isMeCurrent || isHost);
-  const canSpinWheel1 = round && phase === "wheel1" && (isMeCurrent || isHost);
-  const canSpinWheel2 = round && phase === "wheel2" && (isMeCurrent || isHost);
-  const canMarkDone = round && phase === "task" && (isMeCurrent || isHost);
+  // Раунд можно начать только если: нет активного раунда И это мой ход
+  const canStartRound = (!round || round.phase === "complete") && isMyTurn;
+  // Только текущий игрок может выполнять действия (хост НЕ может делать это за него)
+  const canPickMode = round && phase === "mode" && isMeCurrent;
+  const canSpinWheel1 = round && phase === "wheel1" && isMeCurrent;
+  const canSpinWheel2 = round && phase === "wheel2" && isMeCurrent;
+  const canMarkDone = round && phase === "task" && isMeCurrent;
   const canVote = round && phase === "voting" && !isMeCurrent && !myVote;
   const canResetTimer = isHost && phase === "task";
 
@@ -235,6 +240,16 @@ function RoomScreen({
     }
     return "Не засчитано";
   }, [round?.result]);
+
+  // Сортировка игроков: online сверху, disconnected ниже, left внизу
+  const sortedPlayers = useMemo(() => {
+    const statusOrder = { online: 0, disconnected: 1, left: 2 };
+    return [...players].sort((a, b) => {
+      const aOrder = statusOrder[a.connectionStatus] ?? 0;
+      const bOrder = statusOrder[b.connectionStatus] ?? 0;
+      return aOrder - bOrder;
+    });
+  }, [players]);
 
   const handleStartTask = useCallback(() => {
     setTaskAccepted(true);
@@ -265,7 +280,17 @@ function RoomScreen({
           <span className="pill">{players.length}/20 игроков</span>
           {isHost ? <span className="pill accent">Ведущий</span> : null}
         </div>
-        <LeaveButton onLeave={actions.leaveRoom} />
+        {isHost ? (
+          <Button 
+            variant="danger" 
+            size="sm" 
+            onClick={() => setShowEndGameModal(true)}
+          >
+            Закончить игру
+          </Button>
+        ) : (
+          <LeaveButton onLeave={actions.leaveRoom} />
+        )}
       </header>
 
       <main className="room-layout">
@@ -275,7 +300,7 @@ function RoomScreen({
           </div>
           <div className="player-grid-v2">
             <AnimatePresence mode="popLayout">
-              {players.map((player) => (
+              {sortedPlayers.map((player) => (
                 <PlayerCard
                   key={player.id}
                   player={player}
@@ -297,7 +322,11 @@ function RoomScreen({
 
           <div className="round-info">
             <div>
-              <div className="label">Ходит</div>
+              <div className="label">Чей ход</div>
+              <div className="value">{currentTurnPlayer?.name || "—"}</div>
+            </div>
+            <div>
+              <div className="label">Выполняет</div>
               <div className="value">{currentPlayer?.name || "—"}</div>
             </div>
             <div>
@@ -314,36 +343,23 @@ function RoomScreen({
             </div>
           </div>
 
-          {canStartRound ? (
-            <div className="round-actions">
-              <div className="field">
-                <span>Выбор игрока</span>
-                <select
-                  value={selectedPlayerId}
-                  onChange={(event) => setSelectedPlayerId(event.target.value)}
-                >
-                  <option value="">Авто-очередь</option>
-                  {players.map((player) => (
-                    <option
-                      key={player.id}
-                      value={player.id}
-                    >
-                      {player.name}
-                      {player.status === "chaos" ? " (ХАОС)" : player.status === "shamed" ? " (🔻)" : ""}
-                    </option>
-                  ))}
-                </select>
+          {(!round || round.phase === "complete") ? (
+            canStartRound ? (
+              <div className="round-actions">
+                <TargetPlayerSelector
+                  players={players}
+                  currentTurnPlayerId={currentTurnPlayerId}
+                  meId={meId}
+                  disabled={false}
+                  allowSelfSelect={false}
+                  onSelectPlayer={(targetPlayerId) => actions.startRound(targetPlayerId)}
+                />
               </div>
-              <Button variant="primary" size="md" onClick={() => actions.startRound(selectedPlayerId || null)}>
-                Старт раунда
-              </Button>
-            </div>
-          ) : null}
-
-          {!round || round.phase === "complete" ? (
-            <div className="round-hint">
-              {isHost ? "Готово. Запускай следующий раунд." : "Ожидайте старта раунда от ведущего."}
-            </div>
+            ) : (
+              <div className="round-hint">
+                Ожидайте хода от {currentTurnPlayer?.name || "игрока"}
+              </div>
+            )
           ) : null}
 
           {/* Chaos mode banner - shown during deciding phase, persists until reveal complete */}
@@ -562,6 +578,16 @@ function RoomScreen({
           {error ? <div className="status-error">{error}</div> : null}
         </section>
       </main>
+
+      {/* Модальное окно подтверждения завершения игры */}
+      <ConfirmEndGameModal
+        isOpen={showEndGameModal}
+        onCancel={() => setShowEndGameModal(false)}
+        onConfirm={() => {
+          setShowEndGameModal(false);
+          actions.endGame();
+        }}
+      />
     </div>
   );
 }

@@ -331,6 +331,13 @@ select:focus {
   display: grid;
   gap: 12px;
 }
+
+.players-panel .player-grid-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 100%;
+}
 .player-card {
   border-radius: 18px;
   padding: 16px;

@@ -2,7 +2,7 @@ import { useState } from "react";
 import Button from "./ui/Button";
 import PulseButton from "./ui/PulseButton";
 
-function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin }) {
+function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin, onClearError }) {
   const [createName, setCreateName] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState("");
@@ -11,6 +11,14 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
   // Имя для создания: никнейм пользователя или введённое вручную
   const effectiveCreateName = user?.nickname || createName.trim();
   const effectiveJoinName = user?.nickname || joinName.trim();
+
+  // Очищаем ошибку при любом вводе
+  const handleInputChange = (setter) => (event) => {
+    if (error && onClearError) {
+      onClearError();
+    }
+    setter(event.target.value);
+  };
 
   const handleCreate = async (event) => {
     event.preventDefault();
@@ -83,7 +91,7 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
               <input
                 type="text"
                 value={createName}
-                onChange={(event) => setCreateName(event.target.value)}
+                onChange={handleInputChange(setCreateName)}
                 placeholder="Введите имя"
               />
             </label>
@@ -106,7 +114,7 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
             <input
               type="text"
               value={joinCode}
-              onChange={(event) => setJoinCode(event.target.value)}
+              onChange={handleInputChange(setJoinCode)}
               placeholder="Например: A1B2C3"
             />
           </label>
@@ -130,7 +138,7 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
               <input
                 type="text"
                 value={joinName}
-                onChange={(event) => setJoinName(event.target.value)}
+                onChange={handleInputChange(setJoinName)}
                 placeholder="Введите имя"
               />
             </label>

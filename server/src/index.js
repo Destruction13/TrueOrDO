@@ -133,7 +133,6 @@ const playerSockets = new Map();
 function getDefaultSettings() {
   return {
     timerSeconds: 120,
-    autoQueue: true,
     disqualifiedCanPlay: false,
     turnIndex: 0
   };
@@ -223,6 +222,7 @@ function serializeRound(round, spin, voteCounts) {
     startedAt: round.startedAt,
     endedAt: round.endedAt,
     currentPlayerId: round.currentPlayerId,
+    turnPlayerId: round.turnPlayerId,
     mode: round.mode,
     timerSeconds: round.timerSeconds,
     phase: round.phase,
@@ -269,12 +269,21 @@ async function buildRoomState(roomId) {
       )
     : { approve: 0, report: 0, total: 0 };
 
+  // Определяем игрока, чей сейчас ход (только активные, не left/disconnected)
+  const turnIndex = settings.turnIndex || 0;
+  const activePlayers = players.filter((p) => p.connectionStatus === "online");
+  const currentTurnPlayerId = activePlayers.length > 0 
+    ? activePlayers[turnIndex % activePlayers.length]?.id 
+    : null;
+
   return {
     room: {
       id: room.id,
       code: room.code,
       hostId: room.hostId,
-      settings
+      settings,
+      currentTurnPlayerId,
+      turnIndex
     },
     players,
     round: serializeRound(round, spin, voteCounts),
@@ -310,18 +319,25 @@ async function emitRoomState(roomId) {
 }
 
 function selectNextPlayer(players, startIndex, allowDisqualified) {
-  if (!players.length) {
+  // Фильтруем только активных игроков (online, не left)
+  const activePlayers = players.filter((p) => p.connectionStatus !== "left");
+  if (!activePlayers.length) {
     return null;
   }
-  const total = players.length;
+  const total = activePlayers.length;
+  const safeIndex = startIndex % total;
   for (let offset = 0; offset < total; offset += 1) {
-    const idx = (startIndex + offset) % total;
-    const candidate = players[idx];
-    // All players can play now - no disqualified status
+    const idx = (safeIndex + offset) % total;
+    const candidate = activePlayers[idx];
+    // Пропускаем disconnected игроков — ход переходит к следующему
+    if (candidate.connectionStatus === "disconnected") {
+      continue;
+    }
     // Status can be "active", "shamed", or "chaos" - all playable
     return { player: candidate, nextIndex: (idx + 1) % total };
   }
-  return null;
+  // Если все активные игроки disconnected — возвращаем первого
+  return { player: activePlayers[safeIndex], nextIndex: (safeIndex + 1) % total };
 }
 
 function stopTimer(roomId) {
@@ -555,6 +571,27 @@ async function updatePlayerStreak(playerId, roomId, mode) {
   });
 }
 
+async function advanceTurnIndex(roomId) {
+  const room = await prisma.room.findUnique({ where: { id: roomId } });
+  if (!room) return;
+  
+  const settings = normalizeSettings(room.settings);
+  const players = await prisma.player.findMany({
+    where: { roomId },
+    orderBy: { joinedAt: "asc" }
+  });
+  
+  if (players.length === 0) return;
+  
+  const newTurnIndex = ((settings.turnIndex || 0) + 1) % players.length;
+  await prisma.room.update({
+    where: { id: roomId },
+    data: { settings: serializeSettings({ ...settings, turnIndex: newTurnIndex }) }
+  });
+  
+  console.log("[Turn] Advanced turnIndex to:", newTurnIndex, "Next player:", players[newTurnIndex]?.name);
+}
+
 async function maybeFinalizeVote(roomId, roundId) {
   console.log("[Vote] maybeFinalizeVote called for round:", roundId);
   const round = await prisma.round.findUnique({ where: { id: roundId } });
@@ -596,6 +633,9 @@ async function maybeFinalizeVote(roomId, roundId) {
       // Update streak counters
       await updatePlayerStreak(round.currentPlayerId, roomId, round.mode);
     }
+    
+    // Advance turn to next player
+    await advanceTurnIndex(roomId);
     
     io.to(roomId).emit("vote:result", {
       roundId,
@@ -642,6 +682,9 @@ async function maybeFinalizeVote(roomId, roundId) {
     }
   }
 
+  // Advance turn to next player
+  await advanceTurnIndex(roomId);
+
   io.to(roomId).emit("vote:result", {
     roundId,
     result,
@@ -654,6 +697,7 @@ async function maybeFinalizeVote(roomId, roundId) {
 io.on("connection", (socket) => {
   socket.on("room:create", async (payload, ack) => {
     const name = normalizeName(payload?.name);
+    const visitorId = payload?.visitorId || null;
     if (!name) {
       if (ack) {
         ack({ ok: false, error: "Name required" });
@@ -685,7 +729,8 @@ io.on("connection", (socket) => {
       data: {
         roomId: room.id,
         name,
-        avatarUrl
+        avatarUrl,
+        visitorId
       }
     });
     await prisma.room.update({
@@ -710,6 +755,7 @@ io.on("connection", (socket) => {
   socket.on("room:join", async (payload, ack) => {
     const name = normalizeName(payload?.name);
     const code = normalizeName(payload?.code).toUpperCase();
+    const visitorId = payload?.visitorId || null;
     if (!name || !code) {
       if (ack) {
         ack({ ok: false, error: "Name and code required" });
@@ -725,17 +771,70 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // Проверяем бан-лист
+    const settings = normalizeSettings(room.settings);
+    const bannedVisitorIds = settings.bannedVisitorIds || [];
+    if (visitorId && bannedVisitorIds.includes(visitorId)) {
+      if (ack) {
+        ack({ ok: false, error: "banned", message: "Вы были исключены из этой комнаты организатором" });
+      }
+      return;
+    }
+
     const players = await prisma.player.findMany({
       where: { roomId: room.id }
     });
-    if (players.length >= MAX_PLAYERS) {
+    
+    // Проверяем, есть ли игрок с таким именем со статусом disconnected (реконнект)
+    const disconnectedPlayer = players.find(
+      (p) => p.name.toLowerCase() === name.toLowerCase() && p.connectionStatus === "disconnected"
+    );
+    
+    if (disconnectedPlayer) {
+      // Реконнект — восстанавливаем игрока
+      const player = await prisma.player.update({
+        where: { id: disconnectedPlayer.id },
+        data: { 
+          connectionStatus: "online",
+          lastSeen: new Date()
+        }
+      });
+      
+      socket.data.roomId = room.id;
+      socket.data.playerId = player.id;
+      playerSockets.set(player.id, socket.id);
+      socket.join(room.id);
+      
+      // Уведомляем всех о реконнекте
+      io.to(room.id).emit("player:connection_status", {
+        playerId: player.id,
+        connectionStatus: "online",
+        playerName: player.name
+      });
+      
+      const state = await buildRoomState(room.id);
+      io.to(room.id).emit("player:list", state.players);
+      io.to(room.id).emit("room:state", state);
+      
+      if (ack) {
+        ack({ ok: true, state, playerId: player.id, reconnected: true });
+      }
+      return;
+    }
+    
+    // Считаем только активных игроков (не left) для проверки лимита
+    const activePlayersCount = players.filter((p) => p.connectionStatus !== "left").length;
+    if (activePlayersCount >= MAX_PLAYERS) {
       if (ack) {
         ack({ ok: false, error: "Room is full" });
       }
       return;
     }
 
-    const takenNames = players.map((player) => player.name.toLowerCase());
+    // Имена занятые только активными игроками (не left)
+    const takenNames = players
+      .filter((p) => p.connectionStatus !== "left")
+      .map((player) => player.name.toLowerCase());
     const finalName = makeUniqueName(name, takenNames);
 
     // Получаем avatarUrl если пользователь авторизован
@@ -752,7 +851,9 @@ io.on("connection", (socket) => {
       data: {
         roomId: room.id,
         name: finalName,
-        avatarUrl
+        avatarUrl,
+        visitorId,
+        connectionStatus: "online"
       }
     });
 
@@ -767,6 +868,112 @@ io.on("connection", (socket) => {
 
     if (ack) {
       ack({ ok: true, state, playerId: player.id });
+    }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // room:rejoin — Восстановление сессии после F5/переподключения
+  // ───────────────────────────────────────────────────────────────────────────
+  socket.on("room:rejoin", async (payload, ack) => {
+    const { playerId, roomCode } = payload || {};
+    
+    if (!playerId || !roomCode) {
+      console.log("[Rejoin] Missing playerId or roomCode");
+      if (ack) {
+        ack({ ok: false, error: "Missing playerId or roomCode" });
+      }
+      return;
+    }
+
+    try {
+      // Находим комнату по коду
+      const room = await prisma.room.findUnique({ where: { code: roomCode.toUpperCase() } });
+      if (!room) {
+        console.log("[Rejoin] Room not found:", roomCode);
+        if (ack) {
+          ack({ ok: false, error: "Room not found" });
+        }
+        return;
+      }
+
+      // Находим игрока
+      const player = await prisma.player.findUnique({ where: { id: playerId } });
+      if (!player) {
+        console.log("[Rejoin] Player not found:", playerId);
+        if (ack) {
+          ack({ ok: false, error: "Player not found" });
+        }
+        return;
+      }
+
+      // Проверяем, что игрок принадлежит этой комнате
+      if (player.roomId !== room.id) {
+        console.log("[Rejoin] Player does not belong to room:", playerId, room.id);
+        if (ack) {
+          ack({ ok: false, error: "Player not in this room" });
+        }
+        return;
+      }
+
+      // Проверяем, что игрок не покинул комнату (left)
+      if (player.connectionStatus === "left") {
+        console.log("[Rejoin] Player has left the room:", playerId);
+        if (ack) {
+          ack({ ok: false, error: "Player has left the room" });
+        }
+        return;
+      }
+
+      // Если у игрока уже есть активный сокет — отключаем старый (две вкладки)
+      const existingSocketId = playerSockets.get(playerId);
+      if (existingSocketId && existingSocketId !== socket.id) {
+        const existingSocket = io.sockets.sockets.get(existingSocketId);
+        if (existingSocket) {
+          console.log("[Rejoin] Disconnecting old socket for player:", playerId);
+          existingSocket.data.roomId = null;
+          existingSocket.data.playerId = null;
+          existingSocket.emit("session:replaced", { message: "Session replaced by another tab" });
+          existingSocket.disconnect(true);
+        }
+      }
+
+      // Обновляем статус игрока на online
+      await prisma.player.update({
+        where: { id: playerId },
+        data: { 
+          connectionStatus: "online",
+          lastSeen: new Date()
+        }
+      });
+
+      // Привязываем сокет к комнате и игроку
+      socket.data.roomId = room.id;
+      socket.data.playerId = player.id;
+      playerSockets.set(player.id, socket.id);
+      socket.join(room.id);
+
+      console.log("[Rejoin] Success:", player.name, "->", room.code);
+
+      // Уведомляем всех о возвращении игрока
+      io.to(room.id).emit("player:connection_status", {
+        playerId: player.id,
+        connectionStatus: "online",
+        playerName: player.name
+      });
+
+      // Отправляем актуальное состояние комнаты
+      const state = await buildRoomState(room.id);
+      io.to(room.id).emit("player:list", state.players);
+      io.to(room.id).emit("room:state", state);
+
+      if (ack) {
+        ack({ ok: true, state, playerId: player.id, playerName: player.name });
+      }
+    } catch (error) {
+      console.error("[Rejoin] Error:", error);
+      if (ack) {
+        ack({ ok: false, error: "Rejoin failed" });
+      }
     }
   });
 
@@ -796,9 +1003,30 @@ io.on("connection", (socket) => {
     }
 
     const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
-    if (!room || !ensureHost(room, socket)) {
+    let settings = normalizeSettings(room.settings);
+    
+    // Определяем, чей сейчас ход (currentTurnPlayer)
+    const players = await prisma.player.findMany({
+      where: { roomId: room.id },
+      orderBy: { joinedAt: "asc" }
+    });
+    if (!players.length) {
       if (ack) {
-        ack({ ok: false, error: "Host only" });
+        ack({ ok: false, error: "No players" });
+      }
+      return;
+    }
+
+    const currentTurnIndex = settings.turnIndex || 0;
+    const currentTurnPlayerId = players[currentTurnIndex % players.length]?.id;
+    
+    // Проверяем права: только хост или игрок, чей ход, может начать раунд
+    const isHost = ensureHost(room, socket);
+    const isCurrentTurnPlayer = socket.data.playerId === currentTurnPlayerId;
+    
+    if (!isHost && !isCurrentTurnPlayer) {
+      if (ack) {
+        ack({ ok: false, error: "Not your turn" });
       }
       return;
     }
@@ -814,50 +1042,21 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const players = await prisma.player.findMany({
-      where: { roomId: room.id },
-      orderBy: { joinedAt: "asc" }
-    });
-    if (!players.length) {
+    // targetPlayerId - это игрок, которому задается вопрос/действие
+    // currentTurnPlayerId - это игрок, чей ход (он выбирает targetPlayer)
+    let targetPlayerId = payload?.targetPlayerId || null;
+    
+    if (!targetPlayerId) {
       if (ack) {
-        ack({ ok: false, error: "No players" });
+        ack({ ok: false, error: "Target player required" });
       }
       return;
     }
-
-    let settings = normalizeSettings(room.settings);
-    let currentPlayerId = payload?.playerId || null;
-    if (currentPlayerId) {
-      const chosen = players.find((player) => player.id === currentPlayerId);
-      if (!chosen) {
-        if (ack) {
-          ack({ ok: false, error: "Player not found" });
-        }
-        return;
-      }
-      if (!settings.disqualifiedCanPlay && chosen.status !== "active") {
-        if (ack) {
-          ack({ ok: false, error: "Player is disqualified" });
-        }
-        return;
-      }
-    } else if (settings.autoQueue) {
-      const selection = selectNextPlayer(players, settings.turnIndex || 0, settings.disqualifiedCanPlay);
-      if (!selection) {
-        if (ack) {
-          ack({ ok: false, error: "No eligible players" });
-        }
-        return;
-      }
-      currentPlayerId = selection.player.id;
-      settings = { ...settings, turnIndex: selection.nextIndex };
-      await prisma.room.update({
-        where: { id: room.id },
-        data: { settings: serializeSettings(settings) }
-      });
-    } else {
+    
+    const targetPlayer = players.find((player) => player.id === targetPlayerId);
+    if (!targetPlayer) {
       if (ack) {
-        ack({ ok: false, error: "Pick a player or enable auto queue" });
+        ack({ ok: false, error: "Target player not found" });
       }
       return;
     }
@@ -865,7 +1064,8 @@ io.on("connection", (socket) => {
     const round = await prisma.round.create({
       data: {
         roomId: room.id,
-        currentPlayerId,
+        currentPlayerId: targetPlayerId, // Тот, кто выполняет задание
+        turnPlayerId: currentTurnPlayerId, // Тот, чей ход (выбирает)
         timerSeconds: settings.timerSeconds || 120,
         phase: "mode"
       }
@@ -874,6 +1074,7 @@ io.on("connection", (socket) => {
     io.to(room.id).emit("round:start", {
       roundId: round.id,
       currentPlayerId: round.currentPlayerId,
+      turnPlayerId: round.turnPlayerId,
       timerSeconds: round.timerSeconds
     });
     await emitRoomState(room.id);
@@ -1290,6 +1491,10 @@ io.on("connection", (socket) => {
       where: { id: round.id },
       data: { phase: "complete", result: "report", endedAt: new Date() }
     });
+    
+    // Advance turn to next player
+    await advanceTurnIndex(room.id);
+    
     io.to(room.id).emit("round:refuse", { roundId: round.id });
     await emitRoomState(room.id);
     if (ack) {
@@ -1411,8 +1616,14 @@ io.on("connection", (socket) => {
         io.to(roomId).emit("admin:skip_round", { roundId: activeRound.id });
       }
 
-      // Удаляем игрока
-      await prisma.player.delete({ where: { id: playerId } });
+      // Ставим статус "left" вместо удаления игрока
+      const player = await prisma.player.update({
+        where: { id: playerId },
+        data: { 
+          connectionStatus: "left",
+          lastSeen: new Date()
+        }
+      });
       playerSockets.delete(playerId);
 
       // Покидаем socket.io комнату
@@ -1424,9 +1635,12 @@ io.on("connection", (socket) => {
       const isHost = room.hostId === playerId;
       
       if (isHost) {
-        // Передаём хоста следующему игроку
+        // Передаём хоста следующему активному игроку (не left)
         const remainingPlayers = await prisma.player.findMany({
-          where: { roomId },
+          where: { 
+            roomId,
+            connectionStatus: { not: "left" }
+          },
           orderBy: { joinedAt: "asc" }
         });
 
@@ -1441,16 +1655,21 @@ io.on("connection", (socket) => {
             newHostName: newHost.name 
           });
         } else {
-          // Комната пуста — удаляем её
+          // Все игроки покинули комнату — удаляем её
           stopTimer(roomId);
           await prisma.vote.deleteMany({ where: { round: { roomId } } });
           await prisma.round.deleteMany({ where: { roomId } });
+          await prisma.player.deleteMany({ where: { roomId } });
           await prisma.room.delete({ where: { id: roomId } });
         }
       }
 
-      // Уведомляем оставшихся игроков
-      io.to(roomId).emit("player:left", { playerId });
+      // Уведомляем оставшихся игроков об изменении статуса
+      io.to(roomId).emit("player:connection_status", {
+        playerId,
+        connectionStatus: "left",
+        playerName: player.name
+      });
       await emitRoomState(roomId);
 
       if (ack) {
@@ -1472,7 +1691,7 @@ io.on("connection", (socket) => {
       }
       return;
     }
-    const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
+    let room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
     if (!room || !ensureHost(room, socket)) {
       if (ack) {
         ack({ ok: false, error: "Host only" });
@@ -1506,15 +1725,33 @@ io.on("connection", (socket) => {
       io.to(room.id).emit("admin:skip_round", { roundId: activeRound.id });
     }
 
+    // Добавляем visitorId в бан-лист комнаты
+    const targetPlayer = await prisma.player.findUnique({ where: { id: targetId } });
+    if (targetPlayer?.visitorId) {
+      const settings = normalizeSettings(room.settings);
+      const bannedVisitorIds = settings.bannedVisitorIds || [];
+      if (!bannedVisitorIds.includes(targetPlayer.visitorId)) {
+        bannedVisitorIds.push(targetPlayer.visitorId);
+        room = await prisma.room.update({
+          where: { id: room.id },
+          data: { settings: serializeSettings({ ...settings, bannedVisitorIds }) }
+        });
+      }
+    }
+
     await prisma.player.delete({ where: { id: targetId } });
 
     const targetSocketId = playerSockets.get(targetId);
     if (targetSocketId) {
-      io.to(targetSocketId).emit("admin:kick", { reason: "kicked" });
       const targetSocket = io.sockets.sockets.get(targetSocketId);
       if (targetSocket) {
-        targetSocket.disconnect(true);
+        // Очищаем данные комнаты, но НЕ отключаем сокет
+        // Это позволит кикнутому игроку сразу создать/присоединиться к другой комнате
+        targetSocket.leave(socket.data.roomId);
+        targetSocket.data.roomId = null;
+        targetSocket.data.playerId = null;
       }
+      io.to(targetSocketId).emit("admin:kick", { reason: "kicked" });
     }
 
     playerSockets.delete(targetId);
@@ -1603,6 +1840,9 @@ io.on("connection", (socket) => {
       data: { phase: "complete", result: "skipped", endedAt: new Date() }
     });
 
+    // Advance turn to next player
+    await advanceTurnIndex(room.id);
+
     io.to(room.id).emit("admin:skip_round", { roundId: round.id });
     await emitRoomState(room.id);
 
@@ -1642,17 +1882,107 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // room:end — Организатор завершает игру для всех
+  // ───────────────────────────────────────────────────────────────────────────
+  socket.on("room:end", async (payload, ack) => {
+    if (!socket.data.roomId || !socket.data.playerId) {
+      if (ack) {
+        ack({ ok: false, error: "Not in room" });
+      }
+      return;
+    }
+
+    const roomId = socket.data.roomId;
+
+    try {
+      const room = await prisma.room.findUnique({ where: { id: roomId } });
+      if (!room) {
+        if (ack) {
+          ack({ ok: false, error: "Room not found" });
+        }
+        return;
+      }
+
+      // Только хост может завершить игру
+      if (room.hostId !== socket.data.playerId) {
+        if (ack) {
+          ack({ ok: false, error: "Host only" });
+        }
+        return;
+      }
+
+      console.log("[Room:End] Host ending game for room:", room.code);
+
+      // Останавливаем таймер
+      stopTimer(roomId);
+
+      // Уведомляем всех игроков о завершении игры
+      io.to(roomId).emit("room:ended", { reason: "host_ended" });
+
+      // Отключаем всех игроков от socket.io комнаты и очищаем их данные
+      const players = await prisma.player.findMany({ where: { roomId } });
+      for (const player of players) {
+        const playerSocketId = playerSockets.get(player.id);
+        if (playerSocketId) {
+          const playerSocket = io.sockets.sockets.get(playerSocketId);
+          if (playerSocket) {
+            playerSocket.leave(roomId);
+            playerSocket.data.roomId = null;
+            playerSocket.data.playerId = null;
+          }
+          playerSockets.delete(player.id);
+        }
+      }
+
+      // Удаляем все данные комнаты
+      await prisma.vote.deleteMany({ where: { round: { roomId } } });
+      await prisma.round.deleteMany({ where: { roomId } });
+      await prisma.player.deleteMany({ where: { roomId } });
+      await prisma.room.delete({ where: { id: roomId } });
+
+      console.log("[Room:End] Room deleted:", room.code);
+
+      if (ack) {
+        ack({ ok: true });
+      }
+    } catch (error) {
+      console.error("room:end error:", error);
+      if (ack) {
+        ack({ ok: false, error: "Failed to end room" });
+      }
+    }
+  });
+
   socket.on("disconnect", async () => {
-    if (socket.data.playerId) {
+    if (socket.data.playerId && socket.data.roomId) {
+      const playerId = socket.data.playerId;
+      const roomId = socket.data.roomId;
+      
       try {
-        await prisma.player.update({
-          where: { id: socket.data.playerId },
-          data: { lastSeen: new Date() }
+        // Обновляем статус на disconnected (временный разрыв связи)
+        const player = await prisma.player.update({
+          where: { id: playerId },
+          data: { 
+            lastSeen: new Date(),
+            connectionStatus: "disconnected"
+          }
         });
+        
+        // Уведомляем всех в комнате об изменении статуса
+        io.to(roomId).emit("player:connection_status", {
+          playerId,
+          connectionStatus: "disconnected",
+          playerName: player.name
+        });
+        
+        // Обновляем состояние комнаты
+        await emitRoomState(roomId);
+        
       } catch (error) {
         // Ignore missing player records.
       }
-      playerSockets.delete(socket.data.playerId);
+      playerSockets.delete(playerId);
     }
   });
 });

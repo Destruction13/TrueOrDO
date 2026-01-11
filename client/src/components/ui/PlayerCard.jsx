@@ -13,10 +13,12 @@ export default function PlayerCard({
   onKick,
   showKickButton = false
 }) {
-  const { name, status, strikes, avatarUrl, shameTitle, truthStreak = 0, dareStreak = 0 } = player;
+  const { name, status, strikes, avatarUrl, shameTitle, truthStreak = 0, dareStreak = 0, connectionStatus = "online" } = player;
   
   const isChaos = status === "chaos";
   const isShamed = status === "shamed";
+  const isDisconnected = connectionStatus === "disconnected";
+  const isLeft = connectionStatus === "left";
   const initial = name?.[0]?.toUpperCase() || "?";
 
   // Build class names
@@ -25,7 +27,9 @@ export default function PlayerCard({
     isChaos && "player-card-v2--chaos",
     isShamed && "player-card-v2--shamed",
     isCurrent && "player-card-v2--current",
-    isMe && "player-card-v2--me"
+    isMe && "player-card-v2--me",
+    isDisconnected && "player-card-v2--disconnected",
+    isLeft && "player-card-v2--left"
   ].filter(Boolean).join(" ");
 
   return (
@@ -72,6 +76,8 @@ export default function PlayerCard({
           {isMe && <span className="player-card-v2__me-tag">Вы</span>}
           {isChaos && <span className="player-card-v2__chaos-tag">🔥 ХАОС</span>}
           {isShamed && <span className="player-card-v2__shamed-tag">⏱️ -25%</span>}
+          {isDisconnected && <span className="player-card-v2__disconnected-tag">📡 Нет связи</span>}
+          {isLeft && <span className="player-card-v2__left-tag">🚪 Покинул</span>}
         </div>
         
         <div className="player-card-v2__meta">

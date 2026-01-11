@@ -91,7 +91,9 @@ model Player {
   roomId              String
   name                String
   avatarUrl           String?
+  visitorId           String?                      // уникальный ID браузера/устройства для бан-листа
   status              String   @default("active") // "active" | "shamed" | "chaos"
+  connectionStatus    String   @default("online") // "online" | "disconnected" | "left"
   strikes             Int      @default(0)
   shameTitle          String?                      // язвительная фраза для shamed
   shameClearProgress  Int      @default(0)         // прогресс снятия shamed (0..2)
@@ -111,7 +113,8 @@ model Round {
   roomId          String
   startedAt       DateTime @default(now())
   endedAt         DateTime?
-  currentPlayerId String?
+  currentPlayerId String?  // Игрок, выполняющий задание (targetPlayer)
+  turnPlayerId    String?  // Игрок, чей ход (выбирает targetPlayer)
   mode            String?
   timerSeconds    Int
   phase           String   @default("idle")

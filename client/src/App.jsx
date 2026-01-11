@@ -7,6 +7,8 @@ import ProfileScreen from "./components/auth/ProfileScreen";
 import VerifyEmail from "./components/auth/VerifyEmail";
 import ResetPassword from "./components/auth/ResetPassword";
 import EmailVerifyBanner from "./components/auth/EmailVerifyBanner";
+import BannedModal from "./components/ui/BannedModal";
+import GameEndedModal from "./components/ui/GameEndedModal";
 import { useAuth } from "./context/AuthContext";
 
 const socket = io(import.meta.env.VITE_SERVER_URL || "/", {
@@ -19,6 +21,70 @@ let isLeavingRoom = false;
 // DEBUG: Логирование
 const DEBUG = false; // Отключаем для продакшена
 const log = (...args) => DEBUG && console.log("[App]", ...args);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Session Storage — для восстановления сессии после F5
+// ═══════════════════════════════════════════════════════════════════════════
+const SESSION_KEYS = {
+  PLAYER_ID: "tod:playerId",
+  ROOM_CODE: "tod:roomCode",
+  PLAYER_NAME: "tod:playerName",
+  VISITOR_ID: "tod:visitorId"
+};
+
+// Генерация уникального visitorId для идентификации устройства/браузера
+function getOrCreateVisitorId() {
+  try {
+    let visitorId = localStorage.getItem(SESSION_KEYS.VISITOR_ID);
+    if (!visitorId) {
+      visitorId = "v_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem(SESSION_KEYS.VISITOR_ID, visitorId);
+    }
+    return visitorId;
+  } catch (e) {
+    // Fallback если localStorage недоступен
+    return "v_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+}
+
+function saveSession(playerId, roomCode, playerName) {
+  try {
+    localStorage.setItem(SESSION_KEYS.PLAYER_ID, playerId);
+    localStorage.setItem(SESSION_KEYS.ROOM_CODE, roomCode);
+    if (playerName) {
+      localStorage.setItem(SESSION_KEYS.PLAYER_NAME, playerName);
+    }
+    log("Session saved:", { playerId, roomCode, playerName });
+  } catch (e) {
+    console.error("Failed to save session:", e);
+  }
+}
+
+function loadSession() {
+  try {
+    const playerId = localStorage.getItem(SESSION_KEYS.PLAYER_ID);
+    const roomCode = localStorage.getItem(SESSION_KEYS.ROOM_CODE);
+    const playerName = localStorage.getItem(SESSION_KEYS.PLAYER_NAME);
+    if (playerId && roomCode) {
+      log("Session loaded:", { playerId, roomCode, playerName });
+      return { playerId, roomCode, playerName };
+    }
+  } catch (e) {
+    console.error("Failed to load session:", e);
+  }
+  return null;
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEYS.PLAYER_ID);
+    localStorage.removeItem(SESSION_KEYS.ROOM_CODE);
+    localStorage.removeItem(SESSION_KEYS.PLAYER_NAME);
+    log("Session cleared");
+  } catch (e) {
+    console.error("Failed to clear session:", e);
+  }
+}
 
 // Простой роутинг по URL
 function getRoute() {
@@ -59,6 +125,9 @@ function App() {
   const [myVote, setMyVote] = useState(null);
   const [forcedMode, setForcedMode] = useState(null);
   const [reelItems, setReelItems] = useState(null);
+  const [isRestoring, setIsRestoring] = useState(true); // Флаг восстановления сессии
+  const [bannedModal, setBannedModal] = useState({ isOpen: false, roomCode: null }); // Модальное окно бана
+  const [gameEndedModal, setGameEndedModal] = useState(false); // Модальное окно завершения игры
 
   // Обработка изменения URL
   useEffect(() => {
@@ -71,6 +140,77 @@ function App() {
     socket.connect();
     return () => {
       socket.disconnect();
+    };
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Bootstrap — попытка восстановить сессию при загрузке
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const tryRestoreSession = async () => {
+      const session = loadSession();
+      
+      if (!session) {
+        log("No saved session found");
+        setIsRestoring(false);
+        return;
+      }
+
+      log("Attempting to restore session:", session);
+
+      // Ждём подключения сокета
+      const waitForConnection = () => {
+        return new Promise((resolve) => {
+          if (socket.connected) {
+            resolve();
+          } else {
+            socket.once("connect", resolve);
+          }
+        });
+      };
+
+      await waitForConnection();
+
+      // Пытаемся восстановить сессию
+      socket.emit("room:rejoin", {
+        playerId: session.playerId,
+        roomCode: session.roomCode
+      }, (response) => {
+        log("Rejoin response:", response);
+        
+        if (response?.ok) {
+          // Успешное восстановление
+          setRoomState(response.state);
+          setMeId(response.playerId);
+          // Обновляем сессию на случай если имя изменилось
+          saveSession(response.playerId, response.state.room.code, response.playerName);
+          log("Session restored successfully");
+        } else {
+          // Не удалось восстановить — очищаем сессию
+          log("Failed to restore session:", response?.error);
+          clearSession();
+        }
+        
+        setIsRestoring(false);
+      });
+    };
+
+    tryRestoreSession();
+  }, []);
+
+  // Обработка события session:replaced (две вкладки)
+  useEffect(() => {
+    const handleSessionReplaced = (payload) => {
+      log("Session replaced:", payload);
+      clearSession();
+      setRoomState(null);
+      setMeId(null);
+      setError("Сессия перехвачена другой вкладкой");
+    };
+
+    socket.on("session:replaced", handleSessionReplaced);
+    return () => {
+      socket.off("session:replaced", handleSessionReplaced);
     };
   }, []);
 
@@ -206,9 +346,17 @@ function App() {
     });
 
     socket.on("admin:kick", () => {
+      clearSession(); // Очищаем сессию при кике
       setRoomState(null);
       setMeId(null);
       setError("Вы были удалены ведущим.");
+    });
+
+    socket.on("room:ended", () => {
+      clearSession(); // Очищаем сессию при завершении игры
+      setRoomState(null);
+      setMeId(null);
+      setGameEndedModal(true);
     });
 
     socket.on("player:left", (payload) => {
@@ -245,6 +393,20 @@ function App() {
       });
     });
 
+    socket.on("player:connection_status", (payload) => {
+      setRoomState((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          players: prev.players.map((p) =>
+            p.id === payload.playerId
+              ? { ...p, connectionStatus: payload.connectionStatus }
+              : p
+          )
+        };
+      });
+    });
+
     return () => {
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
@@ -264,6 +426,8 @@ function App() {
       socket.off("room:host_changed");
       socket.off("round:mode_forced");
       socket.off("player:update_streak");
+      socket.off("player:connection_status");
+      socket.off("room:ended");
     };
   }, []);
 
@@ -292,25 +456,38 @@ function App() {
   const actions = useMemo(
     () => ({
       createRoom: async (name) => {
-        const response = await emitWithAck("room:create", { name });
+        const visitorId = getOrCreateVisitorId();
+        const response = await emitWithAck("room:create", { name, visitorId });
         const result = handleAck(response);
         if (result.ok) {
           setRoomState(result.state);
           setMeId(result.playerId);
+          // Сохраняем сессию для восстановления после F5
+          saveSession(result.playerId, result.state.room.code, name);
         }
         return result;
       },
       joinRoom: async (name, code) => {
-        const response = await emitWithAck("room:join", { name, code });
+        const visitorId = getOrCreateVisitorId();
+        const response = await emitWithAck("room:join", { name, code, visitorId });
+        
+        // Специальная обработка бана
+        if (response?.error === "banned") {
+          setBannedModal({ isOpen: true, roomCode: code.toUpperCase() });
+          return { ok: false, error: "banned" };
+        }
+        
         const result = handleAck(response);
         if (result.ok) {
           setRoomState(result.state);
           setMeId(result.playerId);
+          // Сохраняем сессию для восстановления после F5
+          saveSession(result.playerId, result.state.room.code, name);
         }
         return result;
       },
-      startRound: async (playerId) => {
-        const response = await emitWithAck("round:start", { playerId });
+      startRound: async (targetPlayerId) => {
+        const response = await emitWithAck("round:start", { targetPlayerId });
         return handleAck(response);
       },
       setMode: async (mode) => {
@@ -364,6 +541,9 @@ function App() {
         isLeavingRoom = true;
         log("isLeavingRoom set to TRUE");
         
+        // Очищаем сессию — игрок явно вышел, не восстанавливать при F5
+        clearSession();
+        
         // Сбрасываем состояние СРАЗУ, не дожидаясь ответа сервера
         // Это гарантирует выход на клиенте независимо от сервера
         log("Setting roomState to null IMMEDIATELY...");
@@ -391,17 +571,38 @@ function App() {
         }, 500);
         
         return { ok: true };
+      },
+      endGame: async () => {
+        log("endGame() called");
+        
+        // Очищаем сессию
+        clearSession();
+        
+        // Сбрасываем состояние
+        setRoomState(null);
+        setMeId(null);
+        setError("");
+        
+        // Отправляем запрос на сервер
+        try {
+          const response = await emitWithAck("room:end", {});
+          log("room:end response:", response);
+          return response;
+        } catch (error) {
+          console.error("endGame emit error:", error);
+          return { ok: false, error: "Failed to end game" };
+        }
       }
     }),
     []
   );
 
-  // Показываем загрузку пока проверяем авторизацию
-  if (authLoading) {
+  // Показываем загрузку пока проверяем авторизацию или восстанавливаем сессию
+  if (authLoading || isRestoring) {
     return (
       <div className="app-loading">
         <div className="app-loading__spinner" />
-        <p>Загрузка...</p>
+        <p>{isRestoring ? "Восстановление сессии..." : "Загрузка..."}</p>
       </div>
     );
   }
@@ -463,6 +664,18 @@ function App() {
           user={user}
           onProfile={() => navigate("/profile")}
           onLogin={() => navigate("/login")}
+          onClearError={() => setError("")}
+        />
+        {/* Модальное окно бана */}
+        <BannedModal 
+          isOpen={bannedModal.isOpen}
+          roomCode={bannedModal.roomCode}
+          onClose={() => setBannedModal({ isOpen: false, roomCode: null })}
+        />
+        {/* Модальное окно завершения игры */}
+        <GameEndedModal 
+          isOpen={gameEndedModal}
+          onClose={() => setGameEndedModal(false)}
         />
       </>
     );

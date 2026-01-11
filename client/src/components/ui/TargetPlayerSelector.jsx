@@ -1,0 +1,129 @@
+import { motion } from "framer-motion";
+import "./TargetPlayerSelector.css";
+
+/**
+ * TargetPlayerSelector — компонент выбора игрока для Правда или Действие
+ * Отображает кнопки с аватарами и никами игроков
+ */
+export default function TargetPlayerSelector({
+  players,
+  currentTurnPlayerId,
+  meId,
+  disabled = false,
+  onSelectPlayer,
+  allowSelfSelect = true // Для теста можно выбрать себя, потом отключить
+}) {
+  // Игрок, чей ход, выбирает кому задать вопрос
+  const currentTurnPlayer = players.find(p => p.id === currentTurnPlayerId);
+  
+  const handleSelect = (playerId) => {
+    if (disabled) return;
+    if (!allowSelfSelect && playerId === currentTurnPlayerId) return;
+    onSelectPlayer?.(playerId);
+  };
+
+  return (
+    <div className="target-player-selector">
+      <div className="target-player-selector__header">
+        <div className="target-player-selector__turn-info">
+          <span className="target-player-selector__label">Ход:</span>
+          <div className="target-player-selector__turn-player">
+            {currentTurnPlayer?.avatarUrl ? (
+              <img 
+                src={currentTurnPlayer.avatarUrl} 
+                alt={currentTurnPlayer.name}
+                className="target-player-selector__turn-avatar"
+              />
+            ) : (
+              <div className="target-player-selector__turn-avatar-placeholder">
+                {currentTurnPlayer?.name?.[0]?.toUpperCase() || "?"}
+              </div>
+            )}
+            <span className="target-player-selector__turn-name">
+              {currentTurnPlayer?.name || "—"}
+              {currentTurnPlayerId === meId && <span className="target-player-selector__me-badge">Вы</span>}
+            </span>
+          </div>
+        </div>
+        <div className="target-player-selector__instruction">
+          Кто отвечает?
+        </div>
+      </div>
+
+      <div className="target-player-selector__grid">
+        {players
+          .filter((player) => {
+            // Исключаем игроков, которые покинули или отключились
+            if (player.connectionStatus === "left" || player.connectionStatus === "disconnected") {
+              return false;
+            }
+            // Исключаем себя если не разрешено
+            if (!allowSelfSelect && player.id === currentTurnPlayerId) {
+              return false;
+            }
+            return true;
+          })
+          .map((player, index) => {
+          const isMe = player.id === meId;
+          const isTurnPlayer = player.id === currentTurnPlayerId;
+          const isChaos = player.status === "chaos";
+          const isShamed = player.status === "shamed";
+          const initial = player.name?.[0]?.toUpperCase() || "?";
+
+          return (
+            <motion.button
+              key={player.id}
+              className={[
+                "target-player-btn",
+                isMe && "target-player-btn--me",
+                isTurnPlayer && "target-player-btn--turn",
+                isChaos && "target-player-btn--chaos",
+                isShamed && "target-player-btn--shamed",
+                disabled && "target-player-btn--disabled"
+              ].filter(Boolean).join(" ")}
+              disabled={disabled}
+              onClick={() => handleSelect(player.id)}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              whileHover={!disabled ? { scale: 1.02, y: -2 } : {}}
+              whileTap={!disabled ? { scale: 0.98 } : {}}
+            >
+              <div className="target-player-btn__avatar-wrapper">
+                {player.avatarUrl ? (
+                  <img 
+                    src={player.avatarUrl} 
+                    alt={player.name}
+                    className="target-player-btn__avatar"
+                  />
+                ) : (
+                  <div className="target-player-btn__avatar-placeholder">
+                    {initial}
+                  </div>
+                )}
+                <div className={`target-player-btn__status-dot ${player.status}`} />
+              </div>
+              
+              <div className="target-player-btn__info">
+                <span className="target-player-btn__name" title={player.name}>
+                  {player.name}
+                </span>
+                <div className="target-player-btn__tags">
+                  {isMe && <span className="target-player-btn__tag target-player-btn__tag--me">Вы</span>}
+                  {isChaos && <span className="target-player-btn__tag target-player-btn__tag--chaos">🔥 ХАОС</span>}
+                  {isShamed && <span className="target-player-btn__tag target-player-btn__tag--shamed">⏱️ -25%</span>}
+                </div>
+              </div>
+
+              <div className="target-player-btn__arrow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
