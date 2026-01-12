@@ -1,0 +1,115 @@
+.waiting-accept-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 4vw, 40px);
+  z-index: 999;
+}
+
+.waiting-accept-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 10, 20, 0.68);
+  backdrop-filter: blur(12px);
+}
+
+.waiting-accept-overlay__card {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 92vw);
+  padding: clamp(18px, 4vw, 26px);
+  border-radius: 24px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 22px 50px rgba(4, 10, 24, 0.55);
+  text-align: center;
+  animation: waitingFloat 0.45s ease both;
+}
+
+.waiting-accept-overlay__glow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle, rgba(46, 230, 255, 0.12), transparent 60%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.waiting-accept-overlay__title {
+  position: relative;
+  z-index: 1;
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(16px, 3.2vw, 22px);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.waiting-accept-overlay__title span {
+  color: var(--accent);
+}
+
+.waiting-accept-overlay__subtitle {
+  position: relative;
+  z-index: 1;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.waiting-accept-overlay__dots {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.waiting-accept-overlay__dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.4;
+  animation: waitingPulse 1.2s ease-in-out infinite;
+}
+
+.waiting-accept-overlay__dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.waiting-accept-overlay__dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes waitingFloat {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes waitingPulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waiting-accept-overlay__dots span {
+    animation: none;
+  }
+  .waiting-accept-overlay__card {
+    animation: none;
+  }
+}

@@ -118,6 +118,8 @@ model Round {
   mode            String?
   timerSeconds    Int
   phase           String   @default("idle")
+  taskStatus      String   @default("pending") // pending | accepted | done | refused
+  taskAcceptedAt  DateTime?
   result          String?
 
   room           Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)

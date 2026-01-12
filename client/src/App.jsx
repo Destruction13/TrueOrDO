@@ -119,6 +119,7 @@ function App() {
   const [meId, setMeId] = useState(null);
   const [error, setError] = useState("");
   const [timerRemaining, setTimerRemaining] = useState(null);
+  const [votingTimerRemaining, setVotingTimerRemaining] = useState(null);
   const [wheel1Spin, setWheel1Spin] = useState({ index: null, spinning: false, tick: 0 });
   const [wheel2Spin, setWheel2Spin] = useState({ index: null, spinning: false, tick: 0 });
   const [voteCounts, setVoteCounts] = useState({ approve: 0, report: 0, total: 0, eligibleCount: 0 });
@@ -246,10 +247,29 @@ function App() {
       setTimerRemaining(payload.remaining);
     });
 
+    socket.on("voting:timer_tick", (payload) => {
+      setVotingTimerRemaining(payload.remaining);
+    });
+
     socket.on("round:timer_end", () => {
       setRoomState((prev) =>
         prev && prev.round
           ? { ...prev, round: { ...prev.round, phase: "voting" } }
+          : prev
+      );
+    });
+
+    socket.on("round:task_accepted", (payload) => {
+      setRoomState((prev) =>
+        prev && prev.round && (!payload?.roundId || prev.round.id === payload.roundId)
+          ? {
+              ...prev,
+              round: {
+                ...prev.round,
+                taskStatus: "accepted",
+                taskAcceptedAt: payload?.taskAcceptedAt || new Date().toISOString()
+              }
+            }
           : prev
       );
     });
@@ -331,6 +351,8 @@ function App() {
     });
 
     socket.on("vote:result", (payload) => {
+      // Голосование завершено — сбрасываем таймер голосования
+      setVotingTimerRemaining(null);
       setRoomState((prev) =>
         prev && prev.round
           ? {
@@ -413,7 +435,9 @@ function App() {
       socket.off("room:state");
       socket.off("player:list");
       socket.off("round:timer_tick");
+      socket.off("voting:timer_tick");
       socket.off("round:timer_end");
+      socket.off("round:task_accepted");
       socket.off("spin:wheel1_start");
       socket.off("spin:wheel1_result");
       socket.off("spin:wheel2_start");
@@ -433,6 +457,7 @@ function App() {
 
   useEffect(() => {
     setTimerRemaining(null);
+    setVotingTimerRemaining(null);
     setMyVote(null);
     setVoteCounts({ approve: 0, report: 0, total: 0, eligibleCount: 0 });
     setWheel1Spin({ index: null, spinning: false, tick: 0 });
@@ -532,6 +557,10 @@ function App() {
       },
       resetTimer: async () => {
         const response = await emitWithAck("admin:reset_timer", {});
+        return handleAck(response);
+      },
+      acceptTask: async () => {
+        const response = await emitWithAck("round:task_accept", {});
         return handleAck(response);
       },
       leaveRoom: async () => {
@@ -691,6 +720,7 @@ function App() {
         meId={meId}
         roomState={roomState}
         timerRemaining={timerRemaining}
+        votingTimerRemaining={votingTimerRemaining}
         voteCounts={voteCounts}
         myVote={myVote}
         wheel1Spin={wheel1Spin}

@@ -128,7 +128,9 @@ io.use((socket, next) => {
 
 const makeRoomCode = customAlphabet(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
 const roomTimers = new Map();
+const votingTimers = new Map(); // Отдельные таймеры для голосования
 const playerSockets = new Map();
+const VOTING_TIME_SECONDS = 30; // Время на голосование
 
 function getDefaultSettings() {
   return {
@@ -226,6 +228,8 @@ function serializeRound(round, spin, voteCounts) {
     mode: round.mode,
     timerSeconds: round.timerSeconds,
     phase: round.phase,
+    taskStatus: round.taskStatus,
+    taskAcceptedAt: round.taskAcceptedAt,
     result: round.result,
     wheel1Result: wheel1Category ? wheel1Category.title : null,
     wheel1Id,
@@ -379,7 +383,136 @@ async function endTimer(roomId, roundId, reason) {
   });
   io.to(roomId).emit("round:timer_end", { roundId, reason });
   await emitRoomState(roomId);
+  
+  // Запускаем таймер голосования
+  await startVotingTimer(roomId, roundId);
+  
   await maybeFinalizeVote(roomId, roundId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Таймер голосования (30 секунд)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function stopVotingTimer(roomId) {
+  const entry = votingTimers.get(roomId);
+  if (entry) {
+    clearInterval(entry.intervalId);
+    votingTimers.delete(roomId);
+  }
+}
+
+async function startVotingTimer(roomId, roundId) {
+  stopVotingTimer(roomId);
+  let remaining = VOTING_TIME_SECONDS;
+  io.to(roomId).emit("voting:timer_tick", { roundId, remaining });
+  
+  const intervalId = setInterval(async () => {
+    remaining -= 1;
+    io.to(roomId).emit("voting:timer_tick", { roundId, remaining });
+    
+    if (remaining <= 0) {
+      await endVotingTimer(roomId, roundId);
+    }
+  }, 1000);
+
+  votingTimers.set(roomId, { intervalId, roundId, remaining });
+}
+
+async function endVotingTimer(roomId, roundId) {
+  const timer = votingTimers.get(roomId);
+  if (timer && timer.roundId !== roundId) {
+    return;
+  }
+  stopVotingTimer(roomId);
+  
+  const round = await prisma.round.findUnique({ where: { id: roundId } });
+  if (!round || round.phase !== "voting") {
+    return;
+  }
+  
+  console.log("[Voting Timer] Time expired for round:", roundId);
+  
+  // Принудительно завершаем голосование по текущим результатам
+  await finalizeVoteByTimeout(roomId, roundId);
+}
+
+async function finalizeVoteByTimeout(roomId, roundId) {
+  console.log("[Vote Timeout] Finalizing vote by timeout for round:", roundId);
+  const round = await prisma.round.findUnique({ where: { id: roundId } });
+  if (!round || round.phase !== "voting") {
+    console.log("[Vote Timeout] Round not in voting phase, skipping");
+    return;
+  }
+  
+  const playersCount = await prisma.player.count({ where: { roomId } });
+  const eligibleCount = Math.max(playersCount - 1, 0);
+  const votes = await prisma.vote.findMany({ where: { roundId } });
+  const counts = votes.reduce(
+    (acc, vote) => {
+      acc.total += 1;
+      if (vote.vote === "approve") {
+        acc.approve += 1;
+      }
+      if (vote.vote === "report") {
+        acc.report += 1;
+      }
+      return acc;
+    },
+    { approve: 0, report: 0, total: 0 }
+  );
+
+  console.log("[Vote Timeout] Vote counts:", counts, "Eligible:", eligibleCount);
+
+  // Определяем результат по имеющимся голосам
+  const threshold = getMajorityThreshold(eligibleCount);
+  let result = "approved"; // По умолчанию засчитываем если нет большинства репортов
+  
+  if (counts.report >= threshold) {
+    result = "report";
+  } else if (counts.approve >= threshold) {
+    result = "approved";
+  } else if (counts.total > 0) {
+    // Если есть голоса, но нет большинства — решаем по большинству имеющихся
+    if (counts.report > counts.approve) {
+      result = "report";
+    } else {
+      result = "approved"; // При равенстве или большинстве approve — засчитываем
+    }
+  }
+  // Если никто не проголосовал — засчитываем (approved)
+
+  console.log("[Vote Timeout] Finalizing with result:", result);
+
+  await prisma.round.update({
+    where: { id: roundId },
+    data: { phase: "complete", result, endedAt: new Date() }
+  });
+
+  if (result === "report" && round.currentPlayerId) {
+    await applyStrike(round.currentPlayerId, roomId);
+  }
+  
+  // Update player progress
+  if (round.currentPlayerId) {
+    const wasReported = result === "report";
+    await updatePlayerProgress(round.currentPlayerId, roomId, wasReported);
+    if (result === "approved") {
+      await updatePlayerStreak(round.currentPlayerId, roomId, round.mode);
+    }
+  }
+
+  // Advance turn
+  await advanceTurnIndex(roomId);
+
+  io.to(roomId).emit("vote:result", {
+    roundId,
+    result,
+    counts,
+    threshold,
+    timedOut: true
+  });
+  await emitRoomState(roomId);
 }
 
 function getMajorityThreshold(eligibleCount) {
@@ -651,6 +784,9 @@ async function maybeFinalizeVote(roomId, roundId) {
     console.log("[Vote] Not all votes in yet:", counts.total, "/", eligibleCount);
     return;
   }
+
+  // Все проголосовали — останавливаем таймер голосования
+  stopVotingTimer(roomId);
 
   const threshold = getMajorityThreshold(eligibleCount);
   let result = "not_approved";
@@ -1067,7 +1203,9 @@ io.on("connection", (socket) => {
         currentPlayerId: targetPlayerId, // Тот, кто выполняет задание
         turnPlayerId: currentTurnPlayerId, // Тот, чей ход (выбирает)
         timerSeconds: settings.timerSeconds || 120,
-        phase: "mode"
+        phase: "mode",
+        taskStatus: "pending",
+        taskAcceptedAt: null
       }
     });
 
@@ -1193,15 +1331,14 @@ io.on("connection", (socket) => {
       });
       await prisma.round.update({
         where: { id: round.id },
-        data: { mode, phase: "task" }
+        data: {
+          mode,
+          phase: "task",
+          taskStatus: "pending",
+          taskAcceptedAt: null
+        }
       });
-      
-      // Calculate timer (shamed players get 25% less time)
-      let timerSeconds = round.timerSeconds || 120;
-      if (currentPlayer?.status === "shamed") {
-        timerSeconds = Math.floor(timerSeconds * 0.75);
-      }
-      
+
       io.to(room.id).emit("spin:final", {
         roundId: round.id,
         finalText,
@@ -1209,7 +1346,6 @@ io.on("connection", (socket) => {
         forcedMode: forcedMode || undefined
       });
       await emitRoomState(room.id);
-      await startTimer(room.id, round.id, timerSeconds);
 
       if (ack) {
         ack({ ok: true });
@@ -1376,7 +1512,11 @@ io.on("connection", (socket) => {
 
     await prisma.round.update({
       where: { id: round.id },
-      data: { phase: "task" }
+      data: {
+        phase: "task",
+        taskStatus: "pending",
+        taskAcceptedAt: null
+      }
     });
 
     // Build wheel2_result with reelItems for chaos players
@@ -1402,13 +1542,63 @@ io.on("connection", (socket) => {
     });
 
     await emitRoomState(room.id);
-    
-    // Calculate timer (shamed players get 25% less time)
-    let timerSeconds = round.timerSeconds || 120;
-    if (currentPlayer?.status === "shamed") {
-      timerSeconds = Math.floor(timerSeconds * 0.75);
+
+    if (ack) {
+      ack({ ok: true });
     }
+  });
+
+  socket.on("round:task_accept", async (payload, ack) => {
+    await touchPlayer(socket);
+    if (!socket.data.roomId) {
+      if (ack) {
+        ack({ ok: false, error: "Not in room" });
+      }
+      return;
+    }
+    const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
+    const round = await prisma.round.findFirst({
+      where: { roomId: room?.id, endedAt: null },
+      orderBy: { startedAt: "desc" }
+    });
+    if (!round || round.phase !== "task") {
+      if (ack) {
+        ack({ ok: false, error: "Round not in task" });
+      }
+      return;
+    }
+    if (!socket.data.playerId || socket.data.playerId !== round.currentPlayerId) {
+      if (ack) {
+        ack({ ok: false, error: "Not allowed" });
+      }
+      return;
+    }
+    if (round.taskStatus && round.taskStatus !== "pending") {
+      if (ack) {
+        ack({ ok: true, status: round.taskStatus });
+      }
+      return;
+    }
+
+    const acceptedAt = new Date();
+    await prisma.round.update({
+      where: { id: round.id },
+      data: {
+        taskStatus: "accepted",
+        taskAcceptedAt: acceptedAt
+      }
+    });
+
+    const timerSeconds = round.timerSeconds || 120;
     await startTimer(room.id, round.id, timerSeconds);
+
+    io.to(room.id).emit("round:task_accepted", {
+      roomId: room.id,
+      roundId: round.id,
+      currentPlayerId: round.currentPlayerId,
+      taskAcceptedAt: acceptedAt
+    });
+    await emitRoomState(room.id);
 
     if (ack) {
       ack({ ok: true });
@@ -1443,6 +1633,10 @@ io.on("connection", (socket) => {
       }
       return;
     }
+    await prisma.round.update({
+      where: { id: round.id },
+      data: { taskStatus: "done" }
+    });
     await endTimer(room.id, round.id, "done");
     if (ack) {
       ack({ ok: true });
@@ -1489,7 +1683,12 @@ io.on("connection", (socket) => {
     }
     await prisma.round.update({
       where: { id: round.id },
-      data: { phase: "complete", result: "report", endedAt: new Date() }
+      data: {
+        phase: "complete",
+        result: "report",
+        endedAt: new Date(),
+        taskStatus: "refused"
+      }
     });
     
     // Advance turn to next player

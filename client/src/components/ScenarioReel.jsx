@@ -61,6 +61,8 @@ function ScenarioReel({
   targetIndex,
   spinTick = 0,
   spinning,
+  canAcceptTask,
+  taskStatus,
   onStart,
   onStop,
   onReveal,
@@ -70,6 +72,8 @@ function ScenarioReel({
   const hasChaosReel = serverReelItems && serverReelItems.length > 0;
   const [isAnimating, setIsAnimating] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(false);
+  const canShowOverlay = Boolean(canAcceptTask && taskStatus === "pending");
+  const canShowOverlayRef = useRef(canShowOverlay);
   const splineRef = useRef(null);
   const splineFrameRef = useRef(null);
   const splineLogRef = useRef(false);
@@ -174,6 +178,12 @@ function ScenarioReel({
   useEffect(() => {
     overlayVisibleRef.current = overlayVisible;
   }, [overlayVisible]);
+  useEffect(() => {
+    canShowOverlayRef.current = canShowOverlay;
+    if (!canShowOverlay) {
+      setOverlayVisible(false);
+    }
+  }, [canShowOverlay]);
   useEffect(() => {
     onStartTaskRef.current = onStartTask;
   }, [onStartTask]);
@@ -671,7 +681,9 @@ function ScenarioReel({
         if (spinIdRef.current !== spinId) {
           return;
         }
-        setOverlayVisible(true);
+        if (canShowOverlayRef.current) {
+          setOverlayVisible(true);
+        }
         if (typeof onReveal === "function") {
           onReveal(item);
         }
@@ -810,19 +822,19 @@ function ScenarioReel({
           })}
         </div>
       </div>
-      {overlayVisible && selectedItem
+      {overlayVisible && selectedItem && canShowOverlay
         ? createPortal(
             <div className="reel-overlay">
               <div className="reel-overlay__backdrop" aria-hidden="true" />
-                <div
-                  className="reel-overlay__stage"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <div className="reel-overlay__anim" aria-hidden="true" />
-                  <div className="reel-overlay__spline-frame" ref={splineFrameRef}>
-                    <div className="reel-overlay__spline-wrap">
-                      <Spline
-                        className="reel-overlay__spline"
+              <div
+                className="reel-overlay__stage"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="reel-overlay__anim" aria-hidden="true" />
+                <div className="reel-overlay__spline-frame" ref={splineFrameRef}>
+                  <div className="reel-overlay__spline-wrap">
+                    <Spline
+                      className="reel-overlay__spline"
                       scene="https://prod.spline.design/G4ffd9GW5IJbuhml/scene.splinecode"
                       onLoad={handleSplineLoad}
                     />

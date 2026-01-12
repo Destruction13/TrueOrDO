@@ -78,10 +78,112 @@ p {
   color: var(--accent);
   margin-bottom: 12px;
 }
+.gooey-text {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.gooey-text__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.gooey-text__stage {
+  position: relative;
+  display: inline-block;
+}
+.gooey-text__layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-block;
+  white-space: nowrap;
+}
+.gooey-text__layer--base {
+  position: relative;
+}
+.hero-title {
+  --mx: 50%;
+  --my: 50%;
+  --rx: 0deg;
+  --ry: 0deg;
+  --glow: 0.35;
+  position: relative;
+  z-index: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0 0 12px;
+  transform-style: preserve-3d;
+  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform 0.12s ease;
+  will-change: transform;
+}
+.hero-title::before {
+  content: "";
+  position: absolute;
+  inset: -18px -22px;
+  background: radial-gradient(circle at var(--mx) var(--my), rgba(46, 230, 255, 0.35), transparent 55%);
+  opacity: var(--glow);
+  filter: blur(26px);
+  z-index: -1;
+  pointer-events: none;
+}
+.hero-title__gooey {
+  min-height: 1.1em;
+  min-width: 10ch;
+}
+.hero-title__text {
+  font-family: "Orbitron", "Space Grotesk", sans-serif;
+  font-size: clamp(2.6rem, 6vw, 4.8rem);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: transparent;
+  background-image:
+    radial-gradient(120% 120% at var(--mx) var(--my), rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 45%),
+    linear-gradient(120deg, #7ae7ff 0%, #ff7ad9 35%, #7cff6b 70%, #7ae7ff 100%);
+  background-size: 180% 180%;
+  background-position: var(--mx) var(--my), 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: 0 18px 40px rgba(5, 10, 25, 0.65);
+  animation: titleSweep 3.8s ease-in-out infinite;
+  transition: text-shadow 0.2s ease;
+}
+.hero-title:hover .hero-title__text {
+  text-shadow: 0 22px 50px rgba(5, 10, 25, 0.7), 0 0 35px rgba(122, 231, 255, 0.45);
+}
+.hero-title:hover::before {
+  opacity: 0.6;
+}
 .join-screen {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 24px;
+}
+
+@keyframes titleSweep {
+  0% {
+    background-position: var(--mx) var(--my), 0% 50%;
+  }
+  50% {
+    background-position: var(--mx) var(--my), 100% 50%;
+  }
+  100% {
+    background-position: var(--mx) var(--my), 0% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-title {
+    transition: none;
+  }
+
+  .hero-title__text {
+    animation: none;
+  }
 }
 .glass-card,
 .panel {
@@ -1250,6 +1352,13 @@ select:focus {
   font-size: 16px;
   font-weight: 600;
 }
+.task-executor {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 .timer {
   font-family: "Orbitron", sans-serif;
   font-size: 18px;
@@ -1262,6 +1371,26 @@ select:focus {
   font-size: 13px;
   color: var(--muted);
   margin-bottom: 12px;
+}
+.vote-panel .vote-cast {
+  padding: 10px 14px;
+  background: rgba(80, 200, 120, 0.12);
+  border: 1px solid rgba(80, 200, 120, 0.3);
+  border-radius: 10px;
+  color: #50c878;
+  font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Блок кнопок голосования
+   ═══════════════════════════════════════════════════════════════════════════ */
+.vote-actions-block {
+  margin-top: 20px;
+}
+.vote-actions-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .result-card {
   text-align: center;

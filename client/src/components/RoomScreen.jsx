@@ -7,6 +7,10 @@ import LeaveButton from "./ui/LeaveButton";
 import PlayerCard from "./ui/PlayerCard";
 import TargetPlayerSelector from "./ui/TargetPlayerSelector";
 import ConfirmEndGameModal from "./ui/ConfirmEndGameModal";
+import VotingRules from "./ui/VotingRules";
+import VotingStatus from "./ui/VotingStatus";
+import TaskAcceptOverlay from "./ui/TaskAcceptOverlay";
+import WaitingAcceptOverlay from "./ui/WaitingAcceptOverlay";
 
 function formatTimer(seconds) {
   if (seconds == null || Number.isNaN(seconds)) {
@@ -23,6 +27,7 @@ function RoomScreen({
   meId,
   roomState,
   timerRemaining,
+  votingTimerRemaining,
   voteCounts,
   myVote,
   wheel1Spin,
@@ -33,7 +38,6 @@ function RoomScreen({
 }) {
   const { room, players, round, content } = roomState;
   const [categoryReady, setCategoryReady] = useState(false);
-  const [taskAccepted, setTaskAccepted] = useState(false);
   const [showEndGameModal, setShowEndGameModal] = useState(false);
   const pendingCategoryIdRef = useRef(null);
 
@@ -53,6 +57,9 @@ function RoomScreen({
   const phase = round?.phase;
   const isTruth = round?.mode === "truth";
   const isDare = round?.mode === "dare";
+  const taskStatus = round?.taskStatus || "pending";
+  const isTaskPending = Boolean(round && phase === "task" && taskStatus === "pending");
+  const isTaskAccepted = Boolean(round && taskStatus !== "pending");
   
   // Chaos mode detection
   const isCurrentPlayerChaos = currentPlayer?.status === "chaos";
@@ -193,10 +200,6 @@ function RoomScreen({
     wheel1Spin.tick
   ]);
 
-  useEffect(() => {
-    setTaskAccepted(false);
-  }, [round?.id, round?.wheel2Id]);
-
   const categories = content?.categories || [];
   const selectedCategory = categories.find((category) => category.id === round?.wheel1Id);
   const wheel2Items = selectedCategory?.items || [];
@@ -218,7 +221,7 @@ function RoomScreen({
   const canPickMode = round && phase === "mode" && isMeCurrent;
   const canSpinWheel1 = round && phase === "wheel1" && isMeCurrent;
   const canSpinWheel2 = round && phase === "wheel2" && isMeCurrent;
-  const canMarkDone = round && phase === "task" && isMeCurrent;
+  const canMarkDone = round && phase === "task" && isMeCurrent && isTaskAccepted;
   const canVote = round && phase === "voting" && !isMeCurrent && !myVote;
   const canResetTimer = isHost && phase === "task";
 
@@ -252,12 +255,8 @@ function RoomScreen({
   }, [players]);
 
   const handleStartTask = useCallback(() => {
-    setTaskAccepted(true);
-    if (!canResetTimer) {
-      return;
-    }
-    actions.resetTimer();
-  }, [actions, canResetTimer]);
+    actions.acceptTask();
+  }, [actions]);
 
   const handleCategoryReveal = useCallback((revealedId) => {
     if (!revealedId || revealedId !== pendingCategoryIdRef.current) {
@@ -460,6 +459,8 @@ function RoomScreen({
                       targetIndex={wheel2Spin.index}
                       spinTick={wheel2Spin.tick}
                       spinning={wheel2Spin.spinning}
+                      canAcceptTask={isMeCurrent && isTaskPending}
+                      taskStatus={taskStatus}
                       onStartTask={handleStartTask}
                     />
                   ) : (
@@ -486,14 +487,39 @@ function RoomScreen({
             </div>
           ) : null}
 
+          {round && !chaosDeciding && isTaskPending && isTruth && isMeCurrent ? (
+            <TaskAcceptOverlay
+              isOpen
+              title="Принять задание"
+              subtitle="Только вы видите текст до старта"
+              description={round.finalText || ""}
+              onAccept={actions.acceptTask}
+              onSecondary={actions.refuseTruth}
+              primaryLabel="Начать задание"
+              secondaryLabel="Отказаться"
+            />
+          ) : null}
+
+          {round && !chaosDeciding && isTaskPending && !isMeCurrent ? (
+            <WaitingAcceptOverlay
+              isOpen
+              targetName={currentPlayer?.name || "игрока"}
+            />
+          ) : null}
+
           {round &&
               !chaosDeciding &&
-              (phase === "task" || phase === "voting" || phase === "complete") &&
-              (isTruth || taskAccepted) ? (
+              !isTaskPending &&
+              (phase === "task" || phase === "voting" || phase === "complete") ? (
             <div className="task-card">
               <div className="task-header">
                 <div>
-                  <div className="label">{isTruth ? "Вопрос" : "Задание"}</div>
+                  <div className="label">Задание принято ✅</div>
+                  {!isMeCurrent && currentPlayer ? (
+                    <div className="task-executor">
+                      Выполняет: {currentPlayer.name}
+                    </div>
+                  ) : null}
                   <div className="value">{round.finalText || "-"}</div>
                 </div>
                 <div className="timer">{formatTimer(timerRemaining)}</div>
@@ -501,11 +527,11 @@ function RoomScreen({
               {canMarkDone ? (
                 <div className="stage-actions">
                   <Button variant="primary" size="md" onClick={actions.markDone}>
-                    {isTruth ? "Ответил" : "Я сделал"}
+                    {isTruth ? "Выполнил" : "Я справился"}
                   </Button>
                   {isTruth ? (
                     <Button variant="ghost" size="md" onClick={actions.refuseTruth}>
-                      Отказываюсь
+                      Отказаться
                     </Button>
                   ) : null}
                 </div>
@@ -516,39 +542,47 @@ function RoomScreen({
           {round && phase === "voting" ? (
             <div className="vote-panel">
               <div className="stage-title">Голосование</div>
-              <div className="vote-info">
-                <span>Большинство: {majority} голосов</span>
-                <span>
-                  За: {voteCounts.approve} | Репорт: {voteCounts.report} | Всего: {voteCounts.total}/
-                  {eligibleCount}
-                </span>
-              </div>
-              {isMeCurrent ? (
-                <div className="round-hint">Ты не голосуешь в этом раунде.</div>
-              ) : null}
-              {myVote ? (
-                <div className="round-hint">
-                  Твой голос: {myVote === "approve" ? "Засчитано" : "Репорт"}
+              
+              {/* Правила голосования (сворачиваемый блок) — размещён сверху */}
+              {!isMeCurrent && <VotingRules />}
+              
+              {/* Статус голосования с прогресс-барами */}
+              <VotingStatus
+                approveCount={voteCounts.approve}
+                reportCount={voteCounts.report}
+                totalVoted={voteCounts.total}
+                eligibleCount={eligibleCount}
+                majority={majority}
+                isMeCurrent={isMeCurrent}
+                myVote={myVote}
+                votingTimeLeft={votingTimerRemaining}
+              />
+              
+              {/* Кнопки голосования (только для тех, кто ещё не голосовал) */}
+              {!isMeCurrent && !myVote ? (
+                <div className="vote-actions-block">
+                  <div className="vote-actions-buttons">
+                    <Button
+                      variant="primary"
+                      size="md"
+                      disabled={!canVote}
+                      onClick={() => actions.castVote("approve")}
+                      iconLeft={<span>✓</span>}
+                    >
+                      Засчитано
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      disabled={!canVote}
+                      onClick={() => actions.castVote("report")}
+                      iconLeft={<span>✗</span>}
+                    >
+                      Репорт
+                    </Button>
+                  </div>
                 </div>
               ) : null}
-              <div className="stage-actions">
-                <Button
-                  variant="primary"
-                  size="md"
-                  disabled={!canVote}
-                  onClick={() => actions.castVote("approve")}
-                >
-                  Засчитано
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="md"
-                  disabled={!canVote}
-                  onClick={() => actions.castVote("report")}
-                >
-                  Репорт
-                </Button>
-              </div>
             </div>
           ) : null}
 

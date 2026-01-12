@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Button from "./ui/Button";
 import PulseButton from "./ui/PulseButton";
+import GooeyText from "./ui/GooeyText";
 
 function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin, onClearError }) {
   const [createName, setCreateName] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const titleRef = useRef(null);
+  const titleRaf = useRef(0);
 
   // Имя для создания: никнейм пользователя или введённое вручную
   const effectiveCreateName = user?.nickname || createName.trim();
@@ -40,6 +43,48 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
     setLoading(false);
   };
 
+  const handleTitleMove = (event) => {
+    if (!titleRef.current) {
+      return;
+    }
+
+    const rect = titleRef.current.getBoundingClientRect();
+    const x = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+    const y = Math.min(Math.max((event.clientY - rect.top) / rect.height, 0), 1);
+    const rx = (0.5 - y) * 12;
+    const ry = (x - 0.5) * 12;
+    const glow = Math.max(0.25, 1 - (Math.abs(x - 0.5) + Math.abs(y - 0.5)));
+
+    if (titleRaf.current) {
+      cancelAnimationFrame(titleRaf.current);
+    }
+
+    titleRaf.current = requestAnimationFrame(() => {
+      const el = titleRef.current;
+      if (!el) {
+        return;
+      }
+      el.style.setProperty("--rx", `${rx.toFixed(2)}deg`);
+      el.style.setProperty("--ry", `${ry.toFixed(2)}deg`);
+      el.style.setProperty("--mx", `${(x * 100).toFixed(2)}%`);
+      el.style.setProperty("--my", `${(y * 100).toFixed(2)}%`);
+      el.style.setProperty("--glow", glow.toFixed(2));
+      titleRaf.current = 0;
+    });
+  };
+
+  const handleTitleLeave = () => {
+    const el = titleRef.current;
+    if (!el) {
+      return;
+    }
+    el.style.setProperty("--rx", "0deg");
+    el.style.setProperty("--ry", "0deg");
+    el.style.setProperty("--mx", "50%");
+    el.style.setProperty("--my", "50%");
+    el.style.setProperty("--glow", "0.35");
+  };
+
   return (
     <div className="app-shell">
       {/* User header */}
@@ -64,7 +109,21 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
 
       <div className="hero">
         <div className="hero-tag">True or Do</div>
-        <h1>Правда или Действие</h1>
+        <div
+          className="hero-title"
+          ref={titleRef}
+          onPointerMove={handleTitleMove}
+          onPointerLeave={handleTitleLeave}
+          role="heading"
+          aria-level={1}
+          aria-label="Правда или Действие"
+        >
+          <GooeyText
+            texts={["Правда", "или", "Действие"]}
+            className="hero-title__gooey"
+            textClassName="hero-title__text"
+          />
+        </div>
         <p>Создай комнату, поделись кодом и запускай раунды в реальном времени.</p>
       </div>
 

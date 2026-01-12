@@ -1,0 +1,379 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   VotingRules — Дизайн "Микросхема" / Circuit Board Design
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.voting-rules-circuit {
+  --circuit-color: rgba(100, 180, 255, 0.6);
+  --circuit-glow: rgba(100, 180, 255, 0.3);
+  --circuit-bg: rgba(10, 18, 35, 0.85);
+  
+  position: relative;
+  border-radius: 12px;
+  background: var(--circuit-bg);
+  border: 1px solid rgba(100, 180, 255, 0.2);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Декоративные линии микросхемы
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.circuit-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.voting-rules-circuit--expanded .circuit-lines {
+  opacity: 1;
+}
+
+.circuit-line {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, var(--circuit-color), transparent);
+  height: 1px;
+}
+
+.circuit-line--1 {
+  top: 20%;
+  left: 0;
+  width: 30%;
+  animation: circuit-flow 3s ease-in-out infinite;
+}
+
+.circuit-line--2 {
+  top: 50%;
+  right: 0;
+  width: 25%;
+  animation: circuit-flow 3s ease-in-out infinite 1s;
+}
+
+.circuit-line--3 {
+  bottom: 25%;
+  left: 10%;
+  width: 20%;
+  animation: circuit-flow 3s ease-in-out infinite 0.5s;
+}
+
+@keyframes circuit-flow {
+  0%, 100% { 
+    opacity: 0.3;
+    box-shadow: 0 0 4px var(--circuit-glow);
+  }
+  50% { 
+    opacity: 1;
+    box-shadow: 0 0 12px var(--circuit-glow), 0 0 20px var(--circuit-glow);
+  }
+}
+
+/* Точки-соединения */
+.circuit-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--circuit-color);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--circuit-glow);
+}
+
+.circuit-dot--1 {
+  top: 20%;
+  left: 30%;
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+.circuit-dot--2 {
+  top: 50%;
+  right: 25%;
+  animation: dot-pulse 2s ease-in-out infinite 0.5s;
+}
+
+.circuit-dot--3 {
+  bottom: 25%;
+  left: 30%;
+  animation: dot-pulse 2s ease-in-out infinite 1s;
+}
+
+.circuit-dot--4 {
+  top: 35%;
+  right: 15%;
+  animation: dot-pulse 2s ease-in-out infinite 1.5s;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { 
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% { 
+    transform: scale(1.5);
+    opacity: 1;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Кнопка-триггер
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.voting-rules-circuit__trigger {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.2s ease;
+}
+
+.voting-rules-circuit__trigger:hover {
+  background: rgba(100, 180, 255, 0.08);
+}
+
+.trigger-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.trigger-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.trigger-text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.trigger-chevron {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+.trigger-chevron svg {
+  width: 100%;
+  height: 100%;
+}
+
+.trigger-chevron--up {
+  transform: rotate(180deg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Раскрывающийся контент
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.voting-rules-circuit__content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s ease;
+}
+
+.voting-rules-circuit--expanded .voting-rules-circuit__content {
+  grid-template-rows: 1fr;
+}
+
+.voting-rules-circuit__inner {
+  overflow: hidden;
+}
+
+.voting-rules-circuit--expanded .voting-rules-circuit__inner {
+  padding: 10px 14px 14px;
+}
+
+/* Описание */
+.circuit-description {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.55;
+  margin: 0 0 14px 0;
+  padding: 10px 12px;
+  background: rgba(100, 180, 255, 0.06);
+  border-radius: 8px;
+  border-left: 2px solid var(--circuit-color);
+}
+
+.circuit-description__line {
+  display: block;
+}
+
+.circuit-description__line + .circuit-description__line {
+  margin-top: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Опции голосования
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.circuit-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+  margin-bottom: 14px;
+}
+
+.circuit-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.circuit-option--approve {
+  border-color: rgba(80, 200, 120, 0.25);
+}
+
+.circuit-option--report {
+  border-color: rgba(255, 100, 100, 0.25);
+}
+
+/* Индикатор с пульсацией */
+.circuit-option__indicator {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.circuit-option--approve .circuit-option__indicator {
+  background: rgba(80, 200, 120, 0.15);
+  color: #50c878;
+}
+
+.circuit-option--report .circuit-option__indicator {
+  background: rgba(255, 100, 100, 0.15);
+  color: #ff6464;
+}
+
+.indicator-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: indicator-glow 2s ease-in-out infinite;
+}
+
+.circuit-option--approve .indicator-pulse {
+  box-shadow: 0 0 0 0 rgba(80, 200, 120, 0.4);
+  animation-name: indicator-glow-green;
+}
+
+.circuit-option--report .indicator-pulse {
+  box-shadow: 0 0 0 0 rgba(255, 100, 100, 0.4);
+  animation-name: indicator-glow-red;
+}
+
+@keyframes indicator-glow-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(80, 200, 120, 0.4); }
+  50% { box-shadow: 0 0 8px 2px rgba(80, 200, 120, 0.2); }
+}
+
+@keyframes indicator-glow-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 100, 100, 0.4); }
+  50% { box-shadow: 0 0 8px 2px rgba(255, 100, 100, 0.2); }
+}
+
+.circuit-option__info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.circuit-option__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.circuit-option__desc {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Правила
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.circuit-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(100, 180, 255, 0.1);
+}
+
+.circuit-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.circuit-rule strong {
+  color: var(--text);
+}
+
+.circuit-rule__chip {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.circuit-rule--warning {
+  color: rgba(255, 200, 120, 0.85);
+}
+
+.circuit-rule--warning strong {
+  color: #ffc878;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Адаптив
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .circuit-options {
+    grid-template-columns: 1fr;
+  }
+  
+  .circuit-option__desc {
+    white-space: normal;
+  }
+  
+  .circuit-description {
+    font-size: 12px;
+  }
+}
