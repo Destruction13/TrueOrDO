@@ -1,12 +1,23 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 const CHIP_HUES = [195, 320, 128, 38, 214, 168, 286];
-const ROULETTE_MIN_DURATION = 1500;
-const ROULETTE_MAX_DURATION = 2500;
-const ROULETTE_MIN_LOOPS = 3;
-const ROULETTE_MAX_LOOPS = 5;
-const ROULETTE_MIN_STEP = 40;
-const ROULETTE_MAX_STEP = 220;
+
+// Настройки эффекта казино
+const CASINO_CONFIG = {
+  // Общая длительность анимации
+  minDuration: 3500,
+  maxDuration: 5000,
+  // Количество полных циклов прокрутки
+  minLoops: 4,
+  maxLoops: 6,
+  // Скорость шагов (мс между переключениями)
+  minStepDelay: 45,   // Быстрый старт
+  maxStepDelay: 500,  // Медленная остановка перед финалом
+  // Драматичный финал
+  tensionPauseMin: 800,  // Длинная пауза перед "последним рывком"
+  tensionPauseMax: 1200,
+  finalJumpDelay: 350,   // Задержка последнего неожиданного перехода
+};
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -16,8 +27,24 @@ function lerp(min, max, t) {
   return min + (max - min) * t;
 }
 
-function easeOutQuad(t) {
-  return 1 - (1 - t) * (1 - t);
+// Более драматичная кривая замедления — эффект казино
+function easeOutExpo(t) {
+  return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+}
+
+// Кубическая кривая для ещё более выраженного замедления в конце
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Комбинированная кривая: быстрый старт, очень медленный финиш
+function casinoEase(t) {
+  // Первые 70% — быстро, последние 30% — очень медленно
+  if (t < 0.7) {
+    return easeOutCubic(t / 0.7) * 0.5;
+  }
+  const slowT = (t - 0.7) / 0.3;
+  return 0.5 + easeOutExpo(slowT) * 0.5;
 }
 
 function randomBetween(min, max) {
@@ -39,6 +66,8 @@ function CategorySelector({
   const [rouletteId, setRouletteId] = useState(null);
   const [isRouletteRunning, setIsRouletteRunning] = useState(false);
   const [pulseId, setPulseId] = useState(null);
+  const [justFinished, setJustFinished] = useState(false);
+  const [isTensionPhase, setIsTensionPhase] = useState(false);
   const rouletteTimeoutRef = useRef(null);
   const rouletteSessionRef = useRef(0);
   const currentIndexRef = useRef(0);
@@ -116,24 +145,46 @@ function CategorySelector({
     setRouletteId(ids[startIndex]);
     setIsRouletteRunning(true);
 
-    const loops = randomInt(ROULETTE_MIN_LOOPS, ROULETTE_MAX_LOOPS);
+    // Эффект казино: больше циклов для драматизма
+    const loops = randomInt(CASINO_CONFIG.minLoops, CASINO_CONFIG.maxLoops);
     const offset =
       ((targetIndex - startIndex) % ids.length + ids.length) % ids.length;
     let totalSteps = loops * ids.length + offset;
-    if (totalSteps < ids.length) {
+    if (totalSteps < ids.length * 2) {
       totalSteps += ids.length;
     }
 
     const duration = Math.round(
-      randomBetween(ROULETTE_MIN_DURATION, ROULETTE_MAX_DURATION)
+      randomBetween(CASINO_CONFIG.minDuration, CASINO_CONFIG.maxDuration)
     );
+    
+    // Создаём задержки с эффектом казино (без последних 2 шагов — они особенные)
+    const mainSteps = totalSteps - 2;
     const rawDelays = Array.from({ length: totalSteps }, (_, index) => {
-      const t = totalSteps > 1 ? index / (totalSteps - 1) : 1;
-      return lerp(ROULETTE_MIN_STEP, ROULETTE_MAX_STEP, easeOutQuad(t));
+      if (index >= mainSteps) {
+        return 0; // Заполним позже для финала
+      }
+      const t = mainSteps > 1 ? index / (mainSteps - 1) : 1;
+      const easedT = casinoEase(t);
+      return lerp(CASINO_CONFIG.minStepDelay, CASINO_CONFIG.maxStepDelay, easedT);
     });
+    
+    // Драматичный финал: 
+    // 1. Предпоследний шаг — длинная "напряжённая" пауза (кажется, что остановилось)
+    // 2. Последний шаг — неожиданный финальный рывок
+    const tensionPause = randomBetween(CASINO_CONFIG.tensionPauseMin, CASINO_CONFIG.tensionPauseMax);
+    rawDelays[totalSteps - 2] = tensionPause; // Длинная пауза — "неужели это?"
+    rawDelays[totalSteps - 1] = CASINO_CONFIG.finalJumpDelay; // Последний рывок!
+    
     const totalWeight = rawDelays.reduce((sum, value) => sum + value, 0) || 1;
     const scale = duration / totalWeight;
-    const delays = rawDelays.map((value) => clamp(value * scale, 24, 260));
+    const delays = rawDelays.map((value, index) => {
+      // Последние 2 шага не масштабируем — они фиксированные для драматизма
+      if (index >= totalSteps - 2) {
+        return value;
+      }
+      return clamp(value * scale, 40, 600);
+    });
 
     const sessionId = rouletteSessionRef.current + 1;
     rouletteSessionRef.current = sessionId;
@@ -146,8 +197,18 @@ function CategorySelector({
       currentIndexRef.current = (currentIndexRef.current + 1) % ids.length;
       setRouletteId(ids[currentIndexRef.current]);
       step += 1;
+      
+      // Предпоследний шаг — включаем фазу напряжения (мигание "неужели это?")
+      if (step === totalSteps - 1) {
+        setIsTensionPhase(true);
+      }
+      
       if (step >= totalSteps) {
         setIsRouletteRunning(false);
+        setIsTensionPhase(false);
+        // Запускаем финальную анимацию "победы"
+        setJustFinished(true);
+        window.setTimeout(() => setJustFinished(false), 800);
         if (typeof onRevealRef.current === "function") {
           onRevealRef.current(ids[targetIndex]);
         }
@@ -189,23 +250,28 @@ function CategorySelector({
         </div>
       </div>
       <div className="category-selector__list">
-        {categories.map((category, index) => (
-          <div
-            key={category.id}
-            className={`category-chip${
-              category.id === displayActiveId ? " is-active" : ""
-            }${pulseId === category.id ? " is-pulsing" : ""}`}
-            style={{ "--chip-hue": CHIP_HUES[index % CHIP_HUES.length] }}
-          >
-            <div className="category-chip__icon" aria-hidden="true" />
-            <div className="category-chip__body">
-              <div className="category-chip__title">{category.title}</div>
-              <div className="category-chip__count">
-                {category.items?.length || 0} сценариев
+        {categories.map((category, index) => {
+          const isActive = category.id === displayActiveId;
+          const isWinner = justFinished && isActive;
+          const isTension = isTensionPhase && isActive;
+          return (
+            <div
+              key={category.id}
+              className={`category-chip${isActive ? " is-active" : ""}${
+                pulseId === category.id ? " is-pulsing" : ""
+              }${isTension ? " is-tension" : ""}${isWinner ? " is-winner" : ""}`}
+              style={{ "--chip-hue": CHIP_HUES[index % CHIP_HUES.length] }}
+            >
+              <div className="category-chip__icon" aria-hidden="true" />
+              <div className="category-chip__body">
+                <div className="category-chip__title">{category.title}</div>
+                <div className="category-chip__count">
+                  {category.items?.length || 0} сценариев
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className="category-selector__hint">{hintText}</div>
     </div>

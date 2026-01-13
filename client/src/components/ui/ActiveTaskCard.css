@@ -1,0 +1,298 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACTIVE TASK CARD — Красивая карточка задания во время выполнения
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.active-task-card {
+  --glow-intensity: 0.5;
+  --card-accent: var(--accent);
+  
+  position: relative;
+  padding: 24px 28px;
+  background: 
+    radial-gradient(ellipse at 30% 0%, rgba(46, 230, 255, 0.08), transparent 50%),
+    rgba(12, 18, 32, 0.85);
+  border: 1px solid rgba(46, 230, 255, 0.25);
+  border-radius: 20px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+
+.active-task-card--warning {
+  --card-accent: #ffaa33;
+  border-color: rgba(255, 170, 51, 0.35);
+  background: 
+    radial-gradient(ellipse at 30% 0%, rgba(255, 170, 51, 0.1), transparent 50%),
+    rgba(12, 18, 32, 0.85);
+}
+
+.active-task-card--critical {
+  --card-accent: var(--danger);
+  border-color: rgba(255, 107, 107, 0.4);
+  background: 
+    radial-gradient(ellipse at 30% 0%, rgba(255, 107, 107, 0.12), transparent 50%),
+    rgba(12, 18, 32, 0.85);
+  animation: task-card-pulse 1s ease-in-out infinite;
+}
+
+/* Свечение */
+.active-task-card__glow {
+  position: absolute;
+  top: -50%;
+  left: -25%;
+  width: 150%;
+  height: 150%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(46, 230, 255, calc(0.15 * var(--glow-intensity))),
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.active-task-card--warning .active-task-card__glow {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 170, 51, calc(0.15 * var(--glow-intensity))),
+    transparent 60%
+  );
+}
+
+.active-task-card--critical .active-task-card__glow {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 107, 107, calc(0.18 * var(--glow-intensity))),
+    transparent 60%
+  );
+}
+
+/* Анимированная граница с мягкой пульсацией */
+.active-task-card__border-glow {
+  position: absolute;
+  inset: -1px;
+  border-radius: 21px;
+  background: linear-gradient(
+    135deg,
+    rgba(46, 230, 255, 0.4),
+    transparent 40%,
+    transparent 60%,
+    rgba(124, 255, 107, 0.3)
+  );
+  z-index: -1;
+  opacity: calc(0.6 * var(--glow-intensity));
+  animation: border-pulse 3s ease-in-out infinite;
+}
+
+.active-task-card--warning .active-task-card__border-glow {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 170, 51, 0.5),
+    transparent 40%,
+    transparent 60%,
+    rgba(255, 200, 100, 0.4)
+  );
+}
+
+.active-task-card--critical .active-task-card__border-glow {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 107, 107, 0.6),
+    transparent 40%,
+    transparent 60%,
+    rgba(255, 150, 150, 0.5)
+  );
+  animation: border-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes border-pulse {
+  0%, 100% { 
+    opacity: calc(0.4 * var(--glow-intensity)); 
+  }
+  50% { 
+    opacity: calc(0.8 * var(--glow-intensity)); 
+  }
+}
+
+@keyframes task-card-pulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(255, 107, 107, 0.2),
+      0 0 40px rgba(255, 107, 107, 0.1);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(255, 107, 107, 0.35),
+      0 0 60px rgba(255, 107, 107, 0.2);
+  }
+}
+
+/* Заголовок */
+.active-task-card__header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.active-task-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.active-task-card__badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(46, 230, 255, 0.1);
+  border: 1px solid rgba(46, 230, 255, 0.2);
+  border-radius: 20px;
+}
+
+.active-task-card__badge--category {
+  background: rgba(180, 130, 255, 0.1);
+  border-color: rgba(180, 130, 255, 0.25);
+}
+
+.active-task-card__badge--category .active-task-card__badge-text {
+  color: #b482ff;
+}
+
+.active-task-card__badge-icon {
+  font-size: 16px;
+}
+
+.active-task-card__badge-text {
+  font-family: "Orbitron", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--card-accent);
+}
+
+/* Таймер */
+.active-task-card__timer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(6, 12, 26, 0.6);
+  border: 1px solid rgba(46, 230, 255, 0.15);
+  border-radius: 12px;
+}
+
+.active-task-card__timer--warning {
+  border-color: rgba(255, 170, 51, 0.3);
+  background: rgba(255, 170, 51, 0.1);
+}
+
+.active-task-card__timer--critical {
+  border-color: rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.15);
+}
+
+.active-task-card__timer-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--card-accent);
+}
+
+.active-task-card__timer-value {
+  font-family: "Orbitron", monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--card-accent);
+  letter-spacing: 0.05em;
+}
+
+/* Контент задания */
+.active-task-card__content {
+  position: relative;
+  z-index: 1;
+}
+
+.active-task-card__task-wrapper {
+  padding: 20px 24px;
+  background: rgba(6, 12, 26, 0.5);
+  border: 1px solid rgba(85, 160, 255, 0.12);
+  border-radius: 16px;
+}
+
+.active-task-card__task-text {
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* Исполнитель */
+.active-task-card__executor {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(85, 160, 255, 0.1);
+}
+
+.active-task-card__executor-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.active-task-card__executor-name {
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Кнопки действий */
+.active-task-card__actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(85, 160, 255, 0.1);
+}
+
+/* Адаптивность */
+@media (max-width: 600px) {
+  .active-task-card {
+    padding: 18px 20px;
+  }
+
+  .active-task-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .active-task-card__timer {
+    align-self: flex-end;
+  }
+
+  .active-task-card__task-wrapper {
+    padding: 16px 18px;
+  }
+
+  .active-task-card__task-text {
+    font-size: 16px;
+  }
+
+  .active-task-card__actions {
+    flex-direction: column;
+  }
+
+  .active-task-card__actions .btn-ds {
+    width: 100%;
+  }
+}

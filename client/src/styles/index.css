@@ -316,6 +316,45 @@ select:focus {
   top: 16px;
   right: 16px;
   z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Кнопка правил в хедере главной страницы */
+.rules-btn-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(4, 16, 24, 0.7);
+  border: 1px solid rgba(46, 230, 255, 0.25);
+  border-radius: 10px;
+  color: var(--accent);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rules-btn-header:hover {
+  background: rgba(46, 230, 255, 0.12);
+  border-color: rgba(46, 230, 255, 0.4);
+  box-shadow: 0 0 12px rgba(46, 230, 255, 0.15);
+}
+
+.rules-btn-header svg {
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .rules-btn-header {
+    padding: 8px;
+  }
+  .rules-btn-header span {
+    display: none;
+  }
 }
 
 .user-header__profile {
@@ -383,6 +422,18 @@ select:focus {
 .room-header > :first-child {
   margin-right: auto;
 }
+
+.room-header__left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.room-code-block {
+  display: flex;
+  flex-direction: column;
+}
+
 .room-code-label {
   font-size: 12px;
   text-transform: uppercase;
@@ -394,6 +445,34 @@ select:focus {
   font-family: "Orbitron", sans-serif;
   color: var(--accent);
 }
+
+/* Кнопка правил в хедере */
+.rules-btn-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(46, 230, 255, 0.08);
+  border: 1px solid rgba(46, 230, 255, 0.2);
+  border-radius: 10px;
+  color: var(--accent);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rules-btn-inline:hover {
+  background: rgba(46, 230, 255, 0.15);
+  border-color: rgba(46, 230, 255, 0.4);
+  box-shadow: 0 0 12px rgba(46, 230, 255, 0.15);
+}
+
+.rules-btn-inline svg {
+  flex-shrink: 0;
+}
+
 .room-meta {
   display: flex;
   gap: 12px;
@@ -629,18 +708,43 @@ select:focus {
   filter: saturate(0.6) brightness(0.8);
 }
 .category-chip.is-active {
-  border-color: rgba(46, 230, 255, 0.5);
-  box-shadow: 0 12px 30px rgba(46, 230, 255, 0.2);
-  transform: translateY(-2px) scale(1.02);
+  border-color: rgba(46, 230, 255, 0.6);
+  box-shadow: 
+    0 0 20px rgba(46, 230, 255, 0.4),
+    0 12px 30px rgba(46, 230, 255, 0.25),
+    inset 0 0 20px rgba(46, 230, 255, 0.1);
+  transform: translateY(-3px) scale(1.04);
+  background: rgba(20, 35, 60, 0.95);
 }
 .category-chip.is-active::after {
-  opacity: 0.5;
+  opacity: 0.6;
 }
 .category-chip.is-pulsing {
-  animation: chipPulse 0.22s ease;
+  animation: chipPulse 0.15s ease;
 }
-.category-selector.is-spinning .category-chip {
-  animation: chipGlow 1.6s ease infinite;
+/* Эффект казино: неактивные элементы затемняются во время прокрутки */
+.category-selector.is-spinning .category-chip:not(.is-active) {
+  opacity: 0.4;
+  filter: saturate(0.5) brightness(0.7);
+  transform: scale(0.96);
+}
+/* Активный элемент во время прокрутки — яркий акцент */
+.category-selector.is-spinning .category-chip.is-active {
+  animation: casinoHighlight 0.12s ease-out;
+  border-color: rgba(46, 230, 255, 0.8);
+  box-shadow: 
+    0 0 30px rgba(46, 230, 255, 0.6),
+    0 0 60px rgba(46, 230, 255, 0.3),
+    inset 0 0 15px rgba(46, 230, 255, 0.2);
+}
+/* Фаза напряжения — "неужели это?" мигание перед последним рывком */
+.category-chip.is-tension {
+  animation: tensionBlink 0.3s ease-in-out infinite !important;
+}
+
+/* Финальная анимация победителя */
+.category-chip.is-winner {
+  animation: casinoWin 0.8s ease-out !important;
 }
 .category-selector__hint {
   font-size: 13px;
@@ -716,6 +820,32 @@ select:focus {
   box-shadow: 0 0 12px rgba(46, 230, 255, 0.6);
   pointer-events: none;
   z-index: 2;
+  transition: box-shadow 0.2s ease, width 0.2s ease;
+}
+
+/* Центральная линия активна во время прокрутки */
+.reel-centerline.is-active {
+  width: 3px;
+  background: linear-gradient(180deg, transparent, rgba(46, 230, 255, 0.9), transparent);
+  box-shadow: 
+    0 0 20px rgba(46, 230, 255, 0.8),
+    0 0 40px rgba(46, 230, 255, 0.4);
+  animation: centerlinePulse 0.15s ease-in-out infinite;
+}
+
+/* Центральная линия в фазе напряжения */
+.reel-centerline.is-tension {
+  animation: centerlineTension 0.4s ease-in-out infinite;
+}
+
+/* Центральная линия при победе */
+.reel-centerline.is-winner {
+  width: 4px;
+  background: linear-gradient(180deg, transparent, rgba(124, 255, 107, 0.95), transparent);
+  box-shadow: 
+    0 0 30px rgba(124, 255, 107, 0.9),
+    0 0 60px rgba(124, 255, 107, 0.5);
+  animation: centerlineWin 0.6s ease-out;
 }
 .reel-card {
   flex: 0 0 var(--reel-card);
@@ -774,6 +904,67 @@ select:focus {
 }
 .reel-card.is-selected .reel-card__glow {
   opacity: 1;
+}
+
+/* Карточка под центральной линией — эффект "тика" */
+.reel-card.is-center {
+  border-color: rgba(46, 230, 255, 0.7);
+  box-shadow: 
+    0 0 20px rgba(46, 230, 255, 0.5),
+    inset 0 0 15px rgba(46, 230, 255, 0.15);
+  transform: translateY(-2px) perspective(700px) scale(1.03);
+  z-index: 3;
+}
+
+.reel-card.is-center .reel-card__glow {
+  opacity: 0.8;
+}
+
+/* Карточка в фазе напряжения — мигание "неужели это?" */
+.reel-card.is-tension {
+  animation: reelCardTension 0.35s ease-in-out infinite;
+  border-color: rgba(255, 200, 50, 0.8);
+  box-shadow: 
+    0 0 25px rgba(255, 200, 50, 0.6),
+    0 0 50px rgba(255, 200, 50, 0.3),
+    inset 0 0 20px rgba(255, 200, 50, 0.2);
+  z-index: 5;
+}
+
+/* Карточка-победитель */
+.reel-card.is-winner {
+  animation: reelCardWin 0.8s ease-out forwards;
+  border-color: rgba(124, 255, 107, 0.9);
+  z-index: 10;
+}
+
+.reel-card.is-winner .reel-card__glow {
+  opacity: 1;
+  background: radial-gradient(circle, rgba(124, 255, 107, 0.4), transparent 60%);
+}
+
+/* Размытие соседних карточек при быстрой прокрутке */
+.reel-viewport.is-phase-spinning .reel-card:not(.is-center) {
+  filter: blur(1px);
+  opacity: 0.7;
+}
+
+.reel-viewport.is-phase-slowing .reel-card:not(.is-center) {
+  filter: blur(0.5px);
+  opacity: 0.85;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.reel-viewport.is-phase-tension .reel-card:not(.is-tension) {
+  filter: blur(0px);
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.reel-viewport.is-phase-winner .reel-card:not(.is-winner) {
+  filter: blur(1px);
+  opacity: 0.4;
+  transform: scale(0.92);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1078,6 +1269,7 @@ select:focus {
   display: grid;
   place-items: center;
   z-index: 1000;
+  overflow: hidden;
 }
 .reel-overlay__backdrop {
   position: absolute;
@@ -1087,14 +1279,32 @@ select:focus {
   backdrop-filter: blur(8px);
   cursor: pointer;
   z-index: 0;
+  transition: background 0.3s ease;
 }
+.reel-overlay.is-loaded .reel-overlay__backdrop {
+  background: rgba(5, 8, 16, 0.85);
+}
+
 .reel-overlay__stage {
-  position: relative;
-  display: inline-block;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
-  overflow: visible;
+  overflow: hidden;
   z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.8) translateY(40px);
+  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.reel-overlay__stage.is-visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
 }
 .reel-overlay__anim {
   position: absolute;
@@ -1106,14 +1316,16 @@ select:focus {
   animation: overlayPop 0.45s ease both;
 }
 .reel-overlay__spline-frame {
-  position: relative;
-  width: min(1100px, 94vw);
-  height: min(820px, 86vh);
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   background: transparent;
   border: none;
-  overflow: visible;
+  overflow: hidden;
   z-index: 1;
   animation: overlayReveal 0.35s ease both;
+  pointer-events: auto;
 }
 .reel-overlay__spline-wrap {
   position: absolute;
@@ -1122,7 +1334,7 @@ select:focus {
   height: 100%;
   background: transparent;
   border: none;
-  overflow: visible;
+  overflow: hidden;
 }
 .reel-overlay__spline {
   width: 100%;
@@ -1138,22 +1350,183 @@ select:focus {
   0% {
     transform: scale(1);
   }
-  60% {
-    transform: scale(1.05);
+  50% {
+    transform: scale(1.08);
   }
   100% {
     transform: scale(1);
   }
 }
-@keyframes chipGlow {
+
+/* Эффект казино — яркая вспышка при переключении */
+@keyframes casinoHighlight {
   0% {
-    box-shadow: inset 0 0 0 1px rgba(6, 10, 20, 0.4), 0 0 0 rgba(46, 230, 255, 0);
-  }
-  50% {
-    box-shadow: inset 0 0 0 1px rgba(6, 10, 20, 0.4), 0 0 24px rgba(46, 230, 255, 0.2);
+    transform: translateY(-3px) scale(1.08);
+    box-shadow: 
+      0 0 40px rgba(46, 230, 255, 0.8),
+      0 0 80px rgba(46, 230, 255, 0.4),
+      inset 0 0 20px rgba(46, 230, 255, 0.3);
   }
   100% {
-    box-shadow: inset 0 0 0 1px rgba(6, 10, 20, 0.4), 0 0 0 rgba(46, 230, 255, 0);
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 
+      0 0 30px rgba(46, 230, 255, 0.6),
+      0 0 60px rgba(46, 230, 255, 0.3),
+      inset 0 0 15px rgba(46, 230, 255, 0.2);
+  }
+}
+
+/* Фаза напряжения — мигание "неужели это выпало?" */
+@keyframes tensionBlink {
+  0%, 100% {
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 
+      0 0 25px rgba(46, 230, 255, 0.5),
+      0 0 50px rgba(46, 230, 255, 0.25);
+    border-color: rgba(46, 230, 255, 0.5);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.06);
+    box-shadow: 
+      0 0 45px rgba(46, 230, 255, 0.8),
+      0 0 90px rgba(46, 230, 255, 0.4),
+      inset 0 0 20px rgba(46, 230, 255, 0.2);
+    border-color: rgba(46, 230, 255, 0.9);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCENARIO REEL ANIMATIONS — Анимации рулетки сценариев
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Пульсация центральной линии во время прокрутки */
+@keyframes centerlinePulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 15px rgba(46, 230, 255, 0.6),
+      0 0 30px rgba(46, 230, 255, 0.3);
+  }
+  50% {
+    box-shadow: 
+      0 0 25px rgba(46, 230, 255, 0.9),
+      0 0 50px rgba(46, 230, 255, 0.5);
+  }
+}
+
+/* Центральная линия в фазе напряжения */
+@keyframes centerlineTension {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(255, 200, 50, 0.6),
+      0 0 40px rgba(255, 200, 50, 0.3);
+    background: linear-gradient(180deg, transparent, rgba(255, 200, 50, 0.8), transparent);
+  }
+  50% {
+    box-shadow: 
+      0 0 35px rgba(255, 200, 50, 0.9),
+      0 0 70px rgba(255, 200, 50, 0.5);
+    background: linear-gradient(180deg, transparent, rgba(255, 220, 100, 1), transparent);
+  }
+}
+
+/* Победная анимация центральной линии */
+@keyframes centerlineWin {
+  0% {
+    box-shadow: 
+      0 0 50px rgba(124, 255, 107, 1),
+      0 0 100px rgba(124, 255, 107, 0.7);
+    width: 6px;
+  }
+  50% {
+    box-shadow: 
+      0 0 40px rgba(124, 255, 107, 0.9),
+      0 0 80px rgba(124, 255, 107, 0.5);
+  }
+  100% {
+    box-shadow: 
+      0 0 30px rgba(124, 255, 107, 0.9),
+      0 0 60px rgba(124, 255, 107, 0.5);
+    width: 4px;
+  }
+}
+
+/* Мигание карточки в фазе напряжения */
+@keyframes reelCardTension {
+  0%, 100% {
+    transform: translateY(-2px) perspective(700px) scale(1.04);
+    box-shadow: 
+      0 0 20px rgba(255, 200, 50, 0.5),
+      0 0 40px rgba(255, 200, 50, 0.25);
+  }
+  50% {
+    transform: translateY(-4px) perspective(700px) scale(1.06);
+    box-shadow: 
+      0 0 35px rgba(255, 200, 50, 0.8),
+      0 0 70px rgba(255, 200, 50, 0.4),
+      inset 0 0 20px rgba(255, 200, 50, 0.2);
+  }
+}
+
+/* Победная анимация карточки */
+@keyframes reelCardWin {
+  0% {
+    transform: translateY(-4px) perspective(700px) scale(1.05);
+  }
+  20% {
+    transform: translateY(-12px) perspective(700px) scale(1.15);
+    box-shadow: 
+      0 0 50px rgba(124, 255, 107, 1),
+      0 0 100px rgba(124, 255, 107, 0.6),
+      inset 0 0 30px rgba(124, 255, 107, 0.3);
+  }
+  40% {
+    transform: translateY(-6px) perspective(700px) scale(1.08);
+  }
+  60% {
+    transform: translateY(-10px) perspective(700px) scale(1.12);
+    box-shadow: 
+      0 0 40px rgba(124, 255, 107, 0.8),
+      0 0 80px rgba(124, 255, 107, 0.4);
+  }
+  80% {
+    transform: translateY(-5px) perspective(700px) scale(1.06);
+  }
+  100% {
+    transform: translateY(-4px) perspective(700px) scale(1.05);
+    box-shadow: 
+      0 0 30px rgba(124, 255, 107, 0.6),
+      0 0 60px rgba(124, 255, 107, 0.3),
+      inset 0 0 20px rgba(124, 255, 107, 0.15);
+  }
+}
+
+/* Финальная анимация при остановке рулетки категорий */
+@keyframes casinoWin {
+  0% {
+    transform: translateY(-3px) scale(1.04);
+  }
+  25% {
+    transform: translateY(-5px) scale(1.1);
+    box-shadow: 
+      0 0 50px rgba(46, 230, 255, 0.9),
+      0 0 100px rgba(46, 230, 255, 0.5),
+      inset 0 0 30px rgba(46, 230, 255, 0.4);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.06);
+  }
+  75% {
+    transform: translateY(-4px) scale(1.08);
+    box-shadow: 
+      0 0 40px rgba(46, 230, 255, 0.7),
+      0 0 80px rgba(46, 230, 255, 0.4);
+  }
+  100% {
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 
+      0 0 20px rgba(46, 230, 255, 0.4),
+      0 12px 30px rgba(46, 230, 255, 0.25),
+      inset 0 0 20px rgba(46, 230, 255, 0.1);
   }
 }
 @keyframes overlayPop {
@@ -1193,10 +1566,6 @@ select:focus {
   }
   .reel-overlay__backdrop {
     backdrop-filter: blur(4px);
-  }
-  .reel-overlay__spline-frame {
-    width: 92vw;
-    height: 78vh;
   }
 }
 @media (max-width: 520px) {
@@ -1400,6 +1769,59 @@ select:focus {
   font-family: "Orbitron", sans-serif;
   color: var(--accent-2);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOTING FLOW — Контейнер для голосования (задание + голосование)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.voting-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeUp 0.4s ease both;
+}
+
+.voting-flow .active-task-card {
+  /* Компактный вид карточки во время голосования */
+  padding: 16px 20px;
+}
+
+.voting-flow .active-task-card__task-wrapper {
+  padding: 14px 18px;
+}
+
+.voting-flow .active-task-card__task-text {
+  font-size: 15px;
+}
+
+.voting-flow .vote-panel {
+  margin-top: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPLETE FLOW — Контейнер после завершения (отчёт + выбор игрока)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.complete-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeUp 0.4s ease both;
+}
+
+.complete-flow .task-report {
+  /* Компактный вид отчёта */
+  max-width: 100%;
+}
+
+.complete-flow .target-player-selector {
+  margin-top: 8px;
+}
+
+.complete-flow .round-hint {
+  text-align: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
 .admin-actions {
   display: flex;
   gap: 12px;
@@ -1408,6 +1830,54 @@ select:focus {
   padding-top: 16px;
   border-top: 1px solid rgba(120, 180, 255, 0.1);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Индикатор паузы
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pause-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 200, 50, 0.12),
+    rgba(255, 160, 30, 0.08)
+  );
+  border: 1px solid rgba(255, 180, 50, 0.3);
+  border-radius: 12px;
+  animation: pause-pulse 2s ease-in-out infinite;
+}
+
+.pause-indicator__icon {
+  font-size: 20px;
+  animation: pause-icon-blink 1.5s ease-in-out infinite;
+}
+
+.pause-indicator__text {
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffcc44;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+@keyframes pause-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(255, 180, 50, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 180, 50, 0.25);
+  }
+}
+
+@keyframes pause-icon-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .status-error {
   color: var(--danger);
   font-size: 14px;
@@ -1441,7 +1911,27 @@ select:focus {
     flex-direction: column;
     align-items: flex-start;
   }
+  .room-header__left {
+    gap: 12px;
+  }
+  .rules-btn-inline {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .rules-btn-inline svg {
+    width: 16px;
+    height: 16px;
+  }
   .casino-wheel__frame {
     width: min(420px, 92vw);
+  }
+}
+
+@media (max-width: 400px) {
+  .rules-btn-inline span {
+    display: none;
+  }
+  .rules-btn-inline {
+    padding: 8px;
   }
 }

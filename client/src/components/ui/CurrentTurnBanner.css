@@ -1,0 +1,160 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CurrentTurnBanner — Баннер текущего хода
+   Показывается на всю ширину секции "Раунд"
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.current-turn-banner {
+  position: relative;
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(46, 230, 255, 0.12),
+    rgba(46, 230, 255, 0.04)
+  );
+  border: 1px solid rgba(46, 230, 255, 0.25);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.current-turn-banner__glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse at 20% 50%,
+    rgba(46, 230, 255, 0.15),
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.current-turn-banner__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.current-turn-banner__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(46, 230, 255, 0.15);
+  border: 1px solid rgba(46, 230, 255, 0.3);
+  border-radius: 10px;
+  color: var(--accent);
+  flex-shrink: 0;
+  animation: turn-icon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes turn-icon-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(46, 230, 255, 0.3);
+  }
+  50% { 
+    box-shadow: 0 0 12px 4px rgba(46, 230, 255, 0.2);
+  }
+}
+
+.current-turn-banner__label {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.current-turn-banner__player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 6px;
+  background: rgba(46, 230, 255, 0.1);
+  border: 1px solid rgba(46, 230, 255, 0.25);
+  border-radius: 24px;
+  margin-left: auto;
+}
+
+.current-turn-banner__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(46, 230, 255, 0.4);
+}
+
+.current-turn-banner__avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.3), rgba(124, 255, 107, 0.2));
+  border: 2px solid rgba(46, 230, 255, 0.4);
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.current-turn-banner__name {
+  font-family: "Orbitron", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  background: linear-gradient(90deg, var(--accent), #fff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Responsive
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .current-turn-banner {
+    padding: 12px 16px;
+  }
+
+  .current-turn-banner__content {
+    gap: 10px;
+  }
+
+  .current-turn-banner__icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .current-turn-banner__icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .current-turn-banner__label {
+    font-size: 0.75rem;
+  }
+
+  .current-turn-banner__player {
+    padding: 5px 12px 5px 5px;
+    gap: 8px;
+  }
+
+  .current-turn-banner__avatar,
+  .current-turn-banner__avatar-placeholder {
+    width: 28px;
+    height: 28px;
+  }
+
+  .current-turn-banner__name {
+    font-size: 0.9rem;
+  }
+}

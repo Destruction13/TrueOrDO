@@ -13,9 +13,6 @@ export default function TargetPlayerSelector({
   onSelectPlayer,
   allowSelfSelect = true // Для теста можно выбрать себя, потом отключить
 }) {
-  // Игрок, чей ход, выбирает кому задать вопрос
-  const currentTurnPlayer = players.find(p => p.id === currentTurnPlayerId);
-  
   const handleSelect = (playerId) => {
     if (disabled) return;
     if (!allowSelfSelect && playerId === currentTurnPlayerId) return;
@@ -23,33 +20,28 @@ export default function TargetPlayerSelector({
   };
 
   return (
-    <div className="target-player-selector">
+    <motion.div 
+      className="target-player-selector"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+    >
+      {/* Заголовок блока */}
       <div className="target-player-selector__header">
-        <div className="target-player-selector__turn-info">
-          <span className="target-player-selector__label">Ход:</span>
-          <div className="target-player-selector__turn-player">
-            {currentTurnPlayer?.avatarUrl ? (
-              <img 
-                src={currentTurnPlayer.avatarUrl} 
-                alt={currentTurnPlayer.name}
-                className="target-player-selector__turn-avatar"
-              />
-            ) : (
-              <div className="target-player-selector__turn-avatar-placeholder">
-                {currentTurnPlayer?.name?.[0]?.toUpperCase() || "?"}
-              </div>
-            )}
-            <span className="target-player-selector__turn-name">
-              {currentTurnPlayer?.name || "—"}
-              {currentTurnPlayerId === meId && <span className="target-player-selector__me-badge">Вы</span>}
-            </span>
-          </div>
+        <div className="target-player-selector__header-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
         </div>
-        <div className="target-player-selector__instruction">
-          Кто отвечает?
+        <div className="target-player-selector__header-text">
+          <span className="target-player-selector__title">Кто отвечает?</span>
+          <span className="target-player-selector__subtitle">Выберите игрока для задания</span>
         </div>
       </div>
 
+      {/* Список игроков */}
       <div className="target-player-selector__grid">
         {players
           .filter((player) => {
@@ -124,6 +116,6 @@ export default function TargetPlayerSelector({
           );
         })}
       </div>
-    </div>
+    </motion.div>
   );
 }

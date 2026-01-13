@@ -1,0 +1,20 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   HYPER TEXT — Матричный эффект расшифровки текста
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.hyper-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  cursor: default;
+  overflow: hidden;
+}
+
+.hyper-text__char {
+  display: inline-block;
+  font-family: "Orbitron", "Space Grotesk", monospace;
+  transition: color 0.1s ease;
+}
+
+.hyper-text__char--space {
+  width: 0.35em;
+}

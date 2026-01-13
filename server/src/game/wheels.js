@@ -81,7 +81,7 @@ function pickWheel2(categoryId) {
 }
 
 /**
- * Pick wheel2 for chaos player: 9 normal + 3 chaos items, shuffled
+ * Pick wheel2 for chaos player: 8 normal + 4 chaos items, shuffled
  * Returns reelItems array with isChaos flag for each item
  */
 function pickWheel2ForChaos(categoryId) {
@@ -105,13 +105,13 @@ function pickWheel2ForChaos(categoryId) {
     return copy;
   };
   
-  // Select 9 normal (or less if not enough)
+  // Select 8 normal (or less if not enough)
   const shuffledNormal = shuffle(normalPool);
-  const selectedNormal = shuffledNormal.slice(0, Math.min(9, shuffledNormal.length));
+  const selectedNormal = shuffledNormal.slice(0, Math.min(8, shuffledNormal.length));
   
-  // Select 3 chaos (or less if not enough)
+  // Select 4 chaos (or less if not enough)
   const shuffledChaos = shuffle(chaosPool);
-  const selectedChaos = shuffledChaos.slice(0, Math.min(3, shuffledChaos.length));
+  const selectedChaos = shuffledChaos.slice(0, Math.min(4, shuffledChaos.length));
   
   // Combine and shuffle
   const combined = [

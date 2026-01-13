@@ -129,6 +129,7 @@ function App() {
   const [isRestoring, setIsRestoring] = useState(true); // Флаг восстановления сессии
   const [bannedModal, setBannedModal] = useState({ isOpen: false, roomCode: null }); // Модальное окно бана
   const [gameEndedModal, setGameEndedModal] = useState(false); // Модальное окно завершения игры
+  const [isPaused, setIsPaused] = useState(false); // Состояние паузы игры
 
   // Обработка изменения URL
   useEffect(() => {
@@ -327,6 +328,10 @@ function App() {
             }
           : prev
       );
+    });
+
+    socket.on("game:paused", (payload) => {
+      setIsPaused(payload.isPaused);
     });
 
     socket.on("spin:final", (payload) => {
@@ -559,6 +564,10 @@ function App() {
         const response = await emitWithAck("admin:reset_timer", {});
         return handleAck(response);
       },
+      togglePause: async () => {
+        const response = await emitWithAck("admin:toggle_pause", {});
+        return handleAck(response);
+      },
       acceptTask: async () => {
         const response = await emitWithAck("round:task_accept", {});
         return handleAck(response);
@@ -727,6 +736,7 @@ function App() {
         wheel2Spin={wheel2Spin}
         forcedMode={forcedMode}
         reelItems={reelItems}
+        isPaused={isPaused}
         actions={actions}
       />
     </>

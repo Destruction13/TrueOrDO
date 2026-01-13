@@ -1,0 +1,695 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TASK REPORT — Компактный отчёт о выполненном задании
+   Дизайн в стиле 21st.dev: glassmorphism, glow эффекты, современные бейджики
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-report {
+  --report-accent: var(--muted);
+  --report-glow: rgba(159, 176, 209, 0.15);
+  
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px;
+  background: rgba(12, 18, 32, 0.65);
+  border: 1px solid rgba(85, 160, 255, 0.12);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Декоративный glow эффект */
+.task-report__glow {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    var(--report-glow),
+    transparent 50%
+  );
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Вариации по результату
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-report--approved {
+  --report-accent: var(--accent-3);
+  --report-glow: rgba(124, 255, 107, 0.12);
+  border-color: rgba(124, 255, 107, 0.25);
+  background: 
+    linear-gradient(135deg, rgba(124, 255, 107, 0.06), transparent 70%),
+    rgba(12, 18, 32, 0.65);
+}
+
+.task-report--report {
+  --report-accent: var(--danger);
+  --report-glow: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.25);
+  background: 
+    linear-gradient(135deg, rgba(255, 107, 107, 0.06), transparent 70%),
+    rgba(12, 18, 32, 0.65);
+}
+
+.task-report--skipped {
+  --report-accent: var(--muted);
+  --report-glow: rgba(159, 176, 209, 0.08);
+  border-color: rgba(159, 176, 209, 0.18);
+  background: 
+    linear-gradient(135deg, rgba(159, 176, 209, 0.04), transparent 70%),
+    rgba(12, 18, 32, 0.65);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Первый слой — основная информация
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-report__layer {
+  position: relative;
+  z-index: 1;
+}
+
+.task-report__layer--main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* Исполнитель: Аватар + Имя выполнил */
+.task-report__executor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.task-report__avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2px solid rgba(85, 160, 255, 0.25);
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(46, 230, 255, 0.15);
+}
+
+.task-report__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.task-report__avatar span {
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--bg-0);
+}
+
+.task-report__executor-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-report__name {
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.task-report__verb {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Бейджики (режим + категория)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-report__badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.task-report__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.task-report__badge-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.task-report__badge-label {
+  font-family: "Space Grotesk", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Бейджик Правда */
+.task-report__badge.badge--truth {
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.15), rgba(46, 230, 255, 0.05));
+  border-color: rgba(46, 230, 255, 0.35);
+  color: var(--accent);
+  box-shadow: 0 0 10px rgba(46, 230, 255, 0.12);
+}
+
+/* Бейджик Действие */
+.task-report__badge.badge--dare {
+  background: linear-gradient(135deg, rgba(255, 122, 217, 0.15), rgba(255, 122, 217, 0.05));
+  border-color: rgba(255, 122, 217, 0.35);
+  color: var(--accent-2);
+  box-shadow: 0 0 10px rgba(255, 122, 217, 0.12);
+}
+
+/* Бейджик Категория */
+.task-report__badge.badge--category {
+  background: linear-gradient(135deg, rgba(180, 130, 255, 0.15), rgba(139, 92, 246, 0.05));
+  border-color: rgba(180, 130, 255, 0.35);
+  color: #b482ff;
+  box-shadow: 0 0 10px rgba(180, 130, 255, 0.12);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Итог (Засчитано / Репорт / Пропуск)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-report__result {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 24px;
+  font-weight: 700;
+  border: 1.5px solid;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.task-report__result-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--report-accent);
+}
+
+.task-report__result-icon svg {
+  display: block;
+}
+
+.task-report__result-text {
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--report-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Итог: Засчитано */
+.task-report__result.result--approved {
+  background: linear-gradient(135deg, rgba(124, 255, 107, 0.18), rgba(124, 255, 107, 0.06));
+  border-color: rgba(124, 255, 107, 0.5);
+  box-shadow: 
+    0 0 16px rgba(124, 255, 107, 0.2),
+    inset 0 0 12px rgba(124, 255, 107, 0.08);
+}
+
+/* Итог: Репорт */
+.task-report__result.result--report {
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.18), rgba(255, 107, 107, 0.06));
+  border-color: rgba(255, 107, 107, 0.5);
+  box-shadow: 
+    0 0 16px rgba(255, 107, 107, 0.2),
+    inset 0 0 12px rgba(255, 107, 107, 0.08);
+}
+
+/* Итог: Пропуск */
+.task-report__result.result--skipped {
+  background: linear-gradient(135deg, rgba(159, 176, 209, 0.12), rgba(159, 176, 209, 0.04));
+  border-color: rgba(159, 176, 209, 0.35);
+  box-shadow: 
+    0 0 10px rgba(159, 176, 209, 0.1),
+    inset 0 0 8px rgba(159, 176, 209, 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Кнопка раскрытия второго слоя
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-report__expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.task-report__expand-btn:hover {
+  background: rgba(85, 160, 255, 0.03);
+}
+
+.task-report__expand-btn:focus {
+  outline: none;
+}
+
+.task-report__expand-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.task-report__expand-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(85, 160, 255, 0.2),
+    rgba(85, 160, 255, 0.2),
+    transparent
+  );
+  transition: background 0.2s ease;
+}
+
+.task-report__expand-btn:hover .task-report__expand-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(85, 160, 255, 0.35),
+    rgba(85, 160, 255, 0.35),
+    transparent
+  );
+}
+
+.task-report__expand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(85, 160, 255, 0.08);
+  border: 1px solid rgba(85, 160, 255, 0.15);
+  color: var(--muted);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.task-report__expand-btn:hover .task-report__expand-icon {
+  color: var(--accent);
+  background: rgba(85, 160, 255, 0.12);
+  border-color: rgba(85, 160, 255, 0.3);
+  transform: scale(1.05);
+}
+
+/* Стилизация кнопки в зависимости от результата */
+.task-report--approved .task-report__expand-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 255, 107, 0.2),
+    rgba(124, 255, 107, 0.2),
+    transparent
+  );
+}
+
+.task-report--approved .task-report__expand-icon {
+  background: rgba(124, 255, 107, 0.08);
+  border-color: rgba(124, 255, 107, 0.15);
+}
+
+.task-report--approved .task-report__expand-btn:hover .task-report__expand-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 255, 107, 0.35),
+    rgba(124, 255, 107, 0.35),
+    transparent
+  );
+}
+
+.task-report--approved .task-report__expand-btn:hover .task-report__expand-icon {
+  color: var(--accent-3);
+  background: rgba(124, 255, 107, 0.12);
+  border-color: rgba(124, 255, 107, 0.3);
+}
+
+.task-report--report .task-report__expand-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 107, 107, 0.2),
+    rgba(255, 107, 107, 0.2),
+    transparent
+  );
+}
+
+.task-report--report .task-report__expand-icon {
+  background: rgba(255, 107, 107, 0.08);
+  border-color: rgba(255, 107, 107, 0.15);
+}
+
+.task-report--report .task-report__expand-btn:hover .task-report__expand-line {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 107, 107, 0.35),
+    rgba(255, 107, 107, 0.35),
+    transparent
+  );
+}
+
+.task-report--report .task-report__expand-btn:hover .task-report__expand-icon {
+  color: var(--danger);
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Второй слой — текст задания (сворачиваемый, тёмный фон)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-report__layer--task {
+  margin-top: 0;
+  padding-left: 14px;
+  padding-right: 14px;
+  background: rgba(3, 6, 14, 0.7);
+  border-radius: 0 0 12px 12px;
+  margin-left: -18px;
+  margin-right: -18px;
+  margin-bottom: -14px;
+}
+
+.task-report__task-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.task-report__task-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(85, 160, 255, 0.15), rgba(85, 160, 255, 0.05));
+  border: 1px solid rgba(85, 160, 255, 0.25);
+  color: var(--accent);
+}
+
+.task-report__task-icon svg {
+  display: block;
+}
+
+.task-report__task-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  flex: 1;
+  padding-top: 5px;
+}
+
+/* Стилизация текста задания в зависимости от результата */
+.task-report--approved .task-report__layer--task {
+  background: 
+    linear-gradient(135deg, rgba(124, 255, 107, 0.04), transparent 60%),
+    rgba(3, 6, 14, 0.7);
+}
+
+.task-report--approved .task-report__task-icon {
+  background: linear-gradient(135deg, rgba(124, 255, 107, 0.18), rgba(124, 255, 107, 0.06));
+  border-color: rgba(124, 255, 107, 0.3);
+  color: var(--accent-3);
+}
+
+.task-report--report .task-report__layer--task {
+  background: 
+    linear-gradient(135deg, rgba(255, 107, 107, 0.04), transparent 60%),
+    rgba(3, 6, 14, 0.7);
+}
+
+.task-report--report .task-report__task-icon {
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.18), rgba(255, 107, 107, 0.06));
+  border-color: rgba(255, 107, 107, 0.3);
+  color: var(--danger);
+}
+
+.task-report--report .task-report__task-text {
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 107, 107, 0.4);
+  opacity: 0.7;
+}
+
+.task-report--skipped .task-report__layer--task {
+  background: 
+    linear-gradient(135deg, rgba(159, 176, 209, 0.03), transparent 60%),
+    rgba(3, 6, 14, 0.7);
+}
+
+.task-report--skipped .task-report__task-icon {
+  background: linear-gradient(135deg, rgba(159, 176, 209, 0.12), rgba(159, 176, 209, 0.04));
+  border-color: rgba(159, 176, 209, 0.25);
+  color: var(--muted);
+}
+
+.task-report--skipped .task-report__task-text {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Линия прогресса внизу
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.task-report__progress-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--report-accent),
+    transparent
+  );
+  transform-origin: left center;
+  opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Адаптивность для мобильных устройств
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 700px) {
+  .task-report {
+    padding: 12px 14px;
+  }
+
+  .task-report__layer--main {
+    gap: 10px;
+  }
+
+  .task-report__avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .task-report__avatar span {
+    font-size: 12px;
+  }
+
+  .task-report__name {
+    font-size: 13px;
+  }
+
+  .task-report__verb {
+    font-size: 10px;
+  }
+
+  .task-report__badges {
+    gap: 6px;
+    justify-content: flex-start;
+  }
+
+  .task-report__badge {
+    padding: 5px 10px;
+    font-size: 11px;
+    gap: 5px;
+  }
+
+  .task-report__badge-emoji {
+    font-size: 12px;
+  }
+
+  .task-report__result {
+    padding: 6px 12px;
+    gap: 6px;
+  }
+
+  .task-report__result-icon svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .task-report__result-text {
+    font-size: 10px;
+  }
+
+  /* Кнопка раскрытия на мобильных */
+  .task-report__expand-btn {
+    margin-top: 8px;
+    padding: 8px 12px;
+    gap: 10px;
+  }
+
+  .task-report__expand-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .task-report__expand-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Второй слой на мобильных */
+  .task-report__layer--task {
+    padding-left: 12px;
+    padding-right: 12px;
+    margin-left: -14px;
+    margin-right: -14px;
+    margin-bottom: -12px;
+  }
+
+  .task-report__task-wrapper {
+    gap: 10px;
+  }
+
+  .task-report__task-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+  }
+
+  .task-report__task-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .task-report__task-text {
+    font-size: 14px;
+    padding-top: 3px;
+  }
+}
+
+/* Очень маленькие экраны */
+@media (max-width: 480px) {
+  .task-report__layer--main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .task-report__badges {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .task-report__result {
+    margin-left: 0;
+    align-self: flex-start;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Анимации hover
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (hover: hover) {
+  .task-report {
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+
+  .task-report:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  }
+
+  .task-report--approved:hover {
+    box-shadow: 
+      0 12px 32px rgba(0, 0, 0, 0.2),
+      0 0 24px rgba(124, 255, 107, 0.15);
+    border-color: rgba(124, 255, 107, 0.4);
+  }
+
+  .task-report--report:hover {
+    box-shadow: 
+      0 12px 32px rgba(0, 0, 0, 0.2),
+      0 0 24px rgba(255, 107, 107, 0.15);
+    border-color: rgba(255, 107, 107, 0.4);
+  }
+
+  .task-report__badge:hover {
+    transform: translateY(-1px);
+  }
+
+  .task-report__badge.badge--truth:hover {
+    box-shadow: 0 0 16px rgba(46, 230, 255, 0.2);
+  }
+
+  .task-report__badge.badge--dare:hover {
+    box-shadow: 0 0 16px rgba(255, 122, 217, 0.2);
+  }
+
+  .task-report__badge.badge--category:hover {
+    box-shadow: 0 0 16px rgba(180, 130, 255, 0.2);
+  }
+}

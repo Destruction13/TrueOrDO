@@ -1,8 +1,14 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   WAITING ACCEPT OVERLAY — Мистический экран ожидания принятия задания
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 .waiting-accept-overlay {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: clamp(16px, 4vw, 40px);
   z-index: 999;
 }
@@ -10,106 +16,217 @@
 .waiting-accept-overlay__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(6, 10, 20, 0.68);
-  backdrop-filter: blur(12px);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(6, 10, 20, 0.75) 0%,
+    rgba(2, 4, 12, 0.92) 100%
+  );
+  backdrop-filter: blur(16px);
 }
 
-.waiting-accept-overlay__card {
-  position: relative;
-  z-index: 1;
-  width: min(520px, 92vw);
-  padding: clamp(18px, 4vw, 26px);
-  border-radius: 24px;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 22px 50px rgba(4, 10, 24, 0.55);
-  text-align: center;
-  animation: waitingFloat 0.45s ease both;
-}
-
-.waiting-accept-overlay__glow {
-  position: absolute;
-  inset: -20%;
-  background: radial-gradient(circle, rgba(46, 230, 255, 0.12), transparent 60%);
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.waiting-accept-overlay__title {
-  position: relative;
-  z-index: 1;
-  font-family: "Orbitron", sans-serif;
-  font-size: clamp(16px, 3.2vw, 22px);
-  line-height: 1.4;
-  margin-bottom: 10px;
-}
-
-.waiting-accept-overlay__title span {
-  color: var(--accent);
-}
-
-.waiting-accept-overlay__subtitle {
-  position: relative;
-  z-index: 1;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.waiting-accept-overlay__dots {
+/* Контент */
+.waiting-accept-overlay__content {
   position: relative;
   z-index: 1;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  animation: waitingFadeIn 0.6s ease-out;
+}
+
+/* Пульсирующие круги */
+.waiting-accept-overlay__rings {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 280px;
+  height: 280px;
+  pointer-events: none;
+}
+
+.waiting-accept-overlay__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(46, 230, 255, 0.3);
+  animation: ringPulse 3s ease-out infinite;
+}
+
+.waiting-accept-overlay__ring--1 {
+  animation-delay: 0s;
+}
+
+.waiting-accept-overlay__ring--2 {
+  animation-delay: 1s;
+}
+
+.waiting-accept-overlay__ring--3 {
+  animation-delay: 2s;
+}
+
+/* Имя игрока */
+.waiting-accept-overlay__player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 20px;
+}
+
+.waiting-accept-overlay__player-name {
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(24px, 5vw, 32px);
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 
+    0 0 20px rgba(46, 230, 255, 0.6),
+    0 0 40px rgba(46, 230, 255, 0.3);
+  letter-spacing: 0.05em;
+  animation: nameGlow 2s ease-in-out infinite alternate;
+}
+
+.waiting-accept-overlay__player-label {
+  font-size: 14px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  animation: labelPulse 1.5s ease-in-out infinite;
+}
+
+/* Текст */
+.waiting-accept-overlay__text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 8px;
   margin-top: 16px;
+  padding: 20px 32px;
+  background: rgba(6, 12, 24, 0.5);
+  border: 1px solid rgba(46, 230, 255, 0.1);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
 }
 
-.waiting-accept-overlay__dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.4;
-  animation: waitingPulse 1.2s ease-in-out infinite;
+.waiting-accept-overlay__title {
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(14px, 2.5vw, 16px);
+  color: var(--text);
+  letter-spacing: 0.05em;
 }
 
-.waiting-accept-overlay__dots span:nth-child(2) {
-  animation-delay: 0.2s;
+.waiting-accept-overlay__subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.waiting-accept-overlay__dots span:nth-child(3) {
-  animation-delay: 0.4s;
+.waiting-accept-overlay__emoji {
+  font-size: 18px;
+  animation: emojiWiggle 2s ease-in-out infinite;
 }
 
-@keyframes waitingFloat {
+/* ═══════════════════════════════════════════════════════════════════════════
+   АНИМАЦИИ
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes waitingFadeIn {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.98);
+    transform: scale(0.9);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: scale(1);
   }
 }
 
-@keyframes waitingPulse {
-  0%,
+@keyframes ringPulse {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.8;
+    border-color: rgba(46, 230, 255, 0.5);
+  }
   100% {
-    opacity: 0.3;
-    transform: scale(0.9);
+    transform: scale(1.5);
+    opacity: 0;
+    border-color: rgba(46, 230, 255, 0);
+  }
+}
+
+@keyframes nameGlow {
+  from {
+    text-shadow: 
+      0 0 20px rgba(46, 230, 255, 0.5),
+      0 0 40px rgba(46, 230, 255, 0.2);
+  }
+  to {
+    text-shadow: 
+      0 0 30px rgba(46, 230, 255, 0.7),
+      0 0 60px rgba(46, 230, 255, 0.4);
+  }
+}
+
+@keyframes labelPulse {
+  0%, 100% {
+    opacity: 0.5;
   }
   50% {
     opacity: 1;
-    transform: scale(1.1);
+  }
+}
+
+@keyframes emojiWiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  75% {
+    transform: rotate(10deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   АДАПТИВНОСТЬ
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .waiting-accept-overlay__rings {
+    width: 200px;
+    height: 200px;
+  }
+
+  .waiting-accept-overlay__center {
+    width: 80px;
+    height: 80px;
+  }
+
+  .waiting-accept-overlay__icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .waiting-accept-overlay__text {
+    padding: 16px 24px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .waiting-accept-overlay__dots span {
+  .waiting-accept-overlay__ring,
+  .waiting-accept-overlay__center,
+  .waiting-accept-overlay__icon,
+  .waiting-accept-overlay__player-name,
+  .waiting-accept-overlay__player-label,
+  .waiting-accept-overlay__emoji {
     animation: none;
   }
-  .waiting-accept-overlay__card {
+  
+  .waiting-accept-overlay__content {
     animation: none;
   }
 }

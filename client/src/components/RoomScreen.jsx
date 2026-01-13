@@ -6,11 +6,15 @@ import Button from "./ui/Button";
 import LeaveButton from "./ui/LeaveButton";
 import PlayerCard from "./ui/PlayerCard";
 import TargetPlayerSelector from "./ui/TargetPlayerSelector";
+import CurrentTurnBanner from "./ui/CurrentTurnBanner";
 import ConfirmEndGameModal from "./ui/ConfirmEndGameModal";
 import VotingRules from "./ui/VotingRules";
 import VotingStatus from "./ui/VotingStatus";
 import TaskAcceptOverlay from "./ui/TaskAcceptOverlay";
 import WaitingAcceptOverlay from "./ui/WaitingAcceptOverlay";
+import ActiveTaskCard from "./ui/ActiveTaskCard";
+import TaskReport from "./ui/TaskReport";
+import RulesModal from "./ui/RulesModal";
 
 function formatTimer(seconds) {
   if (seconds == null || Number.isNaN(seconds)) {
@@ -34,11 +38,13 @@ function RoomScreen({
   wheel2Spin,
   forcedMode,
   reelItems,
-  actions
+  isPaused,
+  actions,
 }) {
   const { room, players, round, content } = roomState;
   const [categoryReady, setCategoryReady] = useState(false);
   const [showEndGameModal, setShowEndGameModal] = useState(false);
+  const [showRulesModal, setShowRulesModal] = useState(false);
   const pendingCategoryIdRef = useRef(null);
 
   const isHost = room.hostId === meId;
@@ -203,14 +209,13 @@ function RoomScreen({
   const categories = content?.categories || [];
   const selectedCategory = categories.find((category) => category.id === round?.wheel1Id);
   const wheel2Items = selectedCategory?.items || [];
+  // Показываем ленту сценариев и категории только до принятия задания
   const showDareFlow = Boolean(
     round &&
       isDare &&
       (phase === "wheel1" ||
         phase === "wheel2" ||
-        phase === "task" ||
-        phase === "voting" ||
-        phase === "complete")
+        (phase === "task" && isTaskPending))
   );
   const hasScenarioItems = wheel2Items.length > 0;
   const showScenarioReel = showDareFlow && round?.wheel1Id && categoryReady && hasScenarioItems;
@@ -268,9 +273,23 @@ function RoomScreen({
   return (
     <div className="app-shell">
       <header className="room-header">
-        <div>
-          <div className="room-code-label">Код комнаты</div>
-          <div className="room-code">{room.code}</div>
+        <div className="room-header__left">
+          <div className="room-code-block">
+            <div className="room-code-label">Код комнаты</div>
+            <div className="room-code">{room.code}</div>
+          </div>
+          <button 
+            className="rules-btn-inline" 
+            onClick={() => setShowRulesModal(true)}
+            title="Правила игры"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <span>Правила</span>
+          </button>
         </div>
         <div className="room-meta">
           <span className={`pill ${connected ? "online" : "offline"}`}>
@@ -324,25 +343,32 @@ function RoomScreen({
               <div className="label">Чей ход</div>
               <div className="value">{currentTurnPlayer?.name || "—"}</div>
             </div>
-            <div>
-              <div className="label">Выполняет</div>
-              <div className="value">{currentPlayer?.name || "—"}</div>
-            </div>
-            <div>
-              <div className="label">Режим</div>
-              <div className="value">
-                {chaosDeciding
-                  ? "🔥"
-                  : round?.mode === "truth"
-                  ? "Правда"
-                  : round?.mode === "dare"
-                  ? "Действие"
-                  : "—"}
+            {/* Показываем "Выполняет" только во время активного раунда (не complete) */}
+            {round && phase !== "complete" && (
+              <div>
+                <div className="label">Выполняет</div>
+                <div className="value">{currentPlayer?.name || "—"}</div>
               </div>
-            </div>
+            )}
+            {/* Показываем "Режим" только когда раунд активен и есть режим или chaos deciding */}
+            {(round && phase !== "complete") && (
+              <div>
+                <div className="label">Режим</div>
+                <div className="value">
+                  {chaosDeciding
+                    ? "🔥"
+                    : round?.mode === "truth"
+                    ? "Правда"
+                    : round?.mode === "dare"
+                    ? "Действие"
+                    : "—"}
+                </div>
+              </div>
+            )}
           </div>
 
-          {(!round || round.phase === "complete") ? (
+          {/* Показываем выбор игрока только когда нет активного раунда */}
+          {!round ? (
             canStartRound ? (
               <div className="round-actions">
                 <TargetPlayerSelector
@@ -355,9 +381,7 @@ function RoomScreen({
                 />
               </div>
             ) : (
-              <div className="round-hint">
-                Ожидайте хода от {currentTurnPlayer?.name || "игрока"}
-              </div>
+              <CurrentTurnBanner player={currentTurnPlayer} />
             )
           ) : null}
 
@@ -459,14 +483,17 @@ function RoomScreen({
                       targetIndex={wheel2Spin.index}
                       spinTick={wheel2Spin.tick}
                       spinning={wheel2Spin.spinning}
+                      disabled={wheel1Spin.spinning || !categoryReady}
                       canAcceptTask={isMeCurrent && isTaskPending}
                       taskStatus={taskStatus}
                       onStartTask={handleStartTask}
+                      onRefuseTask={actions.refuseTruth}
+                      categoryName={selectedCategory?.title}
                     />
                   ) : (
                     <div className="round-hint">Готовим ленту сценариев...</div>
                   )}
-                  {phase === "wheel2" ? (
+                  {phase === "wheel2" && showScenarioReel ? (
                     canSpinWheel2 ? (
                       <Button
                         variant="primary"
@@ -507,95 +534,143 @@ function RoomScreen({
             />
           ) : null}
 
+          {/* ═══════════════════════════════════════════════════════════════════
+              НОВЫЙ УПРОЩЁННЫЙ FLOW:
+              1. Во время выполнения (task): только ActiveTaskCard
+              2. Во время голосования (voting): ActiveTaskCard + VotingStatus
+              3. После завершения (complete): TaskReport + TargetPlayerSelector
+              ═══════════════════════════════════════════════════════════════════ */}
+
+          {/* Фаза выполнения задания — только красивая карточка задания */}
           {round &&
               !chaosDeciding &&
               !isTaskPending &&
-              (phase === "task" || phase === "voting" || phase === "complete") ? (
-            <div className="task-card">
-              <div className="task-header">
-                <div>
-                  <div className="label">Задание принято ✅</div>
-                  {!isMeCurrent && currentPlayer ? (
-                    <div className="task-executor">
-                      Выполняет: {currentPlayer.name}
-                    </div>
-                  ) : null}
-                  <div className="value">{round.finalText || "-"}</div>
-                </div>
-                <div className="timer">{formatTimer(timerRemaining)}</div>
-              </div>
-              {canMarkDone ? (
-                <div className="stage-actions">
-                  <Button variant="primary" size="md" onClick={actions.markDone}>
-                    {isTruth ? "Выполнил" : "Я справился"}
-                  </Button>
-                  {isTruth ? (
-                    <Button variant="ghost" size="md" onClick={actions.refuseTruth}>
-                      Отказаться
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+              phase === "task" ? (
+            <ActiveTaskCard
+              taskText={round.finalText}
+              timerRemaining={timerRemaining}
+              isTruth={isTruth}
+              isMeCurrent={isMeCurrent}
+              executorName={currentPlayer?.name}
+              canMarkDone={canMarkDone}
+              onMarkDone={actions.markDone}
+              onRefuse={actions.refuseTruth}
+              categoryName={isDare ? selectedCategory?.title : null}
+            />
           ) : null}
 
-          {round && phase === "voting" ? (
-            <div className="vote-panel">
-              <div className="stage-title">Голосование</div>
-              
-              {/* Правила голосования (сворачиваемый блок) — размещён сверху */}
-              {!isMeCurrent && <VotingRules />}
-              
-              {/* Статус голосования с прогресс-барами */}
-              <VotingStatus
-                approveCount={voteCounts.approve}
-                reportCount={voteCounts.report}
-                totalVoted={voteCounts.total}
-                eligibleCount={eligibleCount}
-                majority={majority}
+          {/* Фаза голосования — задание + голосование */}
+          {round && phase === "voting" && !chaosDeciding ? (
+            <div className="voting-flow">
+              {/* Компактная карточка задания во время голосования */}
+              <ActiveTaskCard
+                taskText={round.finalText}
+                timerRemaining={timerRemaining}
+                isTruth={isTruth}
                 isMeCurrent={isMeCurrent}
-                myVote={myVote}
-                votingTimeLeft={votingTimerRemaining}
+                executorName={currentPlayer?.name}
+                canMarkDone={false}
+                categoryName={isDare ? selectedCategory?.title : null}
               />
               
-              {/* Кнопки голосования (только для тех, кто ещё не голосовал) */}
-              {!isMeCurrent && !myVote ? (
-                <div className="vote-actions-block">
-                  <div className="vote-actions-buttons">
-                    <Button
-                      variant="primary"
-                      size="md"
-                      disabled={!canVote}
-                      onClick={() => actions.castVote("approve")}
-                      iconLeft={<span>✓</span>}
-                    >
-                      Засчитано
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="md"
-                      disabled={!canVote}
-                      onClick={() => actions.castVote("report")}
-                      iconLeft={<span>✗</span>}
-                    >
-                      Репорт
-                    </Button>
+              {/* Блок голосования */}
+              <div className="vote-panel">
+                <div className="stage-title">Голосование</div>
+                
+                {/* Правила голосования (сворачиваемый блок) */}
+                {!isMeCurrent && <VotingRules />}
+                
+                {/* Статус голосования с прогресс-барами */}
+                <VotingStatus
+                  approveCount={voteCounts.approve}
+                  reportCount={voteCounts.report}
+                  totalVoted={voteCounts.total}
+                  eligibleCount={eligibleCount}
+                  majority={majority}
+                  isMeCurrent={isMeCurrent}
+                  myVote={myVote}
+                  votingTimeLeft={votingTimerRemaining}
+                />
+                
+                {/* Кнопки голосования (только для тех, кто ещё не голосовал) */}
+                {!isMeCurrent && !myVote ? (
+                  <div className="vote-actions-block">
+                    <div className="vote-actions-buttons">
+                      <Button
+                        variant="primary"
+                        size="md"
+                        disabled={!canVote}
+                        onClick={() => actions.castVote("approve")}
+                        iconLeft={<span>✓</span>}
+                      >
+                        Засчитано
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="md"
+                        disabled={!canVote}
+                        onClick={() => actions.castVote("report")}
+                        iconLeft={<span>✗</span>}
+                      >
+                        Репорт
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </div>
           ) : null}
 
-          {round && phase === "complete" && resultLabel ? (
-            <div className="result-card">
-              <div className="stage-title">Итог</div>
-              <div className="result-value">{resultLabel}</div>
+          {/* Фаза завершения — компактный отчёт + выбор следующего игрока */}
+          {round && phase === "complete" && !chaosDeciding ? (
+            <div className="complete-flow">
+              {/* Компактный отчёт о задании */}
+              <TaskReport
+                taskText={round.finalText}
+                executorName={currentPlayer?.name}
+                executorAvatar={currentPlayer?.avatarUrl}
+                result={round.result}
+                isTruth={isTruth}
+                isVisible={true}
+                categoryName={isDare ? selectedCategory?.title : null}
+              />
+              
+              {/* Выбор следующего игрока */}
+              {isMyTurn ? (
+                <TargetPlayerSelector
+                  players={players}
+                  currentTurnPlayerId={currentTurnPlayerId}
+                  meId={meId}
+                  disabled={false}
+                  allowSelfSelect={false}
+                  onSelectPlayer={(targetPlayerId) => actions.startRound(targetPlayerId)}
+                />
+              ) : (
+                <CurrentTurnBanner player={currentTurnPlayer} />
+              )}
             </div>
           ) : null}
+
+          {/* Индикатор паузы для всех игроков */}
+          {isPaused && (
+            <div className="pause-indicator">
+              <span className="pause-indicator__icon">⏸</span>
+              <span className="pause-indicator__text">Игра на паузе</span>
+            </div>
+          )}
 
           {isHost ? (
             <div className="admin-actions">
-              {canResetTimer ? (
+              {canResetTimer || isPaused ? (
+                <Button 
+                  variant={isPaused ? "primary" : "ghost"} 
+                  size="sm" 
+                  onClick={actions.togglePause}
+                >
+                  {isPaused ? "▶ Продолжить" : "⏸ Поставить на паузу"}
+                </Button>
+              ) : null}
+              {canResetTimer && !isPaused ? (
                 <Button variant="ghost" size="sm" onClick={actions.resetTimer}>
                   Сбросить таймер
                 </Button>
@@ -621,6 +696,12 @@ function RoomScreen({
           setShowEndGameModal(false);
           actions.endGame();
         }}
+      />
+
+      {/* Модальное окно правил */}
+      <RulesModal 
+        isOpen={showRulesModal} 
+        onClose={() => setShowRulesModal(false)} 
       />
     </div>
   );

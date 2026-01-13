@@ -129,6 +129,7 @@ io.use((socket, next) => {
 const makeRoomCode = customAlphabet(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
 const roomTimers = new Map();
 const votingTimers = new Map(); // Отдельные таймеры для голосования
+const pausedRooms = new Map(); // Состояние паузы для комнат: { isPaused, remainingWhenPaused, roundId }
 const playerSockets = new Map();
 const VOTING_TIME_SECONDS = 30; // Время на голосование
 
@@ -350,21 +351,79 @@ function stopTimer(roomId) {
     clearInterval(entry.intervalId);
     roomTimers.delete(roomId);
   }
+  // Также очищаем состояние паузы при остановке таймера
+  pausedRooms.delete(roomId);
+}
+
+function pauseTimer(roomId) {
+  const entry = roomTimers.get(roomId);
+  if (!entry) {
+    return false;
+  }
+  
+  // Останавливаем интервал, но сохраняем оставшееся время
+  clearInterval(entry.intervalId);
+  pausedRooms.set(roomId, {
+    isPaused: true,
+    remainingWhenPaused: entry.remaining,
+    roundId: entry.roundId
+  });
+  roomTimers.delete(roomId);
+  
+  // Уведомляем клиентов о паузе
+  io.to(roomId).emit("game:paused", { isPaused: true });
+  return true;
+}
+
+async function resumeTimer(roomId) {
+  const pauseState = pausedRooms.get(roomId);
+  if (!pauseState || !pauseState.isPaused) {
+    return false;
+  }
+  
+  const { remainingWhenPaused, roundId } = pauseState;
+  pausedRooms.delete(roomId);
+  
+  // Уведомляем клиентов о снятии паузы
+  io.to(roomId).emit("game:paused", { isPaused: false });
+  
+  // Запускаем таймер напрямую (без вызова stopTimer, чтобы не сбросить состояние)
+  const timerState = { intervalId: null, roundId, remaining: remainingWhenPaused };
+  
+  io.to(roomId).emit("round:timer_tick", { roundId, remaining: timerState.remaining });
+  
+  timerState.intervalId = setInterval(async () => {
+    timerState.remaining -= 1;
+    io.to(roomId).emit("round:timer_tick", { roundId, remaining: timerState.remaining });
+    if (timerState.remaining <= 0) {
+      await endTimer(roomId, roundId, "timeout");
+    }
+  }, 1000);
+  
+  roomTimers.set(roomId, timerState);
+  return true;
+}
+
+function isRoomPaused(roomId) {
+  const pauseState = pausedRooms.get(roomId);
+  return pauseState?.isPaused || false;
 }
 
 async function startTimer(roomId, roundId, seconds) {
   stopTimer(roomId);
-  let remaining = seconds;
-  io.to(roomId).emit("round:timer_tick", { roundId, remaining });
-  const intervalId = setInterval(async () => {
-    remaining -= 1;
-    io.to(roomId).emit("round:timer_tick", { roundId, remaining });
-    if (remaining <= 0) {
+  const timerState = { intervalId: null, roundId, remaining: seconds };
+  
+  io.to(roomId).emit("round:timer_tick", { roundId, remaining: timerState.remaining });
+  
+  timerState.intervalId = setInterval(async () => {
+    timerState.remaining -= 1;
+    io.to(roomId).emit("round:timer_tick", { roundId, remaining: timerState.remaining });
+    if (timerState.remaining <= 0) {
       await endTimer(roomId, roundId, "timeout");
     }
   }, 1000);
 
-  roomTimers.set(roomId, { intervalId, roundId, remaining });
+  roomTimers.set(roomId, timerState);
 }
 
 async function endTimer(roomId, roundId, reason) {
@@ -1662,12 +1721,6 @@ io.on("connection", (socket) => {
       }
       return;
     }
-    if (round.mode !== "truth") {
-      if (ack) {
-        ack({ ok: false, error: "Refuse only for truth" });
-      }
-      return;
-    }
     if (
       socket.data.playerId !== round.currentPlayerId &&
       (!room || !ensureHost(room, socket))
@@ -1978,6 +2031,10 @@ io.on("connection", (socket) => {
     }
 
     stopTimer(room.id);
+    stopVotingTimer(room.id);
+    pausedRooms.delete(room.id);
+    io.to(room.id).emit("game:paused", { isPaused: false });
+    
     await prisma.vote.deleteMany({ where: { round: { roomId: room.id } } });
     await prisma.spin.deleteMany({ where: { round: { roomId: room.id } } });
     await prisma.round.deleteMany({ where: { roomId: room.id } });
@@ -2082,6 +2139,49 @@ io.on("connection", (socket) => {
   });
 
   // ───────────────────────────────────────────────────────────────────────────
+  // admin:toggle_pause — Поставить/снять паузу (только хост)
+  // ───────────────────────────────────────────────────────────────────────────
+  socket.on("admin:toggle_pause", async (payload, ack) => {
+    await touchPlayer(socket);
+    if (!socket.data.roomId) {
+      if (ack) {
+        ack({ ok: false, error: "Not in room" });
+      }
+      return;
+    }
+    const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
+    if (!room || !ensureHost(room, socket)) {
+      if (ack) {
+        ack({ ok: false, error: "Host only" });
+      }
+      return;
+    }
+    
+    const isPaused = isRoomPaused(room.id);
+    
+    if (isPaused) {
+      // Снимаем паузу
+      await resumeTimer(room.id);
+      if (ack) {
+        ack({ ok: true, isPaused: false });
+      }
+    } else {
+      // Ставим на паузу (только если таймер активен)
+      const timer = roomTimers.get(room.id);
+      if (!timer) {
+        if (ack) {
+          ack({ ok: false, error: "No active timer to pause" });
+        }
+        return;
+      }
+      pauseTimer(room.id);
+      if (ack) {
+        ack({ ok: true, isPaused: true });
+      }
+    }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
   // room:end — Организатор завершает игру для всех
   // ───────────────────────────────────────────────────────────────────────────
   socket.on("room:end", async (payload, ack) => {
@@ -2113,8 +2213,11 @@ io.on("connection", (socket) => {
 
       console.log("[Room:End] Host ending game for room:", room.code);
 
-      // Останавливаем таймер
+      // Останавливаем таймеры и очищаем состояние паузы
       stopTimer(roomId);
+      stopVotingTimer(roomId);
+      pausedRooms.delete(roomId);
+      io.to(roomId).emit("game:paused", { isPaused: false });
 
       // Уведомляем всех игроков о завершении игры
       io.to(roomId).emit("room:ended", { reason: "host_ended" });

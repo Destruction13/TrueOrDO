@@ -141,6 +141,7 @@ SMTP_FROM="True or Do <your-email@gmail.com>"
 ### API Эндпоинты
 
 **Auth:**
+
 - `POST /api/auth/register` — регистрация
 - `POST /api/auth/login` — вход
 - `POST /api/auth/logout` — выход
@@ -151,6 +152,7 @@ SMTP_FROM="True or Do <your-email@gmail.com>"
 - `POST /api/auth/reset-password` — установка нового пароля
 
 **Profile:**
+
 - `GET /api/me` — получить профиль
 - `PATCH /api/me` — обновить профиль (nickname, bio)
 - `POST /api/me/avatar` — загрузить аватар (multipart/form-data)

@@ -1,20 +1,31 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Spline from "@splinetool/react-spline";
+import useIsMobile from "../hooks/useIsMobile";
+import MobileTaskOverlay from "./ui/MobileTaskOverlay";
 const VISIBLE_COUNT = 7;
 const MIN_TRACK_ITEMS = 42;
-const SPIN_MIN_DURATION = 3000;
-const SPIN_MAX_DURATION = 7000;
+const SPIN_MIN_DURATION = 4000;
+const SPIN_MAX_DURATION = 6000;
 const SPIN_ACCEL_MIN = 300;
-const SPIN_ACCEL_MAX = 520;
-const SPIN_CRUISE_MIN = 600;
-const SPIN_CRUISE_MAX = 1200;
-const SPIN_DECEL_MIN = 1800; // минимум времени замедления
+const SPIN_ACCEL_MAX = 450;
+const SPIN_CRUISE_MIN = 800;
+const SPIN_CRUISE_MAX = 1400;
+const SPIN_DECEL_MIN = 2200; // минимум времени замедления (увеличено для драмы)
 const OVERLAY_DELAY = 180;
 const MIN_FILL = VISIBLE_COUNT + 4;
-const DECEL_DISTANCE_MIN = 0.36;
+const DECEL_DISTANCE_MIN = 0.38;
 const TILT_MAX = 18; // максимум наклона карточки
 const TILT_LERP = 0.18;
+
+// Драматичный финал
+const TENSION_PAUSE_MIN = 500; // Пауза напряжения "неужели это?"
+const TENSION_PAUSE_MAX = 800;
+const WIN_ANIMATION_DELAY = 100; // Задержка перед победной анимацией
+
+// Случайное смещение от центра для эффекта "еле зацепились"
+const OFFSET_MIN = 0.15; // Минимум 15% от ширины карточки
+const OFFSET_MAX = 0.42; // Максимум 42% от ширины карточки (почти на грани)
 const SPLINE_ZOOM = 1.25;
 const SPLINE_START_BUTTON_NAMES = new Set([
   "Rectangle2",
@@ -61,17 +72,25 @@ function ScenarioReel({
   targetIndex,
   spinTick = 0,
   spinning,
+  disabled = false,
   canAcceptTask,
   taskStatus,
   onStart,
   onStop,
   onReveal,
-  onStartTask
+  onStartTask,
+  onRefuseTask,
+  categoryName = null,
 }) {
+  const isMobile = useIsMobile();
   // If server provides reelItems (for chaos mode), use those instead
   const hasChaosReel = serverReelItems && serverReelItems.length > 0;
   const [isAnimating, setIsAnimating] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(false);
+  const [spinPhase, setSpinPhase] = useState("idle"); // idle | spinning | slowing | tension | final | winner
+  const [centerCardIndex, setCenterCardIndex] = useState(null); // Карточка под центральной линией
+  const [isWinner, setIsWinner] = useState(false); // Флаг победной анимации
+  const [splineLoaded, setSplineLoaded] = useState(false); // Флаг загрузки Spline
   const canShowOverlay = Boolean(canAcceptTask && taskStatus === "pending");
   const canShowOverlayRef = useRef(canShowOverlay);
   const splineRef = useRef(null);
@@ -379,6 +398,11 @@ function ScenarioReel({
         splineRuntimeCleanupRef.current();
       }
       splineRuntimeCleanupRef.current = attachSplineRuntimeListeners(spline);
+      
+      // Небольшая задержка для плавного появления после загрузки
+      window.setTimeout(() => {
+        setSplineLoaded(true);
+      }, 100);
       if (import.meta.env.DEV && !splineSizeLogRef.current) {
         splineSizeRetryRef.current = 0;
         splineSizeWarnRef.current = false;
@@ -593,10 +617,11 @@ function ScenarioReel({
       splineSizeRetryRef.current = 0;
       splineSizeWarnRef.current = false;
       splineSizeLogRef.current = false;
+      setSplineLoaded(false); // Сбрасываем флаг загрузки
     }
   }, [clearSplinePressState, overlayVisible]);
   const beginSpin = useCallback(() => {
-    if (!trackItems.length || targetTrackIndex == null) {
+    if (!trackItems.length || targetTrackIndex == null || disabled) {
       return;
     }
     if (overlayTimeoutRef.current) {
@@ -615,6 +640,8 @@ function ScenarioReel({
     const spinId = spinIdRef.current;
     setOverlayVisible(false);
     setIsAnimating(true);
+    setIsWinner(false);
+    setSpinPhase("spinning");
     isSpinningRef.current = true;
     setTrackWillChange("transform");
     if (typeof onStart === "function") {
@@ -629,8 +656,17 @@ function ScenarioReel({
     const startCenter = startIndex * metrics.cell + metrics.cardWidth / 2;
     const startX = Math.round(metrics.viewport / 2 - startCenter);
     setTranslateX(startX, true);
+    
     const targetCenter = targetTrackIndex * metrics.cell + metrics.cardWidth / 2;
-    const finalX = Math.round(metrics.viewport / 2 - targetCenter);
+    
+    // Случайное смещение от центра для эффекта "еле зацепились"
+    // Смещение в пределах 15-42% от ширины карточки, в случайную сторону
+    const offsetPercent = lerp(OFFSET_MIN, OFFSET_MAX, rng());
+    const offsetDirection = rng() > 0.5 ? 1 : -1;
+    const offsetPx = Math.round(metrics.cardWidth * offsetPercent * offsetDirection);
+    
+    const finalX = Math.round(metrics.viewport / 2 - targetCenter) + offsetPx;
+    
     const duration = Math.round(lerp(SPIN_MIN_DURATION, SPIN_MAX_DURATION, rng()));
     let accelMs = lerp(SPIN_ACCEL_MIN, SPIN_ACCEL_MAX, rng());
     let cruiseMs = lerp(SPIN_CRUISE_MIN, SPIN_CRUISE_MAX, rng());
@@ -642,6 +678,7 @@ function ScenarioReel({
     }
     const tA = accelMs / duration;
     const tB = (accelMs + cruiseMs) / duration;
+    const tSlow = tB + (1 - tB) * 0.6; // Момент начала фазы "slowing"
     let distA = lerp(0.1, 0.14, rng());
     let distB = lerp(0.38, 0.48, rng());
     let distC = 1 - distA - distB;
@@ -649,6 +686,27 @@ function ScenarioReel({
       distB = Math.max(distB - (DECEL_DISTANCE_MIN - distC), 0.3);
       distC = 1 - distA - distB;
     }
+    
+    // Функция для вычисления индекса карточки под центром
+    // Определяем, какая карточка реально находится под центральной линией
+    const getCenterCardIndex = (x) => {
+      const centerPos = metrics.viewport / 2 - x;
+      // Вычисляем индекс карточки, в которую попадает центр линии
+      // Учитываем, что карточка занимает [index * cell, index * cell + cardWidth]
+      const rawIndex = centerPos / metrics.cell;
+      const floorIndex = Math.floor(rawIndex);
+      
+      // Проверяем, попадает ли центр линии в карточку (а не в gap)
+      const posInCell = centerPos - floorIndex * metrics.cell;
+      if (posInCell <= metrics.cardWidth) {
+        return floorIndex;
+      }
+      // Если центр в gap, возвращаем ближайшую карточку
+      return posInCell < metrics.cell / 2 ? floorIndex : floorIndex + 1;
+    };
+    
+    let lastCenterIndex = -1;
+    
     const progressAt = (t) => {
       if (t <= tA) {
         const local = tA > 0 ? t / tA : 1;
@@ -661,6 +719,21 @@ function ScenarioReel({
       const local = (t - tB) / Math.max(1 - tB, 0.0001);
       return distA + distB + easeOutQuint(local) * distC;
     };
+    
+    // Пауза напряжения на финальной карточке
+    const startTensionPause = () => {
+      if (spinIdRef.current !== spinId) {
+        return;
+      }
+      setSpinPhase("tension");
+      setCenterCardIndex(targetTrackIndex);
+      
+      const tensionDuration = lerp(TENSION_PAUSE_MIN, TENSION_PAUSE_MAX, rng());
+      overlayTimeoutRef.current = window.setTimeout(() => {
+        finishSpin();
+      }, tensionDuration);
+    };
+    
     const finishSpin = () => {
       if (spinIdRef.current !== spinId) {
         return;
@@ -671,41 +744,75 @@ function ScenarioReel({
       }
       setTranslateX(finalX, true);
       setTrackWillChange("auto");
-      setIsAnimating(false);
-      isSpinningRef.current = false;
-      const item = selectedItemRef.current;
-      if (typeof onStop === "function") {
-        onStop(item);
-      }
-      overlayTimeoutRef.current = window.setTimeout(() => {
-        if (spinIdRef.current !== spinId) {
-          return;
+      setCenterCardIndex(targetTrackIndex);
+      
+      // Победная анимация
+      window.setTimeout(() => {
+        if (spinIdRef.current !== spinId) return;
+        setSpinPhase("winner");
+        setIsWinner(true);
+      }, WIN_ANIMATION_DELAY);
+      
+      window.setTimeout(() => {
+        if (spinIdRef.current !== spinId) return;
+        setIsAnimating(false);
+        isSpinningRef.current = false;
+        setSpinPhase("idle");
+        
+        const item = selectedItemRef.current;
+        if (typeof onStop === "function") {
+          onStop(item);
         }
-        if (canShowOverlayRef.current) {
-          setOverlayVisible(true);
-        }
-        if (typeof onReveal === "function") {
-          onReveal(item);
-        }
-      }, OVERLAY_DELAY);
+        overlayTimeoutRef.current = window.setTimeout(() => {
+          if (spinIdRef.current !== spinId) {
+            return;
+          }
+          setIsWinner(false);
+          if (canShowOverlayRef.current) {
+            setOverlayVisible(true);
+          }
+          if (typeof onReveal === "function") {
+            onReveal(item);
+          }
+        }, OVERLAY_DELAY);
+      }, 800); // Даём время на победную анимацию
     };
+    
     const startTime = performance.now();
     const tick = (now) => {
       if (spinIdRef.current !== spinId) {
         return;
       }
-      const t = clamp((now - startTime) / duration, 0, 1);
+      const elapsed = now - startTime;
+      const t = clamp(elapsed / duration, 0, 1);
+      
+      // Обновляем фазу при замедлении
+      if (t > tSlow) {
+        setSpinPhase((prev) => prev === "spinning" ? "slowing" : prev);
+      }
+      
       const progress = progressAt(t);
       const x = startX + (finalX - startX) * progress;
       setTranslateX(x);
+      
+      // Отслеживаем карточку под центром для эффекта тика
+      const currentIndex = getCenterCardIndex(x);
+      if (currentIndex !== lastCenterIndex && currentIndex >= 0 && currentIndex < trackItems.length) {
+        lastCenterIndex = currentIndex;
+        setCenterCardIndex(currentIndex);
+      }
+      
       if (t >= 1) {
-        finishSpin();
+        // Останавливаемся на финальной карточке и запускаем паузу напряжения
+        setTranslateX(finalX, true);
+        startTensionPause();
         return;
       }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
   }, [
+    disabled,
     measure,
     normalizedItems.length,
     onReveal,
@@ -789,14 +896,20 @@ function ScenarioReel({
     return null;
   }
 
+  // Вычисляем классы для viewport
+  const viewportClasses = [
+    "reel-viewport",
+    spinPhase !== "idle" ? `is-phase-${spinPhase}` : "",
+  ].filter(Boolean).join(" ");
+
   return (
-    <div className={`scenario-reel${isBusy ? " is-spinning" : ""}`}>
+    <div className={`scenario-reel${isBusy ? " is-spinning" : ""}${isWinner ? " is-winner" : ""}`}>
       <div className="scenario-reel__header">
         <div className="scenario-reel__title">Лента сценариев</div>
         <div className="scenario-reel__status">{statusText}</div>
       </div>
-      <div className="reel-viewport" ref={viewportRef}>
-        <div className="reel-centerline" aria-hidden="true" />
+      <div className={viewportClasses} ref={viewportRef}>
+        <div className={`reel-centerline${spinPhase !== "idle" ? " is-active" : ""}${spinPhase === "tension" ? " is-tension" : ""}${spinPhase === "winner" ? " is-winner" : ""}`} aria-hidden="true" />
         <div className="reel-track" ref={trackRef}>
           {trackItems.map((item, index) => {
             const isSelected =
@@ -804,10 +917,23 @@ function ScenarioReel({
               index === targetTrackIndex &&
               !isBusy;
             const isChaosCard = item.isChaos === true;
+            const isCenterCard = centerCardIndex === index && spinPhase !== "idle";
+            const isWinnerCard = isWinner && index === targetTrackIndex;
+            const isTensionCard = spinPhase === "tension" && index === centerCardIndex;
+            
+            const cardClasses = [
+              "reel-card",
+              isSelected ? "is-selected" : "",
+              isChaosCard ? "is-chaos" : "",
+              isCenterCard ? "is-center" : "",
+              isWinnerCard ? "is-winner" : "",
+              isTensionCard ? "is-tension" : "",
+            ].filter(Boolean).join(" ");
+            
             return (
               <div
                 key={`${item.id}-${index}`}
-                className={`reel-card${isSelected ? " is-selected" : ""}${isChaosCard ? " is-chaos" : ""}`}
+                className={cardClasses}
                 style={{ "--card-hue": isChaosCard ? 0 : (index * 34) % 360 }}
                 onPointerMove={handlePointerMove}
                 onPointerLeave={handlePointerLeave}
@@ -823,11 +949,31 @@ function ScenarioReel({
         </div>
       </div>
       {overlayVisible && selectedItem && canShowOverlay
-        ? createPortal(
-            <div className="reel-overlay">
+        ? (isMobile ? (
+            <MobileTaskOverlay
+              isOpen={true}
+              title={titleText}
+              description={descText}
+              categoryName={categoryName}
+              onAccept={() => {
+                setOverlayVisible(false);
+                if (typeof onStartTask === "function") {
+                  onStartTask(selectedItem);
+                }
+              }}
+              onRefuse={() => {
+                setOverlayVisible(false);
+                if (typeof onRefuseTask === "function") {
+                  onRefuseTask();
+                }
+              }}
+            />
+          ) : createPortal(
+            <div className={`reel-overlay${splineLoaded ? " is-loaded" : ""}`}>
               <div className="reel-overlay__backdrop" aria-hidden="true" />
+              
               <div
-                className="reel-overlay__stage"
+                className={`reel-overlay__stage${splineLoaded ? " is-visible" : ""}`}
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="reel-overlay__anim" aria-hidden="true" />
@@ -843,7 +989,7 @@ function ScenarioReel({
               </div>
             </div>,
             document.body
-          )
+          ))
         : null}
     </div>
   );
