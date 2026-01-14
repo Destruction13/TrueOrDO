@@ -3,17 +3,21 @@
 # PartyСhaos.ru — Full Installation Script for Ubuntu 24.04 VPS
 # ═══════════════════════════════════════════════════════════════════════════════
 # Usage: sudo bash deploy/install.sh
-# 
-# This script is IDEMPOTENT — safe to run multiple times.
-# It will:
-#   1. Install system dependencies (nginx, certbot, nodejs, etc.)
-#   2. Create system user and app directory
-#   3. Clone/update the repository
-#   4. Install npm dependencies and build frontend
-#   5. Configure environment (.env)
-#   6. Setup Prisma database
-#   7. Configure nginx with SSL
-#   8. Setup PM2 for process management
+#
+# STRATEGY: npm workspaces from root
+# ─────────────────────────────────────────────────────────────────────────────────
+# This project uses npm workspaces (defined in root package.json).
+# npm hoists dependencies to /opt/partychaos/node_modules/.bin/
+# We run `npm install` from the root and use `npm run build` which internally
+# calls the client workspace build. This avoids issues with vite location.
+#
+# IDEMPOTENCY:
+# Safe to run multiple times — brings system to desired state without breaking.
+#
+# GIT STRATEGY:
+# Fast-forward only. No local modifications allowed on server.
+# All fixes must be committed to remote repo.
+# Untracked files (caches, logs, dist) are ignored in dirty check.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -e  # Exit on error
@@ -29,9 +33,9 @@ REPO_URL="https://github.com/Destruction13/TrueOrDO.git"
 REPO_BRANCH="main"
 NODE_VERSION="20"  # LTS
 BACKEND_PORT="3001"
-DB_FILE="prod.db"  # Production database file (not dev.db)
+DB_FILE="prod.db"  # Production database file
 
-# Let's Encrypt email (change if admin@partychaos.ru doesn't exist)
+# Let's Encrypt email
 LE_EMAIL="${LE_EMAIL:-admin@partychaos.ru}"
 
 # Colors for output
@@ -45,6 +49,32 @@ log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Run npm command as APP_USER with proper environment
+run_npm() {
+    sudo -u "$APP_USER" \
+        HOME="$APP_DIR" \
+        NPM_CONFIG_CACHE="$APP_DIR/.npm-cache" \
+        NPM_CONFIG_INCLUDE="dev" \
+        npm "$@"
+}
+
+# Check if there are uncommitted changes in TRACKED files only
+# Ignores untracked files (caches, logs, dist, etc.)
+check_git_dirty() {
+    local has_staged has_unstaged
+    has_staged=$(sudo -u "$APP_USER" git diff --cached --name-only 2>/dev/null | wc -l)
+    has_unstaged=$(sudo -u "$APP_USER" git diff --name-only 2>/dev/null | wc -l)
+    
+    if [[ "$has_staged" -gt 0 ]] || [[ "$has_unstaged" -gt 0 ]]; then
+        return 0  # dirty
+    fi
+    return 1  # clean
+}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PRE-FLIGHT CHECKS
@@ -65,7 +95,6 @@ log_info "Installing system dependencies..."
 
 apt-get update -qq
 
-# Install essential packages
 apt-get install -y -qq \
     curl \
     git \
@@ -114,19 +143,16 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. CLONE/UPDATE REPOSITORY
 # ═══════════════════════════════════════════════════════════════════════════════
-# STRATEGY: We use --ff-only to avoid destroying local changes.
-# If there are local commits, the script will fail with a clear message.
-# All fixes MUST be committed to the remote repo, not done locally on the server.
-# This ensures reproducible deployments.
-
 if [[ -d "$APP_DIR/.git" ]]; then
     log_info "Repository exists, updating..."
     cd "$APP_DIR"
     
-    # Check for uncommitted changes (would be lost)
-    if ! sudo -u "$APP_USER" git diff --quiet 2>/dev/null || \
-       ! sudo -u "$APP_USER" git diff --cached --quiet 2>/dev/null; then
-        log_error "Uncommitted changes detected in $APP_DIR!"
+    # Check for uncommitted changes in TRACKED files only
+    if check_git_dirty; then
+        log_error "Uncommitted changes detected in tracked files!"
+        log_error "Changed files:"
+        sudo -u "$APP_USER" git diff --name-only 2>/dev/null | head -10
+        log_error ""
         log_error "Commit and push them to the repo, or discard with:"
         log_error "  cd $APP_DIR && sudo -u $APP_USER git checkout -- ."
         exit 1
@@ -134,7 +160,7 @@ if [[ -d "$APP_DIR/.git" ]]; then
     
     sudo -u "$APP_USER" git fetch origin
     
-    # Try fast-forward merge (fails if local commits exist)
+    # Try fast-forward merge
     if ! sudo -u "$APP_USER" git merge --ff-only "origin/$REPO_BRANCH" 2>/dev/null; then
         log_error "Cannot fast-forward! Local commits exist that are not in origin."
         log_error "Either push your local commits, or reset manually:"
@@ -145,7 +171,6 @@ if [[ -d "$APP_DIR/.git" ]]; then
     log_success "Repository updated"
 else
     log_info "Cloning repository..."
-    # Remove dir if exists but not a git repo
     rm -rf "$APP_DIR"
     git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
     log_success "Repository cloned"
@@ -154,51 +179,68 @@ fi
 cd "$APP_DIR"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 5.1. FIX OWNERSHIP (CRITICAL - prevents EACCES errors)
+# 5.1. FIX OWNERSHIP (CRITICAL)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Must run BEFORE any npm commands. Ensures partychaos user owns everything.
 log_info "Fixing ownership..."
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
-# Create npm cache directory for partychaos user (prevents root-owned cache issues)
+# Create npm cache directory
 NPM_CACHE_DIR="$APP_DIR/.npm-cache"
 sudo -u "$APP_USER" mkdir -p "$NPM_CACHE_DIR"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 6. NPM DEPENDENCIES
+# 5.2. CONFIGURE NPM FOR APP_USER
 # ═══════════════════════════════════════════════════════════════════════════════
-# NOTE: We install client and server separately (no npm workspaces).
-# All npm commands run as APP_USER with custom cache to avoid EACCES.
+# Ensure devDependencies are installed (vite is a devDependency)
+log_info "Configuring npm for $APP_USER..."
 
-log_info "Installing npm dependencies..."
+NPMRC_FILE="$APP_DIR/.npmrc"
+sudo -u "$APP_USER" touch "$NPMRC_FILE"
 
-# Client dependencies (includes vite as devDependency)
-cd "$APP_DIR/client"
-log_info "Installing client dependencies..."
-sudo -u "$APP_USER" npm ci --cache "$NPM_CACHE_DIR" 2>/dev/null || \
-    sudo -u "$APP_USER" npm install --cache "$NPM_CACHE_DIR"
+# Set include=dev to ensure devDependencies are installed
+# This overrides any global/user config that might have include=prod
+sudo -u "$APP_USER" npm config set include dev --userconfig "$NPMRC_FILE"
+sudo -u "$APP_USER" npm config set cache "$NPM_CACHE_DIR" --userconfig "$NPMRC_FILE"
 
-# Verify vite is installed (critical for build)
-if [[ ! -x "$APP_DIR/client/node_modules/.bin/vite" ]]; then
-    log_error "vite not found in client/node_modules/.bin/"
-    log_error "Check client/package.json has vite in devDependencies"
-    exit 1
+log_success "npm configured (include=dev, cache=$NPM_CACHE_DIR)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. NPM DEPENDENCIES (Workspaces from root)
+# ═══════════════════════════════════════════════════════════════════════════════
+# STRATEGY: Install from root using npm workspaces.
+# npm hoists dependencies to root node_modules/, which is expected behavior.
+# We use `npm run build` from root which delegates to client workspace.
+# This avoids issues with vite being in root vs client node_modules.
+
+log_info "Installing npm dependencies (workspaces mode)..."
+cd "$APP_DIR"
+
+# Install all dependencies including devDependencies
+# npm ci is preferred if package-lock.json exists and is in sync
+if [[ -f "package-lock.json" ]]; then
+    log_info "Using npm ci (lockfile found)..."
+    run_npm ci --include=dev || {
+        log_warn "npm ci failed, falling back to npm install..."
+        run_npm install --include=dev
+    }
+else
+    log_info "Using npm install (no lockfile)..."
+    run_npm install --include=dev
 fi
-log_success "Client dependencies installed (vite: $(sudo -u "$APP_USER" "$APP_DIR/client/node_modules/.bin/vite" --version 2>/dev/null || echo 'ok'))"
 
-# Server dependencies
-cd "$APP_DIR/server"
-log_info "Installing server dependencies..."
-sudo -u "$APP_USER" npm ci --cache "$NPM_CACHE_DIR" 2>/dev/null || \
-    sudo -u "$APP_USER" npm install --cache "$NPM_CACHE_DIR"
-log_success "Server dependencies installed"
+log_success "Dependencies installed"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. BUILD FRONTEND
 # ═══════════════════════════════════════════════════════════════════════════════
+# Use npm run build from root - it calls client's vite build via workspaces
+# This works regardless of where npm hoisted the vite binary
+
 log_info "Building frontend..."
-cd "$APP_DIR/client"
-sudo -u "$APP_USER" npm run build
+cd "$APP_DIR"
+
+# Build using root package.json script (delegates to client workspace)
+run_npm run build
 
 # Verify build output exists
 if [[ ! -f "$APP_DIR/client/dist/index.html" ]]; then
@@ -206,6 +248,7 @@ if [[ ! -f "$APP_DIR/client/dist/index.html" ]]; then
     log_error "Check build logs above for errors."
     exit 1
 fi
+
 log_success "Frontend built to client/dist"
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -216,7 +259,6 @@ ENV_FILE="$APP_DIR/server/.env"
 if [[ ! -f "$ENV_FILE" ]]; then
     log_info "Creating .env file..."
     
-    # Generate random session secret
     SESSION_SECRET=$(openssl rand -hex 32)
     
     cat > "$ENV_FILE" << EOF
@@ -242,7 +284,6 @@ APP_BASE_URL=https://${DOMAIN}
 # ═══════════════════════════════════════════════════════════════════════════════
 # SMTP Configuration (REQUIRED for email features)
 # ═══════════════════════════════════════════════════════════════════════════════
-# Configure these for password reset and email verification to work:
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
@@ -276,14 +317,14 @@ log_info "Setting up database..."
 cd "$APP_DIR/server"
 
 # Generate Prisma client
-sudo -u "$APP_USER" npx prisma generate
+run_npm exec prisma generate
 
-# Deploy migrations (creates DB if not exists)
-sudo -u "$APP_USER" npx prisma migrate deploy
+# Deploy migrations (production-safe, creates DB if not exists)
+run_npm exec prisma migrate deploy
 
 log_success "Database ready: server/prisma/${DB_FILE}"
 
-# Create data directory for backups
+# Create backups directory
 mkdir -p "$APP_DIR/backups"
 chown "$APP_USER:$APP_USER" "$APP_DIR/backups"
 
@@ -320,12 +361,10 @@ server {
     listen [::]:80;
     server_name partychaos.ru;
 
-    # Certbot will modify this for HTTPS redirect
     location / {
         return 301 https://$server_name$request_uri;
     }
 
-    # Let's Encrypt challenge
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
@@ -336,35 +375,29 @@ server {
     listen [::]:443 ssl http2;
     server_name partychaos.ru;
 
-    # SSL certificates (will be configured by certbot)
     ssl_certificate /etc/letsencrypt/live/partychaos.ru/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/partychaos.ru/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
-    # Gzip compression
     gzip on;
     gzip_vary on;
     gzip_min_length 1024;
     gzip_types text/plain text/css text/xml text/javascript application/javascript application/json application/xml;
 
-    # Frontend static files
     root /opt/partychaos/client/dist;
     index index.html;
 
-    # Static assets with cache
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         try_files $uri =404;
     }
 
-    # API proxy
     location /api/ {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
@@ -377,7 +410,6 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # Socket.IO proxy (WebSocket support)
     location /socket.io/ {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
@@ -389,10 +421,9 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
-        proxy_read_timeout 3600s;  # Long timeout for WebSocket
+        proxy_read_timeout 3600s;
     }
 
-    # Uploads proxy
     location /uploads/ {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
@@ -402,13 +433,11 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # SPA fallback — all other routes serve index.html
     location / {
         try_files $uri $uri/ /index.html;
     }
 }
 
-# Redirect HTTPS www to non-www
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -423,7 +452,6 @@ server {
 }
 NGINX_EOF
 
-# Enable site
 ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
@@ -432,7 +460,6 @@ log_success "Nginx configuration created"
 # ═══════════════════════════════════════════════════════════════════════════════
 # 12. SSL CERTIFICATE (Let's Encrypt)
 # ═══════════════════════════════════════════════════════════════════════════════
-# First, create a temporary config without SSL for certbot
 NGINX_TEMP="/etc/nginx/sites-available/${DOMAIN}-temp"
 
 cat > "$NGINX_TEMP" << 'NGINX_TEMP_EOF'
@@ -452,22 +479,17 @@ server {
 }
 NGINX_TEMP_EOF
 
-# Check if SSL cert already exists
 if [[ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]]; then
     log_success "SSL certificate already exists"
-    # Use full config
     ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/"$DOMAIN"
 else
     log_info "Obtaining SSL certificate..."
     
-    # Use temp config first
     ln -sf "$NGINX_TEMP" /etc/nginx/sites-enabled/"$DOMAIN"
     rm -f /etc/nginx/sites-enabled/default
     
-    # Test and reload nginx
     nginx -t && systemctl reload nginx
     
-    # Get certificate using webroot (more reliable for first-time setup)
     mkdir -p /var/www/html/.well-known/acme-challenge
     certbot certonly \
         --webroot \
@@ -483,23 +505,15 @@ else
             log_warn "  $DOMAIN → $(curl -s ifconfig.me)"
             log_warn "  $DOMAIN_WWW → $(curl -s ifconfig.me)"
             log_warn ""
-            log_warn "If email '$LE_EMAIL' is invalid, re-run with:"
-            log_warn "  LE_EMAIL=your@email.com sudo bash $APP_DIR/deploy/install.sh"
-            log_warn ""
-            log_warn "Or manually: sudo certbot certonly --webroot -w /var/www/html -d $DOMAIN -d $DOMAIN_WWW"
-            # Don't exit - continue without SSL, user can fix later
             log_warn "Continuing without SSL. Backend will start, but HTTPS won't work."
         }
     
-    # Switch to full config
     ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/"$DOMAIN"
     log_success "SSL certificate obtained"
 fi
 
-# Clean up temp config
 rm -f "$NGINX_TEMP"
 
-# Test and reload nginx
 nginx -t && systemctl reload nginx
 log_success "Nginx configured and running"
 
@@ -510,33 +524,49 @@ log_info "Starting backend with PM2..."
 
 cd "$APP_DIR/server"
 
-# Stop existing if running
 sudo -u "$APP_USER" pm2 delete partychaos 2>/dev/null || true
 
-# Start with PM2
 sudo -u "$APP_USER" pm2 start src/index.js \
     --name "partychaos" \
     --cwd "$APP_DIR/server" \
     --node-args="--max-old-space-size=512"
 
-# Save PM2 config
 sudo -u "$APP_USER" pm2 save
 
-# Setup PM2 startup script
 pm2 startup systemd -u "$APP_USER" --hp "$APP_DIR" | tail -1 | bash
 
 log_success "Backend running with PM2"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 14. FIREWALL (UFW)
+# 14. HEALTH CHECK
+# ═══════════════════════════════════════════════════════════════════════════════
+log_info "Running health check..."
+sleep 3
+
+HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://127.0.0.1:${BACKEND_PORT}/api/health" 2>/dev/null || echo "000")
+
+if [[ "$HEALTH_RESPONSE" == "200" ]]; then
+    log_success "Backend health check passed (HTTP 200)"
+else
+    log_warn "Backend health check returned HTTP $HEALTH_RESPONSE"
+    log_warn "Check logs: sudo -u $APP_USER pm2 logs partychaos --lines 50"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 15. FIREWALL (UFW)
 # ═══════════════════════════════════════════════════════════════════════════════
 if command -v ufw &> /dev/null; then
     log_info "Configuring firewall..."
     ufw allow 'Nginx Full' > /dev/null 2>&1
     ufw allow OpenSSH > /dev/null 2>&1
-    # Don't enable UFW automatically — let user do it
     log_success "Firewall rules added (run 'ufw enable' to activate)"
 fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 16. FIX OWNERSHIP (Final pass)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Ensure everything is owned by APP_USER after all operations
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DONE!

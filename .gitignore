@@ -1,6 +1,51 @@
-﻿node_modules/
+﻿# Dependencies
+node_modules/
 client/node_modules/
 server/node_modules/
+
+# Build output
 client/dist/
-server/prisma/dev.db
+
+# Environment files
 .env
+server/.env
+
+# Database files
+server/prisma/dev.db
+server/prisma/prod.db
+server/prisma/*.db-journal
+
+# npm cache and config (server-side)
+.npm-cache/
+.npmrc
+
+# Logs
+*.log
+npm-debug.log*
+.npm/_logs/
+
+# PM2
+.pm2/
+
+# Backups (generated on server)
+backups/
+
+# Uploads (user content on server)
+server/uploads/avatars/*
+!server/uploads/avatars/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Shell history and misc
+.lesshst
+.bash_history
+.node_repl_history

@@ -3,8 +3,18 @@
 # PartyСhaos.ru — Update Script
 # ═══════════════════════════════════════════════════════════════════════════════
 # Usage: sudo bash deploy/update.sh
-# 
+#
 # Safe update: backup DB → pull code → rebuild → migrate → restart
+#
+# STRATEGY: npm workspaces from root (same as install.sh)
+# ─────────────────────────────────────────────────────────────────────────────────
+# Dependencies are installed from root with workspaces mode.
+# Build is done via `npm run build` from root.
+# This ensures vite works regardless of hoisting location.
+#
+# GIT STRATEGY:
+# Fast-forward only. Checks only TRACKED files for changes.
+# Untracked files (caches, logs, dist, node_modules) are ignored.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 set -e
@@ -14,6 +24,7 @@ APP_USER="partychaos"
 APP_DIR="/opt/partychaos"
 REPO_BRANCH="main"
 DB_FILE="prod.db"
+BACKEND_PORT="3001"
 
 # Colors
 RED='\033[0;31m'
@@ -27,7 +38,34 @@ log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Pre-flight
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Run npm command as APP_USER with proper environment
+run_npm() {
+    sudo -u "$APP_USER" \
+        HOME="$APP_DIR" \
+        NPM_CONFIG_CACHE="$APP_DIR/.npm-cache" \
+        NPM_CONFIG_INCLUDE="dev" \
+        npm "$@"
+}
+
+# Check if there are uncommitted changes in TRACKED files only
+check_git_dirty() {
+    local has_staged has_unstaged
+    has_staged=$(sudo -u "$APP_USER" git diff --cached --name-only 2>/dev/null | wc -l)
+    has_unstaged=$(sudo -u "$APP_USER" git diff --name-only 2>/dev/null | wc -l)
+    
+    if [[ "$has_staged" -gt 0 ]] || [[ "$has_unstaged" -gt 0 ]]; then
+        return 0  # dirty
+    fi
+    return 1  # clean
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRE-FLIGHT CHECKS
+# ═══════════════════════════════════════════════════════════════════════════════
 if [[ $EUID -ne 0 ]]; then
     log_error "This script must be run as root (use sudo)"
     exit 1
@@ -66,15 +104,16 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. PULL LATEST CODE
 # ═══════════════════════════════════════════════════════════════════════════════
-# STRATEGY: Fast-forward only. If local changes exist, fail with clear message.
-# All fixes must be in the remote repo — no local patches on server.
-
 log_info "Pulling latest code from git..."
 
-# Check for uncommitted changes
-if ! sudo -u "$APP_USER" git diff --quiet 2>/dev/null || \
-   ! sudo -u "$APP_USER" git diff --cached --quiet 2>/dev/null; then
-    log_error "Uncommitted changes detected!"
+# Check for uncommitted changes in TRACKED files only
+# Untracked files (node_modules, dist, .npm-cache, etc.) are ignored
+if check_git_dirty; then
+    log_error "Uncommitted changes detected in tracked files!"
+    log_error "Changed files:"
+    sudo -u "$APP_USER" git diff --name-only 2>/dev/null | head -10
+    sudo -u "$APP_USER" git diff --cached --name-only 2>/dev/null | head -10
+    log_error ""
     log_error "Commit and push them, or discard with:"
     log_error "  cd $APP_DIR && sudo -u $APP_USER git checkout -- ."
     exit 1
@@ -99,42 +138,52 @@ else
     log_success "Updated: ${CURRENT_COMMIT:0:8} → ${NEW_COMMIT:0:8}"
 fi
 
-# Fix ownership after pull (in case new files were added)
+# Fix ownership after pull
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 3. UPDATE DEPENDENCIES (if package-lock changed)
+# 3. ENSURE NPM CONFIG
 # ═══════════════════════════════════════════════════════════════════════════════
-log_info "Updating dependencies..."
-
-# Use custom npm cache to avoid permission issues
+# Ensure devDependencies are installed (vite is a devDependency)
 NPM_CACHE_DIR="$APP_DIR/.npm-cache"
+NPMRC_FILE="$APP_DIR/.npmrc"
+
 sudo -u "$APP_USER" mkdir -p "$NPM_CACHE_DIR"
+sudo -u "$APP_USER" touch "$NPMRC_FILE"
 
-# Client dependencies
-cd "$APP_DIR/client"
-sudo -u "$APP_USER" npm ci --cache "$NPM_CACHE_DIR" 2>/dev/null || \
-    sudo -u "$APP_USER" npm install --cache "$NPM_CACHE_DIR"
-
-# Verify vite exists
-if [[ ! -x "$APP_DIR/client/node_modules/.bin/vite" ]]; then
-    log_error "vite not found after npm install!"
-    exit 1
+# Ensure include=dev is set
+if ! grep -q "include=dev" "$NPMRC_FILE" 2>/dev/null; then
+    sudo -u "$APP_USER" npm config set include dev --userconfig "$NPMRC_FILE"
+    sudo -u "$APP_USER" npm config set cache "$NPM_CACHE_DIR" --userconfig "$NPMRC_FILE"
+    log_info "npm config updated (include=dev)"
 fi
 
-# Server dependencies  
-cd "$APP_DIR/server"
-sudo -u "$APP_USER" npm ci --cache "$NPM_CACHE_DIR" 2>/dev/null || \
-    sudo -u "$APP_USER" npm install --cache "$NPM_CACHE_DIR"
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. UPDATE DEPENDENCIES (Workspaces from root)
+# ═══════════════════════════════════════════════════════════════════════════════
+log_info "Updating dependencies (workspaces mode)..."
+cd "$APP_DIR"
+
+# Install all dependencies including devDependencies from root
+if [[ -f "package-lock.json" ]]; then
+    run_npm ci --include=dev || {
+        log_warn "npm ci failed, falling back to npm install..."
+        run_npm install --include=dev
+    }
+else
+    run_npm install --include=dev
+fi
 
 log_success "Dependencies updated"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 4. REBUILD FRONTEND
+# 5. REBUILD FRONTEND
 # ═══════════════════════════════════════════════════════════════════════════════
 log_info "Building frontend..."
-cd "$APP_DIR/client"
-sudo -u "$APP_USER" npm run build
+cd "$APP_DIR"
+
+# Build using root package.json script (delegates to client workspace)
+run_npm run build
 
 # Verify build succeeded
 if [[ ! -f "$APP_DIR/client/dist/index.html" ]]; then
@@ -144,32 +193,32 @@ fi
 log_success "Frontend built"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 5. PRISMA MIGRATIONS
+# 6. PRISMA MIGRATIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 log_info "Running Prisma migrations..."
 cd "$APP_DIR/server"
 
 # Generate Prisma client
-sudo -u "$APP_USER" npx prisma generate
+run_npm exec prisma generate
 
-# Deploy any new migrations
-sudo -u "$APP_USER" npx prisma migrate deploy
+# Deploy any new migrations (production-safe)
+run_npm exec prisma migrate deploy
 
 log_success "Database migrations applied"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 6. RESTART BACKEND
+# 7. RESTART BACKEND
 # ═══════════════════════════════════════════════════════════════════════════════
 log_info "Restarting backend..."
 
 # Graceful reload with PM2
 sudo -u "$APP_USER" pm2 reload partychaos --update-env
 
-# Wait a moment for startup
-sleep 2
+# Wait for startup
+sleep 3
 
 # Check if running
-if sudo -u "$APP_USER" pm2 show partychaos | grep -q "online"; then
+if sudo -u "$APP_USER" pm2 show partychaos 2>/dev/null | grep -q "online"; then
     log_success "Backend restarted successfully"
 else
     log_error "Backend failed to start! Check logs:"
@@ -178,7 +227,21 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 7. NGINX RELOAD (if config changed)
+# 8. HEALTH CHECK
+# ═══════════════════════════════════════════════════════════════════════════════
+log_info "Running health check..."
+
+HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://127.0.0.1:${BACKEND_PORT}/api/health" 2>/dev/null || echo "000")
+
+if [[ "$HEALTH_RESPONSE" == "200" ]]; then
+    log_success "Backend health check passed (HTTP 200)"
+else
+    log_warn "Backend health check returned HTTP $HEALTH_RESPONSE"
+    log_warn "Check logs: sudo -u $APP_USER pm2 logs partychaos --lines 50"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. NGINX RELOAD
 # ═══════════════════════════════════════════════════════════════════════════════
 log_info "Checking nginx configuration..."
 if nginx -t 2>/dev/null; then
@@ -189,6 +252,11 @@ else
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 10. FIX OWNERSHIP (Final pass)
+# ═══════════════════════════════════════════════════════════════════════════════
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DONE
 # ═══════════════════════════════════════════════════════════════════════════════
 echo ""
@@ -197,7 +265,9 @@ echo -e "${GREEN} ✓ Update Complete!${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BLUE}Commit:${NC}      ${NEW_COMMIT:0:8}"
+if [[ -f "$BACKUP_FILE" ]]; then
 echo -e "  ${BLUE}Backup:${NC}      $BACKUP_FILE"
+fi
 echo ""
 echo -e "  ${BLUE}Run selftest:${NC} sudo bash $APP_DIR/deploy/selftest.sh"
 echo ""
