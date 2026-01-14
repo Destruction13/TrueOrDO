@@ -31,6 +31,9 @@ NODE_VERSION="20"  # LTS
 BACKEND_PORT="3001"
 DB_FILE="prod.db"  # Production database file (not dev.db)
 
+# Let's Encrypt email (change if admin@partychaos.ru doesn't exist)
+LE_EMAIL="${LE_EMAIL:-admin@partychaos.ru}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -111,39 +114,83 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 # 5. CLONE/UPDATE REPOSITORY
 # ═══════════════════════════════════════════════════════════════════════════════
+# STRATEGY: We use --ff-only to avoid destroying local changes.
+# If there are local commits, the script will fail with a clear message.
+# All fixes MUST be committed to the remote repo, not done locally on the server.
+# This ensures reproducible deployments.
+
 if [[ -d "$APP_DIR/.git" ]]; then
     log_info "Repository exists, updating..."
     cd "$APP_DIR"
+    
+    # Check for uncommitted changes (would be lost)
+    if ! sudo -u "$APP_USER" git diff --quiet 2>/dev/null || \
+       ! sudo -u "$APP_USER" git diff --cached --quiet 2>/dev/null; then
+        log_error "Uncommitted changes detected in $APP_DIR!"
+        log_error "Commit and push them to the repo, or discard with:"
+        log_error "  cd $APP_DIR && sudo -u $APP_USER git checkout -- ."
+        exit 1
+    fi
+    
     sudo -u "$APP_USER" git fetch origin
-    sudo -u "$APP_USER" git reset --hard "origin/$REPO_BRANCH"
+    
+    # Try fast-forward merge (fails if local commits exist)
+    if ! sudo -u "$APP_USER" git merge --ff-only "origin/$REPO_BRANCH" 2>/dev/null; then
+        log_error "Cannot fast-forward! Local commits exist that are not in origin."
+        log_error "Either push your local commits, or reset manually:"
+        log_error "  cd $APP_DIR && sudo -u $APP_USER git reset --hard origin/$REPO_BRANCH"
+        exit 1
+    fi
+    
     log_success "Repository updated"
 else
     log_info "Cloning repository..."
     # Remove dir if exists but not a git repo
     rm -rf "$APP_DIR"
     git clone --branch "$REPO_BRANCH" "$REPO_URL" "$APP_DIR"
-    chown -R "$APP_USER:$APP_USER" "$APP_DIR"
     log_success "Repository cloned"
 fi
 
 cd "$APP_DIR"
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 5.1. FIX OWNERSHIP (CRITICAL - prevents EACCES errors)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Must run BEFORE any npm commands. Ensures partychaos user owns everything.
+log_info "Fixing ownership..."
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+
+# Create npm cache directory for partychaos user (prevents root-owned cache issues)
+NPM_CACHE_DIR="$APP_DIR/.npm-cache"
+sudo -u "$APP_USER" mkdir -p "$NPM_CACHE_DIR"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 6. NPM DEPENDENCIES
 # ═══════════════════════════════════════════════════════════════════════════════
+# NOTE: We install client and server separately (no npm workspaces).
+# All npm commands run as APP_USER with custom cache to avoid EACCES.
+
 log_info "Installing npm dependencies..."
 
-# Root workspace
-sudo -u "$APP_USER" npm ci --omit=dev 2>/dev/null || sudo -u "$APP_USER" npm install --omit=dev
-
-# Client
+# Client dependencies (includes vite as devDependency)
 cd "$APP_DIR/client"
-sudo -u "$APP_USER" npm ci 2>/dev/null || sudo -u "$APP_USER" npm install
-log_success "Client dependencies installed"
+log_info "Installing client dependencies..."
+sudo -u "$APP_USER" npm ci --cache "$NPM_CACHE_DIR" 2>/dev/null || \
+    sudo -u "$APP_USER" npm install --cache "$NPM_CACHE_DIR"
 
-# Server
+# Verify vite is installed (critical for build)
+if [[ ! -x "$APP_DIR/client/node_modules/.bin/vite" ]]; then
+    log_error "vite not found in client/node_modules/.bin/"
+    log_error "Check client/package.json has vite in devDependencies"
+    exit 1
+fi
+log_success "Client dependencies installed (vite: $(sudo -u "$APP_USER" "$APP_DIR/client/node_modules/.bin/vite" --version 2>/dev/null || echo 'ok'))"
+
+# Server dependencies
 cd "$APP_DIR/server"
-sudo -u "$APP_USER" npm ci 2>/dev/null || sudo -u "$APP_USER" npm install
+log_info "Installing server dependencies..."
+sudo -u "$APP_USER" npm ci --cache "$NPM_CACHE_DIR" 2>/dev/null || \
+    sudo -u "$APP_USER" npm install --cache "$NPM_CACHE_DIR"
 log_success "Server dependencies installed"
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -152,6 +199,13 @@ log_success "Server dependencies installed"
 log_info "Building frontend..."
 cd "$APP_DIR/client"
 sudo -u "$APP_USER" npm run build
+
+# Verify build output exists
+if [[ ! -f "$APP_DIR/client/dist/index.html" ]]; then
+    log_error "Build failed! client/dist/index.html not found."
+    log_error "Check build logs above for errors."
+    exit 1
+fi
 log_success "Frontend built to client/dist"
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -422,14 +476,17 @@ else
         -d "$DOMAIN_WWW" \
         --non-interactive \
         --agree-tos \
-        --email "admin@$DOMAIN" \
+        --email "$LE_EMAIL" \
         || {
             log_error "Failed to obtain SSL certificate!"
             log_warn "Make sure DNS A records point to this server:"
             log_warn "  $DOMAIN → $(curl -s ifconfig.me)"
             log_warn "  $DOMAIN_WWW → $(curl -s ifconfig.me)"
             log_warn ""
-            log_warn "After fixing DNS, run: sudo certbot certonly --webroot -w /var/www/html -d $DOMAIN -d $DOMAIN_WWW"
+            log_warn "If email '$LE_EMAIL' is invalid, re-run with:"
+            log_warn "  LE_EMAIL=your@email.com sudo bash $APP_DIR/deploy/install.sh"
+            log_warn ""
+            log_warn "Or manually: sudo certbot certonly --webroot -w /var/www/html -d $DOMAIN -d $DOMAIN_WWW"
             # Don't exit - continue without SSL, user can fix later
             log_warn "Continuing without SSL. Backend will start, but HTTPS won't work."
         }
