@@ -194,4 +194,218 @@ client/                   # Vite + React SPA
     api/auth.js           # API клиент
     context/AuthContext.jsx
     components/auth/      # Auth компоненты
+deploy/                   # Скрипты деплоя
+  install.sh              # Установка с нуля
+  update.sh               # Обновление из git
+  selftest.sh             # Проверка работоспособности
 ```
+
+---
+
+## 🚀 Production Deployment (VPS)
+
+Инструкция для деплоя на Ubuntu 24.04 VPS с доменом **partychaos.ru**.
+
+### Требования
+
+- VPS с Ubuntu 24.04 LTS
+- Минимум 1 GB RAM, 10 GB диска
+- Публичный IPv4 адрес
+- Доступ по SSH (root или sudo)
+- Домен с настроенными DNS записями
+
+### 1. Настройка DNS
+
+В панели управления доменом создайте A-записи:
+
+| Тип | Имя | Значение |
+|-----|-----|----------|
+| A | @ | `ВАШ_IP_VPS` |
+| A | www | `ВАШ_IP_VPS` |
+
+> ⚠️ DNS изменения могут применяться до 24 часов. Проверьте: `dig partychaos.ru +short`
+
+### 2. Установка
+
+Подключитесь к VPS по SSH и выполните:
+
+```bash
+# Клонируем репозиторий во временную папку
+cd /tmp
+git clone https://github.com/Destruction13/TrueOrDO.git
+cd TrueOrDO
+
+# Запускаем установку
+sudo bash deploy/install.sh
+```
+
+Скрипт автоматически:
+- Установит Node.js 20 LTS, nginx, certbot, PM2
+- Создаст системного пользователя `partychaos`
+- Склонирует проект в `/opt/partychaos`
+- Соберёт фронтенд
+- Настроит базу данных SQLite
+- Получит SSL сертификат Let's Encrypt
+- Настроит nginx и запустит бэкенд
+
+### 3. Настройка SMTP (обязательно для email)
+
+После установки отредактируйте `/opt/partychaos/server/.env`:
+
+```bash
+sudo nano /opt/partychaos/server/.env
+```
+
+Заполните SMTP настройки для работы подтверждения email и восстановления пароля:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-16-character-app-password
+SMTP_FROM="PartyСhaos <your-email@gmail.com>"
+```
+
+После изменения перезапустите:
+
+```bash
+sudo -u partychaos pm2 restart partychaos
+```
+
+### 4. Проверка
+
+```bash
+sudo bash /opt/partychaos/deploy/selftest.sh
+```
+
+Все проверки должны показать ✓
+
+### 5. Обновление
+
+При появлении новых коммитов в репозитории:
+
+```bash
+sudo bash /opt/partychaos/deploy/update.sh
+```
+
+Скрипт автоматически:
+- Создаст бэкап базы данных
+- Обновит код из git
+- Пересоберёт фронтенд
+- Применит миграции Prisma
+- Перезапустит бэкенд без даунтайма
+
+### Полезные команды
+
+```bash
+# Статус бэкенда
+sudo -u partychaos pm2 status
+
+# Логи бэкенда (последние 100 строк)
+sudo -u partychaos pm2 logs partychaos --lines 100
+
+# Логи в реальном времени
+sudo -u partychaos pm2 logs partychaos
+
+# Перезапуск бэкенда
+sudo -u partychaos pm2 restart partychaos
+
+# Перезапуск nginx
+sudo systemctl restart nginx
+
+# Статус nginx
+sudo systemctl status nginx
+
+# Обновление SSL сертификата (автоматически по cron, но можно вручную)
+sudo certbot renew
+```
+
+### Расположение файлов
+
+| Что | Путь |
+|-----|------|
+| Приложение | `/opt/partychaos/` |
+| База данных (SQLite) | `/opt/partychaos/server/prisma/prod.db` |
+| Бэкапы БД | `/opt/partychaos/backups/` |
+| Environment | `/opt/partychaos/server/.env` |
+| Загруженные аватары | `/opt/partychaos/server/uploads/avatars/` |
+| Nginx конфиг | `/etc/nginx/sites-available/partychaos.ru` |
+| SSL сертификаты | `/etc/letsencrypt/live/partychaos.ru/` |
+| PM2 логи | `~partychaos/.pm2/logs/` |
+
+### Бэкап базы данных
+
+Бэкапы создаются автоматически при каждом `update.sh`. Для ручного бэкапа:
+
+```bash
+cp /opt/partychaos/server/prisma/prod.db /opt/partychaos/backups/prod.db.$(date +%Y%m%d_%H%M%S).bak
+```
+
+### Восстановление из бэкапа
+
+```bash
+# Остановить бэкенд
+sudo -u partychaos pm2 stop partychaos
+
+# Восстановить БД
+cp /opt/partychaos/backups/prod.db.TIMESTAMP.bak /opt/partychaos/server/prisma/prod.db
+
+# Запустить бэкенд
+sudo -u partychaos pm2 start partychaos
+```
+
+### Архитектура деплоя
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Internet                            │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ HTTPS (443)
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Nginx (reverse proxy)                   │
+│  - SSL termination (Let's Encrypt)                          │
+│  - Static files: /opt/partychaos/client/dist               │
+│  - Proxy /api/* → localhost:3001                           │
+│  - Proxy /socket.io/* → localhost:3001 (WebSocket)         │
+│  - Proxy /uploads/* → localhost:3001                       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ HTTP (3001, localhost only)
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Node.js Backend (PM2)                     │
+│  - Express API (/api/*)                                     │
+│  - Socket.IO (WebSocket)                                    │
+│  - Prisma ORM                                               │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   SQLite Database                           │
+│  /opt/partychaos/server/prisma/prod.db                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Troubleshooting
+
+**Сайт не открывается:**
+1. Проверьте DNS: `dig partychaos.ru +short` должен показать IP вашего VPS
+2. Проверьте nginx: `sudo systemctl status nginx`
+3. Проверьте firewall: `sudo ufw status` (порты 80, 443 должны быть открыты)
+
+**502 Bad Gateway:**
+1. Бэкенд не запущен: `sudo -u partychaos pm2 status`
+2. Смотрите логи: `sudo -u partychaos pm2 logs partychaos --lines 50`
+
+**WebSocket не работает (игра не синхронизируется):**
+1. Проверьте selftest: `sudo bash /opt/partychaos/deploy/selftest.sh`
+2. Убедитесь что nginx проксирует `/socket.io/`
+
+**SSL сертификат не получен:**
+1. DNS ещё не обновился — подождите и повторите
+2. Порт 80 закрыт — `sudo ufw allow 80`
+3. Вручную: `sudo certbot certonly --nginx -d partychaos.ru -d www.partychaos.ru`
+
+**База данных повреждена:**
+1. Восстановите из бэкапа (см. выше)
+2. Или сбросьте: `cd /opt/partychaos/server && sudo -u partychaos npx prisma migrate reset`
