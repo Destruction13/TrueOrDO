@@ -47,13 +47,19 @@ function isValidPassword(password) {
 }
 
 /**
- * Валидация никнейма (3-30 символов, буквы (вкл. кириллицу), цифры, _, -)
+ * Валидация никнейма (1-30 символов, любые печатные символы)
+ * Разрешены пробелы, эмодзи, любые Unicode символы
+ * Запрещены только управляющие символы и пустые строки
  */
 function isValidNickname(nickname) {
   if (!nickname || typeof nickname !== "string") return false;
-  // Разрешаем латиницу, кириллицу, цифры, _, -
-  const nicknameRegex = /^[a-zA-Zа-яА-ЯёЁ0-9_-]{3,30}$/;
-  return nicknameRegex.test(nickname);
+  const trimmed = nickname.trim();
+  // Минимум 1 символ, максимум 30 символов после trim
+  if (trimmed.length < 1 || trimmed.length > 30) return false;
+  // Запрещаем только управляющие символы (кроме пробелов)
+  // eslint-disable-next-line no-control-regex
+  const controlCharsRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+  return !controlCharsRegex.test(trimmed);
 }
 
 /**

@@ -673,7 +673,7 @@ function App() {
       return null;
     }
     return (
-      <AuthScreen onSuccess={() => navigate("/")} />
+      <AuthScreen onSuccess={() => navigate("/")} onClose={() => navigate("/")} />
     );
   }
 

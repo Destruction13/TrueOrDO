@@ -28,7 +28,7 @@ function GoogleIcon() {
   );
 }
 
-export default function AuthScreen({ onSuccess }) {
+export default function AuthScreen({ onSuccess, onClose }) {
   const [mode, setMode] = useState("login"); // login | register | forgot
   const [oauthError, setOauthError] = useState(null);
 
@@ -94,6 +94,16 @@ export default function AuthScreen({ onSuccess }) {
   return (
     <div className="auth-screen">
       <div className="auth-card glass-card">
+        {onClose && (
+          <button 
+            className="auth-close-btn" 
+            onClick={onClose}
+            type="button"
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
+        )}
         <div className="auth-tabs">
           <button
             className={`auth-tab ${mode === "login" ? "active" : ""}`}
@@ -160,8 +170,7 @@ export default function AuthScreen({ onSuccess }) {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="Ваш игровой ник"
-                pattern="^[a-zA-Z0-9_-]{3,30}$"
-                title="3-30 символов: буквы, цифры, _, -"
+                maxLength={30}
               />
             </label>
           )}
