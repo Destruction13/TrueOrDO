@@ -164,8 +164,8 @@ export default function ProfileScreen({ onBack }) {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="Ваш игровой ник"
-              pattern="^[a-zA-Z0-9_-]{3,30}$"
-              title="3-30 символов: буквы, цифры, _, -"
+              maxLength={30}
+              title="1-30 символов"
             />
           </label>
 
