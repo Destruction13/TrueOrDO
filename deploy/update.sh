@@ -204,7 +204,10 @@ run_npm exec prisma generate
 # Deploy any new migrations (production-safe)
 run_npm exec prisma migrate deploy
 
-log_success "Database migrations applied"
+# Seed database (alias words, etc.) - idempotent
+run_npm exec prisma db seed
+
+log_success "Database migrations and seed applied"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 7. RESTART BACKEND

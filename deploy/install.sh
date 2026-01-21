@@ -322,6 +322,9 @@ run_npm exec prisma generate
 # Deploy migrations (production-safe, creates DB if not exists)
 run_npm exec prisma migrate deploy
 
+# Seed database (alias words, etc.) - idempotent
+run_npm exec prisma db seed
+
 log_success "Database ready: server/prisma/${DB_FILE}"
 
 # Create backups directory
