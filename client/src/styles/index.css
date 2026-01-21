@@ -465,18 +465,22 @@ select:focus {
 }
 .room-header {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-}
-.room-header > :first-child {
-  margin-right: auto;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  gap: 1rem;
 }
 
 .room-header__left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 0.75rem;
+}
+
+.room-header__right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .room-code-block {
@@ -496,7 +500,166 @@ select:focus {
   color: var(--accent);
 }
 
-/* Кнопка правил в хедере */
+/* Кнопки в хедере */
+.room-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.room-header-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.room-header-btn--login {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+}
+
+.room-header-btn--login:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+/* LeaveButton в хэдере */
+.room-header-leave-btn {
+  font-size: 0.8rem !important;
+  padding: 0.4rem 0.7rem !important;
+  min-width: auto !important;
+}
+
+/* Profile in header */
+.room-header-profile {
+  position: relative;
+}
+
+.room-header-profile__btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(46, 230, 255, 0.3);
+  background: rgba(46, 230, 255, 0.1);
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.2s;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-header-profile__btn:hover {
+  border-color: rgba(46, 230, 255, 0.6);
+  transform: scale(1.05);
+}
+
+.room-header-profile__avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.room-header-profile__placeholder {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.room-header-profile__backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
+}
+
+.room-header-profile__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: rgba(20, 30, 40, 0.95);
+  border: 1px solid rgba(46, 230, 255, 0.2);
+  border-radius: 10px;
+  padding: 0.5rem;
+  min-width: 200px;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+
+.room-header-profile__menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.room-header-profile__menu button:hover {
+  background: rgba(46, 230, 255, 0.1);
+}
+
+/* Leave modal */
+.room-leave-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.room-leave-modal {
+  background: rgba(20, 30, 40, 0.95);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+}
+
+.room-leave-modal h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  color: #fff;
+}
+
+.room-leave-modal p {
+  margin: 0 0 1.5rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.room-leave-modal__actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* Legacy styles - keep for compatibility */
 .rules-btn-inline {
   display: flex;
   align-items: center;
@@ -1956,16 +2119,20 @@ select:focus {
 @media (max-width: 800px) {
   /* Хедер - всегда в одну строку */
   .room-header {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 8px;
     padding: 10px 12px;
+    gap: 8px;
   }
   
   .room-header__left {
-    flex-shrink: 0;
-    gap: 8px;
+    gap: 0.5rem;
+  }
+  
+  .room-header-btn {
+    padding: 0.4rem 0.6rem;
+  }
+  
+  .room-header-btn--login span {
+    display: none;
   }
   
   .room-code-block {
@@ -2090,17 +2257,17 @@ select:focus {
     font-size: 14px;
   }
   
-  .room-meta {
-    gap: 4px;
+  .room-header-btn {
+    padding: 0.35rem 0.5rem;
   }
   
-  .pill {
-    padding: 2px 5px;
+  .room-header-btn svg {
+    width: 18px;
+    height: 18px;
   }
   
-  .pill.online::before,
-  .pill.offline::before,
-  .pill.accent::before {
-    font-size: 10px;
+  .room-header-profile__btn {
+    width: 32px;
+    height: 32px;
   }
 }

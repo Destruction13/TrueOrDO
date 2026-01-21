@@ -1,9 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import Button from "../ui/Button";
 import AliasSettingsModal from "./AliasSettingsModal";
 import AliasRulesModal from "./AliasRulesModal";
 import CyberRunner from "./CyberRunner";
+import { useAuth } from "../../context/AuthContext";
+import useIsMobile from "../../hooks/useIsMobile";
 import "./AliasRoomScreen.css";
 
 function formatTimer(seconds) {
@@ -41,14 +44,16 @@ export default function AliasRoomScreen({
   reviewTimeRemaining,
   actions
 }) {
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  const isMobile = useIsMobile();
+  
   const [showSettings, setShowSettings] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
-  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showIncompleteTeamsModal, setShowIncompleteTeamsModal] = useState(false);
+  const [mobileSettingsExpanded, setMobileSettingsExpanded] = useState(false);
   
-  // Показываем панель отчёта при окончании хода или вручную
-  const showHistory = showHistoryPanel || showHistoryAfterTurn;
   const [newTeamName, setNewTeamName] = useState("");
   const [editingTeamId, setEditingTeamId] = useState(null);
   const [editingTeamName, setEditingTeamName] = useState("");
@@ -183,48 +188,70 @@ export default function AliasRoomScreen({
   }
 
   return (
-    <div className="alias-room">
-      {/* Header - как в Правда или действие */}
-      <header className="room-header">
-        <div className="room-header__left">
+    <div className={`alias-room ${isMobile ? "alias-room--mobile" : ""}`}>
+      {/* Header - новый дизайн */}
+      <header className="alias-header-new">
+        <div className="alias-header-new__left">
           <div className="room-code-block">
             <div className="room-code-label">Код комнаты</div>
             <div className="room-code">{room.code}</div>
           </div>
           <button 
-            className="rules-btn-inline" 
+            className="alias-header-btn" 
             onClick={() => setShowRulesModal(true)}
             title="Правила игры"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
-            <span>Правила</span>
           </button>
+          {/* Кнопка выхода - только иконка, рядом с правилами */}
           <button 
-            className="rules-btn-inline" 
-            onClick={() => setShowSettings(true)}
-            title="Настройки игры"
+            className="alias-header-btn alias-header-btn--exit"
+            onClick={() => setShowLeaveConfirm(true)}
+            title="Выйти из комнаты"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            <span>Настройки</span>
           </button>
         </div>
-        <div className="room-meta">
-          <span className={`pill ${connected ? "online" : "offline"}`}>
-            {connected ? "Онлайн" : "Оффлайн"}
-          </span>
-          <span className="pill">{formatPlayers(onlinePlayersCount)}</span>
-          {isHost && <span className="pill accent">Ведущий</span>}
+        
+        <div className="alias-header-new__right">
+          {/* Профиль или Войти */}
+          {isAuthenticated ? (
+            <button 
+              className="alias-header-profile__btn"
+              onClick={() => navigate("/profile")}
+              title="Профиль"
+            >
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="alias-header-profile__avatar" />
+              ) : (
+                <span className="alias-header-profile__placeholder">
+                  {(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}
+                </span>
+              )}
+            </button>
+          ) : (
+            <button 
+              className="alias-header-btn alias-header-btn--login"
+              onClick={() => navigate("/login")}
+              title="Войти"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+              <span>Войти</span>
+            </button>
+          )}
         </div>
-        <Button variant="danger" size="sm" onClick={() => setShowLeaveConfirm(true)}>
-          Выйти
-        </Button>
       </header>
 
       {/* Модальное окно подтверждения выхода */}
@@ -288,7 +315,7 @@ export default function AliasRoomScreen({
         </div>
       )}
 
-      <main className="alias-main">
+      <main className={`alias-main ${isPlaying ? "alias-main--playing" : ""}`}>
         {/* Left panel - Teams */}
         <section className="alias-panel alias-teams-panel">
           <div className="alias-panel__header">
@@ -458,6 +485,23 @@ export default function AliasRoomScreen({
               </div>
             ))}
           </div>
+          
+          {/* Кнопка ГОТОВ для мобильной версии - в блоке команд */}
+          {isMobile && !isPlaying && me?.teamId && me.teamId === activeTeamId && room.status !== "reviewing" && (
+            <div className="alias-mobile-ready">
+              <Button
+                variant={me.isReady ? "secondary" : "primary"}
+                size="lg"
+                fullWidth
+                onClick={() => actions.setReady(!me.isReady)}
+              >
+                {me.isReady ? "✓ Готов" : "Готов!"}
+              </Button>
+              <div className="alias-ready-status" style={{ textAlign: "center", marginTop: "0.5rem" }}>
+                Готовы: {activeTeamPlayers.filter(p => p.isReady).length} / {activeTeamPlayers.length}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Right panel - Game */}
@@ -565,9 +609,45 @@ export default function AliasRoomScreen({
           {/* Lobby state */}
           {!isPlaying && (
             <div className="alias-lobby">
-              <div className="alias-lobby__settings">
-                <h3>⚙️ Параметры игры</h3>
-                <div className="alias-settings-grid">
+              {/* Параметры игры */}
+              <div className={`alias-lobby__settings ${isMobile ? "alias-lobby__settings--mobile" : ""}`}>
+                <div className="alias-lobby__settings-header">
+                  <h3>Параметры игры</h3>
+                  <button 
+                    className="alias-settings-gear"
+                    onClick={(e) => { e.stopPropagation(); setShowSettings(true); }}
+                    title="Изменить настройки"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                  </button>
+                </div>
+                {/* Полоска с кликабельной стрелкой для мобильного ката */}
+                {isMobile && (
+                  <div 
+                    className={`alias-settings-divider ${mobileSettingsExpanded ? "alias-settings-divider--open" : ""}`}
+                    onClick={() => setMobileSettingsExpanded(!mobileSettingsExpanded)}
+                  >
+                    <span className="alias-settings-divider__line" />
+                    <span className="alias-settings-divider__arrow">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </span>
+                    <span className="alias-settings-divider__line" />
+                  </div>
+                )}
+                <AnimatePresence>
+                  {(!isMobile || mobileSettingsExpanded) && (
+                    <motion.div 
+                      className="alias-settings-grid"
+                      initial={isMobile ? { height: 0, opacity: 0 } : false}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={isMobile ? { height: 0, opacity: 0 } : undefined}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                    >
                   <div className="alias-setting-item">
                     <span className="alias-setting-item__icon">🎯</span>
                     <span className="alias-setting-item__label">Цель</span>
@@ -588,11 +668,13 @@ export default function AliasRoomScreen({
                     <span className="alias-setting-item__label">Словарь</span>
                     <span className="alias-setting-item__value">{room.settings.difficulty === "easy" ? "Лёгкий" : room.settings.difficulty === "hard" ? "Сложный" : "Обычный"}</span>
                   </div>
-                </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
-              {/* Ready button - только для игроков активной команды и не во время reviewing */}
-              {me?.teamId && me.teamId === activeTeamId && room.status !== "reviewing" && (
+              {/* Ready button - только для игроков активной команды и не во время reviewing (скрыто на мобилках) */}
+              {!isMobile && me?.teamId && me.teamId === activeTeamId && room.status !== "reviewing" && (
                 <div className="alias-ready-section">
                   <Button
                     variant={me.isReady ? "secondary" : "primary"}
@@ -738,6 +820,68 @@ export default function AliasRoomScreen({
           {error && <div className="alias-error">{error}</div>}
         </section>
 
+        {/* Report Panel - постоянно справа во время игры (25%) */}
+        {isPlaying && (
+          <section className="alias-report-panel">
+            <div className="alias-report-panel__header">
+              <h3>📋 Отчёт раунда</h3>
+            </div>
+            <div className="alias-report-panel__content">
+              {roundHistory.length === 0 ? (
+                <div className="alias-report-panel__empty">Слова появятся здесь</div>
+              ) : (
+                <div className="alias-history-list" ref={historyListRef}>
+                  {[...roundHistory].reverse().map((item, revIndex) => {
+                    const index = roundHistory.length - 1 - revIndex;
+                    return (
+                      <div 
+                        key={index} 
+                        className={`alias-history-item ${item.correct ? "alias-history-item--correct" : "alias-history-item--skipped"} ${revIndex === 0 ? "alias-history-item--new" : ""}`}
+                      >
+                        <span className="alias-history-item__indicator">
+                          {item.correct ? (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="alias-history-item__word">{item.word}</span>
+                        <button
+                          className={`alias-history-item__toggle ${item.correct ? "alias-history-item__toggle--minus" : "alias-history-item__toggle--plus"}`}
+                          onClick={() => actions.updateHistory(index, !item.correct)}
+                          title={item.correct ? "Снять очко" : "Добавить очко"}
+                        >
+                          {item.correct ? "−" : "+"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="alias-report-panel__footer">
+              <span className="alias-report-panel__stat alias-report-panel__stat--correct">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                {roundHistory.filter(h => h.correct).length}
+              </span>
+              <span className="alias-report-panel__stat alias-report-panel__stat--skipped">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                {roundHistory.filter(h => !h.correct).length}
+              </span>
+            </div>
+          </section>
+        )}
+
         {/* History Panel - снизу в лобби после завершения хода */}
         {!isPlaying && showHistoryAfterTurn && roundHistory.length > 0 && (
           <motion.div
@@ -753,12 +897,19 @@ export default function AliasRoomScreen({
                 onClick={onCloseHistoryAfterTurn}
               >×</button>
             </div>
-            <div className="alias-history-panel__alert">
+            <div className="alias-history-panel__alert" id="report-alert">
               <div className="alias-history-panel__alert-icon">⚠️</div>
               <div className="alias-history-panel__alert-text">
                 <strong>Проверьте результаты!</strong>
                 <span>Нажмите <span className="alias-history-panel__alert-btn">−</span> чтобы снять очко за слово с нарушением правил</span>
               </div>
+              <button 
+                className="alias-history-panel__alert-close"
+                onClick={() => document.getElementById('report-alert')?.remove()}
+                title="Закрыть"
+              >
+                ×
+              </button>
             </div>
             <div className="alias-history-panel__content">
               <div className="alias-history-list alias-history-list--horizontal">
@@ -846,79 +997,6 @@ export default function AliasRoomScreen({
         onClose={() => setShowRulesModal(false)}
       />
 
-      {/* History Report Button - показываем только во время игры */}
-      {isPlaying && roundHistory.length > 0 && (
-        <button 
-          className={`alias-history-toggle ${roundHistory.length > 0 ? "alias-history-toggle--has-items" : ""}`}
-          onClick={() => setShowHistoryPanel(!showHistoryPanel)}
-          title="Отчёт раунда - нажмите для редактирования результатов"
-        >
-          📋 Отчёт ({roundHistory.length})
-        </button>
-      )}
-
-      {/* History Panel - справа во время игры */}
-      {isPlaying && showHistoryPanel && (
-        <motion.div
-          className="alias-history-panel alias-history-panel--playing"
-          initial={{ x: 300, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: 300, opacity: 0 }}
-        >
-          <div className="alias-history-panel__header">
-            <h3>📋 Отчёт раунда</h3>
-            <button 
-              className="alias-history-panel__close" 
-              onClick={() => setShowHistoryPanel(false)}
-            >×</button>
-          </div>
-          <div className="alias-history-panel__content">
-            {roundHistory.length === 0 ? (
-              <div className="alias-history-panel__empty">Пока нет слов</div>
-            ) : (
-              <div className="alias-history-list" ref={historyListRef}>
-                {/* Новые слова сверху - реверсируем массив */}
-                {[...roundHistory].reverse().map((item, revIndex) => {
-                  const index = roundHistory.length - 1 - revIndex;
-                  return (
-                    <div 
-                      key={index} 
-                      className={`alias-history-item ${item.correct ? "alias-history-item--correct" : "alias-history-item--skipped"} ${revIndex === 0 ? "alias-history-item--new" : ""}`}
-                    >
-                      <span className="alias-history-item__indicator">
-                        {item.correct ? (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        )}
-                      </span>
-                      <span className="alias-history-item__word">{item.word}</span>
-                      <button
-                        className={`alias-history-item__toggle ${item.correct ? "alias-history-item__toggle--minus" : "alias-history-item__toggle--plus"}`}
-                        onClick={() => actions.updateHistory(index, !item.correct)}
-                        title={item.correct ? "Снять очко" : "Добавить очко"}
-                      >
-                        {item.correct ? "−" : "+"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div className="alias-history-panel__footer">
-            <div className="alias-history-panel__stats">
-              ✓ {roundHistory.filter(h => h.correct).length} | 
-              ✗ {roundHistory.filter(h => !h.correct).length}
-            </div>
-          </div>
-        </motion.div>
-      )}
     </div>
   );
 }

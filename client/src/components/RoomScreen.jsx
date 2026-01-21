@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import CategorySelector from "./CategorySelector";
 import ScenarioReel from "./ScenarioReel";
 import Button from "./ui/Button";
@@ -15,6 +16,7 @@ import WaitingAcceptOverlay from "./ui/WaitingAcceptOverlay";
 import ActiveTaskCard from "./ui/ActiveTaskCard";
 import TaskReport from "./ui/TaskReport";
 import RulesModal from "./ui/RulesModal";
+import { useAuth } from "../context/AuthContext";
 
 function formatTimer(seconds) {
   if (seconds == null || Number.isNaN(seconds)) {
@@ -41,6 +43,9 @@ function RoomScreen({
   isPaused,
   actions,
 }) {
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  
   const { room, players, round, content } = roomState;
   const [categoryReady, setCategoryReady] = useState(false);
   const [showEndGameModal, setShowEndGameModal] = useState(false);
@@ -279,36 +284,51 @@ function RoomScreen({
             <div className="room-code">{room.code}</div>
           </div>
           <button 
-            className="rules-btn-inline" 
+            className="room-header-btn" 
             onClick={() => setShowRulesModal(true)}
             title="Правила игры"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
-            <span>Правила</span>
           </button>
+          {/* Кнопка выхода с троллингом */}
+          <LeaveButton onLeave={actions.leaveRoom} className="room-header-leave-btn" />
         </div>
-        <div className="room-meta">
-          <span className={`pill ${connected ? "online" : "offline"}`}>
-            {connected ? "Онлайн" : "Оффлайн"}
-          </span>
-          <span className="pill">{players.length}/20 игроков</span>
-          {isHost ? <span className="pill accent">Ведущий</span> : null}
+        
+        <div className="room-header__right">
+          {/* Профиль или Войти */}
+          {isAuthenticated ? (
+            <button 
+              className="room-header-profile__btn"
+              onClick={() => navigate("/profile")}
+              title="Профиль"
+            >
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="room-header-profile__avatar" />
+              ) : (
+                <span className="room-header-profile__placeholder">
+                  {(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}
+                </span>
+              )}
+            </button>
+          ) : (
+            <button 
+              className="room-header-btn room-header-btn--login"
+              onClick={() => navigate("/login")}
+              title="Войти"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+              <span>Войти</span>
+            </button>
+          )}
         </div>
-        {isHost ? (
-          <Button 
-            variant="danger" 
-            size="sm" 
-            onClick={() => setShowEndGameModal(true)}
-          >
-            Закончить игру
-          </Button>
-        ) : (
-          <LeaveButton onLeave={actions.leaveRoom} />
-        )}
       </header>
 
       <main className="room-layout">
@@ -703,6 +723,7 @@ function RoomScreen({
         isOpen={showRulesModal} 
         onClose={() => setShowRulesModal(false)} 
       />
+
     </div>
   );
 }

@@ -2,20 +2,264 @@
   position: relative;
   z-index: 1;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
 }
 
-/* Header - отступы для Alias */
-.alias-room .room-header {
-  padding: 1rem 1.5rem;
+/* ===== NEW HEADER STYLES ===== */
+.alias-header-new {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
-@media (max-width: 640px) {
-  .alias-room .room-header {
-    padding: 0.75rem 1rem;
-  }
+.alias-header-new__left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.alias-header-new__right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.alias-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.alias-header-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.alias-header-btn--login {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+}
+
+.alias-header-btn--login:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.alias-header-btn--exit {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+.alias-header-btn--exit:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+/* Profile in header */
+.alias-header-profile {
+  position: relative;
+}
+
+.alias-header-profile__btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(46, 230, 255, 0.3);
+  background: rgba(46, 230, 255, 0.1);
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.alias-header-profile__btn:hover {
+  border-color: rgba(46, 230, 255, 0.6);
+  transform: scale(1.05);
+}
+
+.alias-header-profile__avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.alias-header-profile__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2ee6ff;
+}
+
+.alias-header-profile__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.alias-header-profile__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: rgba(20, 30, 50, 0.98);
+  border: 1px solid rgba(46, 230, 255, 0.2);
+  border-radius: 10px;
+  min-width: 200px;
+  overflow: hidden;
+  z-index: 100;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.alias-header-profile__menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.alias-header-profile__menu button:hover {
+  background: rgba(46, 230, 255, 0.1);
+}
+
+/* Settings gear in lobby */
+.alias-lobby__settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  cursor: default;
+}
+
+.alias-lobby__settings-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #fff;
+  flex: 1;
+  text-align: center;
+}
+
+/* Mobile settings - collapsible */
+.alias-lobby__settings--mobile {
+  padding: 0.75rem 1rem;
+}
+
+.alias-lobby__settings--mobile .alias-lobby__settings-header {
+  margin-bottom: 0;
+}
+
+.alias-lobby__settings--mobile .alias-settings-grid {
+  overflow: hidden;
+  margin-top: 0.75rem;
+}
+
+/* Divider with arrow for mobile settings */
+.alias-settings-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.alias-settings-divider__line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.alias-settings-divider__arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  color: #f97316;
+  transition: all 0.25s ease;
+}
+
+.alias-settings-divider__arrow svg {
+  transition: transform 0.25s ease;
+}
+
+.alias-settings-divider:hover .alias-settings-divider__arrow {
+  background: rgba(249, 115, 22, 0.25);
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+.alias-settings-divider--open .alias-settings-divider__arrow svg {
+  transform: rotate(180deg);
+}
+
+.alias-settings-gear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  border-radius: 8px;
+  color: #f97316;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.alias-settings-gear:hover {
+  background: rgba(249, 115, 22, 0.25);
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+.alias-settings-collapse-icon {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+}
+
+.alias-lobby__settings--collapsed .alias-settings-grid {
+  display: none;
+}
+
+/* Footer for mobile - prevent bounce */
+.alias-room--mobile::after {
+  content: "";
+  display: block;
+  height: 80px;
+  flex-shrink: 0;
 }
 
 /* Main layout */
@@ -25,6 +269,73 @@
   grid-template-columns: 320px 1fr;
   gap: 1rem;
   padding: 1rem;
+}
+
+/* Layout during game - with report panel */
+.alias-main--playing {
+  grid-template-columns: 320px 1fr 25%;
+}
+
+/* Report panel always visible during game */
+.alias-report-panel {
+  background: rgba(4, 16, 24, 0.95);
+  border: 1px solid rgba(46, 230, 255, 0.15);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: calc(100vh - 100px);
+}
+
+.alias-report-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.alias-report-panel__header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #fff;
+}
+
+.alias-report-panel__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.alias-report-panel__empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 2rem 1rem;
+  font-size: 0.85rem;
+}
+
+.alias-report-panel__footer {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.alias-report-panel__stat {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.alias-report-panel__stat--correct {
+  color: #4ade80;
+}
+
+.alias-report-panel__stat--skipped {
+  color: #f87171;
 }
 
 .alias-panel {
@@ -425,7 +736,7 @@
 
 /* Spectators */
 .alias-spectators {
-  margin-top: auto;
+  margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -1112,6 +1423,25 @@
     gap: 0.75rem;
     padding: 0.75rem;
   }
+  
+  /* Во время игры: игровая панель сверху, команды, отчёт */
+  .alias-main--playing {
+    grid-template-columns: 75% 25%;
+    grid-template-rows: auto auto;
+  }
+  
+  .alias-main--playing .alias-teams-panel {
+    grid-column: 1 / -1;
+    order: 1;
+  }
+  
+  .alias-main--playing .alias-game-panel {
+    order: 0;
+  }
+  
+  .alias-main--playing .alias-report-panel {
+    order: 0;
+  }
 
   .alias-teams-panel {
     overflow: visible;
@@ -1119,6 +1449,15 @@
 
   .alias-game-panel {
     min-height: auto;
+  }
+  
+  /* В лобби команды сверху */
+  .alias-main:not(.alias-main--playing) .alias-teams-panel {
+    order: 0;
+  }
+  
+  .alias-main:not(.alias-main--playing) .alias-game-panel {
+    order: 1;
   }
 
   .alias-timer {
@@ -1135,11 +1474,16 @@
     gap: 0.75rem;
   }
 
-  .alias-header,
-  .alias-room .room-header {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
+  .alias-header-new {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .alias-header-btn {
+    padding: 0.5rem;
+  }
+  
+  .alias-header-btn--login span {
+    display: inline;
   }
   
   .alias-next-explainer-card {
@@ -1154,6 +1498,128 @@
   .alias-next-explainer-card__avatar-placeholder {
     width: 40px;
     height: 40px;
+  }
+  
+  /* Параметры игры на мобилке - компактный вид внизу */
+  .alias-lobby__settings {
+    padding: 0.75rem 1rem;
+  }
+  
+  .alias-lobby__settings-header {
+    cursor: pointer;
+    margin-bottom: 0;
+  }
+  
+  .alias-lobby__settings--collapsed .alias-lobby__settings-header {
+    margin-bottom: 0;
+  }
+  
+  .alias-lobby__settings:not(.alias-lobby__settings--collapsed) .alias-lobby__settings-header {
+    margin-bottom: 0.75rem;
+  }
+  
+  /* Report panel on mobile - справа, уменьшенный шрифт */
+  .alias-report-panel {
+    max-height: calc(100vh - 120px);
+    font-size: 0.8rem;
+  }
+  
+  .alias-report-panel__header {
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .alias-report-panel__header h3 {
+    font-size: 0.8rem;
+  }
+  
+  .alias-report-panel__content {
+    padding: 0.5rem;
+  }
+  
+  .alias-report-panel__footer {
+    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+  }
+  
+  .alias-report-panel__stat {
+    font-size: 0.75rem;
+  }
+  
+  .alias-report-panel .alias-history-item {
+    padding: 0.4rem 0.5rem;
+    gap: 0.35rem;
+  }
+  
+  .alias-report-panel .alias-history-item__word {
+    font-size: 0.7rem;
+  }
+  
+  .alias-report-panel .alias-history-item__indicator svg {
+    width: 12px;
+    height: 12px;
+  }
+  
+  .alias-report-panel .alias-history-item__toggle {
+    width: 22px;
+    height: 22px;
+    font-size: 0.9rem;
+  }
+  
+  /* Mobile ready button in teams section */
+  .alias-mobile-ready {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Explainer info at top on mobile */
+  .alias-mobile-explainer-info {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(249, 115, 22, 0.08));
+    border: 1px solid rgba(249, 115, 22, 0.3);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+    text-align: center;
+  }
+  
+  .alias-mobile-explainer-info__label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .alias-mobile-explainer-info__name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f97316;
+  }
+  
+  /* Мобильная кнопка параметров игры */
+  .alias-mobile-settings-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: rgba(249, 115, 22, 0.1);
+    border: 1px solid rgba(249, 115, 22, 0.3);
+    border-radius: 12px;
+    color: #f97316;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+  }
+  
+  .alias-mobile-settings-btn:hover,
+  .alias-mobile-settings-btn:active {
+    background: rgba(249, 115, 22, 0.2);
+    border-color: rgba(249, 115, 22, 0.5);
+  }
+  
+  .alias-mobile-settings-btn__text {
+    font-size: 0.9rem;
+    font-weight: 500;
   }
 }
 
@@ -1332,6 +1798,25 @@
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
+  position: relative;
+}
+
+.alias-history-panel__alert-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.alias-history-panel__alert-close:hover {
+  color: #fff;
 }
 
 .alias-history-panel__alert-icon {
@@ -1421,6 +1906,7 @@
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid transparent;
   transition: all 0.2s;
+  min-width: 0; /* Allow flex children to shrink */
 }
 
 .alias-history-item--correct {
@@ -1481,6 +1967,10 @@
   text-transform: uppercase;
   font-size: 0.85rem;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .alias-history-list--horizontal .alias-history-item__word {
@@ -1636,5 +2126,23 @@
   .alias-history-panel--lobby .alias-history-panel__footer {
     flex-direction: column;
     gap: 0.5rem;
+  }
+}
+
+/* Mobile: отчёт после игры - 1 слово в строку, строго по порядку */
+@media (max-width: 768px) {
+  .alias-history-panel--lobby .alias-history-list--horizontal {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+  
+  .alias-history-panel--lobby .alias-history-item {
+    width: 100%;
+  }
+  
+  .alias-history-panel--lobby .alias-history-item__word {
+    flex: 1;
+    text-align: left;
   }
 }

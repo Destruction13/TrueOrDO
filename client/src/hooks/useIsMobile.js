@@ -48,8 +48,8 @@ function checkIsMobile() {
 
   // Считаем мобильным если:
   // 1. User-Agent указывает на мобильное устройство (включая планшеты)
-  // 2. ИЛИ маленький экран + touch-устройство
-  return isMobileUA || isTablet || (isSmallScreen && isTouchDevice);
+  // 2. ИЛИ маленький экран (для адаптивного UI при уменьшении окна браузера)
+  return isMobileUA || isTablet || isSmallScreen;
 }
 
 export default useIsMobile;
