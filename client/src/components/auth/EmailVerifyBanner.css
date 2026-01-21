@@ -1,11 +1,24 @@
 .email-verify-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   padding: 12px 20px;
   background: linear-gradient(90deg, rgba(255, 200, 50, 0.15), rgba(255, 150, 50, 0.1));
   border-bottom: 1px solid rgba(255, 200, 50, 0.25);
+  backdrop-filter: blur(10px);
+}
+
+/* Когда баннер виден, добавляем отступ для контента страницы */
+.truth-or-dare-page:has(.email-verify-banner) .app-shell,
+.alias-page:has(.email-verify-banner) .app-shell {
+  padding-top: calc(48px + 52px);
 }
 
 .email-verify-banner__icon {
@@ -13,7 +26,6 @@
 }
 
 .email-verify-banner__text {
-  flex: 1;
   color: #ffc832;
   font-size: 0.9rem;
 }
@@ -46,4 +58,38 @@
   width: 100%;
   font-size: 0.8rem;
   color: rgba(255, 200, 50, 0.9);
+}
+
+.email-verify-banner__close {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 200, 50, 0.1);
+  border: 1px solid rgba(255, 200, 50, 0.3);
+  border-radius: 6px;
+  color: rgba(255, 200, 50, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.email-verify-banner__close:hover {
+  background: rgba(255, 200, 50, 0.2);
+  border-color: rgba(255, 200, 50, 0.5);
+  color: #ffc832;
+}
+
+@media (max-width: 640px) {
+  .email-verify-banner {
+    padding-right: 48px;
+  }
+  
+  .email-verify-banner__close {
+    right: 8px;
+  }
 }

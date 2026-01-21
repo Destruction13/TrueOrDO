@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import JoinScreen from "../components/JoinScreen";
 import RoomScreen from "../components/RoomScreen";
@@ -86,6 +86,7 @@ function clearSession() {
 export default function TruthOrDarePage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { roomCode: urlRoomCode } = useParams();
   const { user } = useAuth();
   const [connected, setConnected] = useState(false);
   const [roomState, setRoomState] = useState(null);
@@ -103,6 +104,12 @@ export default function TruthOrDarePage() {
   const [bannedModal, setBannedModal] = useState({ isOpen: false, roomCode: null });
   const [gameEndedModal, setGameEndedModal] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [pendingJoinCode, setPendingJoinCode] = useState(null);
+
+  // Установка заголовка страницы
+  useEffect(() => {
+    document.title = "Правда или действие";
+  }, []);
 
   useEffect(() => {
     socket.connect();
@@ -111,18 +118,10 @@ export default function TruthOrDarePage() {
     };
   }, []);
 
-  // Bootstrap — попытка восстановить сессию при загрузке
+  // Bootstrap — попытка восстановить сессию при загрузке или вход по URL
   useEffect(() => {
     const tryRestoreSession = async () => {
       const session = loadSession();
-      
-      if (!session) {
-        log("No saved session found");
-        setIsRestoring(false);
-        return;
-      }
-
-      log("Attempting to restore session:", session);
 
       const waitForConnection = () => {
         return new Promise((resolve) => {
@@ -136,28 +135,79 @@ export default function TruthOrDarePage() {
 
       await waitForConnection();
 
-      socket.emit("room:rejoin", {
-        playerId: session.playerId,
-        roomCode: session.roomCode
-      }, (response) => {
-        log("Rejoin response:", response);
-        
-        if (response?.ok) {
-          setRoomState(response.state);
-          setMeId(response.playerId);
-          saveSession(response.playerId, response.state.room.code, response.playerName);
-          log("Session restored successfully");
+      // Если есть сохранённая сессия — пробуем восстановить
+      if (session) {
+        log("Attempting to restore session:", session);
+
+        socket.emit("room:rejoin", {
+          playerId: session.playerId,
+          roomCode: session.roomCode
+        }, (response) => {
+          log("Rejoin response:", response);
+          
+          if (response?.ok) {
+            setRoomState(response.state);
+            setMeId(response.playerId);
+            saveSession(response.playerId, response.state.room.code, response.playerName);
+            log("Session restored successfully");
+            // Обновляем URL если он не соответствует комнате
+            if (urlRoomCode && urlRoomCode !== response.state.room.code) {
+              navigate(`/truth-or-dare/${response.state.room.code}`, { replace: true });
+            } else if (!urlRoomCode) {
+              navigate(`/truth-or-dare/${response.state.room.code}`, { replace: true });
+            }
+            setIsRestoring(false);
+          } else {
+            log("Failed to restore session:", response?.error);
+            clearSession();
+            // После неудачного восстановления — проверяем URL
+            handleUrlJoin();
+          }
+        });
+      } else {
+        // Нет сессии — проверяем URL
+        handleUrlJoin();
+      }
+    };
+
+    const handleUrlJoin = () => {
+      // Если есть код в URL — запоминаем для автовхода
+      if (urlRoomCode) {
+        // Если пользователь авторизован — сразу входим
+        if (user?.nickname) {
+          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl);
         } else {
-          log("Failed to restore session:", response?.error);
-          clearSession();
+          // Иначе запоминаем код — JoinScreen покажет форму для ввода ника
+          setPendingJoinCode(urlRoomCode);
+          setIsRestoring(false);
         }
-        
+      } else {
+        setIsRestoring(false);
+      }
+    };
+
+    const joinRoomDirect = (code, name, avatarUrl) => {
+      const visitorId = getOrCreateVisitorId();
+      socket.emit("room:join", { 
+        code, 
+        name, 
+        visitorId,
+        avatarUrl 
+      }, (res) => {
+        if (res?.ok) {
+          setRoomState(res.state);
+          setMeId(res.playerId);
+          saveSession(res.playerId, res.state.room.code, name);
+          setError("");
+        } else {
+          setError(res?.error || "Не удалось войти в комнату");
+        }
         setIsRestoring(false);
       });
     };
 
     tryRestoreSession();
-  }, []);
+  }, [urlRoomCode, user, navigate]);
 
   // Обработка события session:replaced
   useEffect(() => {
@@ -447,6 +497,8 @@ export default function TruthOrDarePage() {
           setRoomState(result.state);
           setMeId(result.playerId);
           saveSession(result.playerId, result.state.room.code, name);
+          // Обновляем URL с кодом комнаты
+          navigate(`/truth-or-dare/${result.state.room.code}`, { replace: true });
         }
         return result;
       },
@@ -464,6 +516,8 @@ export default function TruthOrDarePage() {
           setRoomState(result.state);
           setMeId(result.playerId);
           saveSession(result.playerId, result.state.room.code, name);
+          // Обновляем URL с кодом комнаты
+          navigate(`/truth-or-dare/${result.state.room.code}`, { replace: true });
         }
         return result;
       },
@@ -532,6 +586,9 @@ export default function TruthOrDarePage() {
         setRoomState(null);
         setMeId(null);
         setError("");
+        setPendingJoinCode(null);
+        // Убираем код из URL
+        navigate("/truth-or-dare", { replace: true });
         log("State reset complete");
         
         try {
@@ -587,9 +644,6 @@ export default function TruthOrDarePage() {
     return (
       <div className="truth-or-dare-page">
         <ShaderBackground />
-        <button className="tod-back-btn" onClick={() => navigate("/games")}>
-          ← Все игры
-        </button>
         <EmailVerifyBanner />
         <JoinScreen
           connected={connected}
@@ -600,6 +654,8 @@ export default function TruthOrDarePage() {
           onProfile={() => navigate("/profile")}
           onLogin={() => navigate("/login", { state: { backgroundLocation: location } })}
           onClearError={() => setError("")}
+          initialCode={pendingJoinCode}
+          onBackToGames={() => navigate("/games")}
         />
         <BannedModal 
           isOpen={bannedModal.isOpen}
@@ -617,9 +673,6 @@ export default function TruthOrDarePage() {
   return (
     <div className="truth-or-dare-page">
       <ShaderBackground />
-      <button className="tod-back-btn tod-back-btn--in-game" onClick={() => navigate("/games")}>
-        ← Все игры
-      </button>
       <EmailVerifyBanner />
       <RoomScreen
         connected={connected}

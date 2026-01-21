@@ -1,13 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Button from "../ui/Button";
 import PulseButton from "../ui/PulseButton";
 import TextShimmer from "./TextShimmer";
+import AliasRulesModal from "./AliasRulesModal";
 
-export default function AliasJoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin, onClearError }) {
+export default function AliasJoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin, onClearError, initialCode, onBackToGames }) {
   const [createName, setCreateName] = useState("");
   const [joinName, setJoinName] = useState("");
-  const [joinCode, setJoinCode] = useState("");
+  const [joinCode, setJoinCode] = useState(initialCode || "");
   const [loading, setLoading] = useState(false);
+  const [showRulesModal, setShowRulesModal] = useState(false);
+
+  // Обновляем код если изменился initialCode
+  useEffect(() => {
+    if (initialCode) {
+      setJoinCode(initialCode);
+    }
+  }, [initialCode]);
 
   // Имя для создания: никнейм пользователя или введённое вручную
   const effectiveCreateName = user?.nickname || createName.trim();
@@ -41,9 +50,96 @@ export default function AliasJoinScreen({ connected, error, onCreate, onJoin, us
     setLoading(false);
   };
 
+  // Если есть код из URL — показываем упрощённый экран входа
+  if (initialCode) {
+    return (
+      <div className="app-shell">
+        <div className="hero">
+          <button className="back-to-games-link" onClick={onBackToGames} type="button">
+            ← Все игры
+          </button>
+          <div className="hero-tag">Alias</div>
+          <div
+            className="hero-title alias-hero-title"
+            role="heading"
+            aria-level={1}
+            aria-label="Шляпа"
+          >
+            <TextShimmer
+              as="h1"
+              className="alias-title-shimmer"
+              duration={3}
+              spread={3}
+            >
+              Шляпа
+            </TextShimmer>
+          </div>
+          <p>Вас пригласили в комнату <strong>{initialCode}</strong></p>
+        </div>
+
+        <div className="join-screen join-screen--single">
+          <form className="glass-card" onSubmit={handleJoin}>
+            <h2>Присоединиться</h2>
+            
+            {user?.nickname ? (
+              <div className="field-info">
+                <span>Играете как</span>
+                <div className="field-user">
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="" className="field-user__avatar" />
+                  ) : (
+                    <span className="field-user__avatar-placeholder">
+                      {user.nickname[0].toUpperCase()}
+                    </span>
+                  )}
+                  <span className="field-user__name">{user.nickname}</span>
+                </div>
+              </div>
+            ) : (
+              <label className="field">
+                <span>Твоё имя</span>
+                <input
+                  type="text"
+                  value={joinName}
+                  onChange={handleInputChange(setJoinName)}
+                  placeholder="Введите имя"
+                  autoFocus
+                />
+              </label>
+            )}
+            
+            <PulseButton
+              size="lg"
+              type="submit"
+              loading={loading}
+              disabled={!connected || !effectiveJoinName}
+              fullWidth
+            >
+              Войти в комнату
+            </PulseButton>
+
+            {!user && (
+              <div className="invite-login-hint">
+                <span>Есть аккаунт?</span>
+                <Button variant="ghost" size="sm" onClick={onLogin}>
+                  Войти
+                </Button>
+              </div>
+            )}
+          </form>
+        </div>
+
+        <div className="status-bar">
+          <span>{connected ? "Сервер на связи" : "Нет соединения с сервером"}</span>
+          {error ? <span className="error">{error}</span> : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
-      {/* User header */}
+      {/* User header - фиксированный в правом верхнем углу */}
       <div className="user-header">
         {user ? (
           <button className="user-header__profile" onClick={onProfile} type="button">
@@ -61,9 +157,27 @@ export default function AliasJoinScreen({ connected, error, onCreate, onJoin, us
             Войти
           </Button>
         )}
+        
+        {/* Кнопка правил */}
+        <button 
+          className="rules-btn-header" 
+          onClick={() => setShowRulesModal(true)}
+          title="Правила игры"
+          type="button"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>Правила</span>
+        </button>
       </div>
 
       <div className="hero">
+        <button className="back-to-games-link" onClick={onBackToGames} type="button">
+          ← Все игры
+        </button>
         <div className="hero-tag">Alias</div>
         <div
           className="hero-title alias-hero-title"
@@ -175,6 +289,12 @@ export default function AliasJoinScreen({ connected, error, onCreate, onJoin, us
         <span>{connected ? "Сервер на связи" : "Нет соединения с сервером"}</span>
         {error ? <span className="error">{error}</span> : null}
       </div>
+
+      {/* Модальное окно правил */}
+      <AliasRulesModal 
+        isOpen={showRulesModal} 
+        onClose={() => setShowRulesModal(false)} 
+      />
     </div>
   );
 }

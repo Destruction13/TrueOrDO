@@ -70,6 +70,31 @@ p {
   max-width: 640px;
   animation: fadeUp 0.8s ease both;
 }
+
+/* Кнопка "Все игры" в hero-секции */
+.back-to-games-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  background: rgba(4, 16, 24, 0.7);
+  border: 1px solid rgba(46, 230, 255, 0.25);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-to-games-link:hover {
+  background: rgba(46, 230, 255, 0.12);
+  border-color: rgba(46, 230, 255, 0.4);
+  color: #fff;
+}
+
 .hero-tag {
   font-family: "Orbitron", sans-serif;
   text-transform: uppercase;
@@ -162,6 +187,31 @@ p {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 24px;
+}
+
+/* Упрощённый экран входа по приглашению (одна карточка) */
+.join-screen--single {
+  display: flex;
+  justify-content: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.join-screen--single .glass-card {
+  width: 100%;
+}
+
+/* Подсказка для входа в аккаунт на экране приглашения */
+.invite-login-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 @keyframes titleSweep {
@@ -313,8 +363,8 @@ select:focus {
    ========================================================================== */
 .user-header {
   position: fixed;
-  top: 16px;
-  right: 16px;
+  top: 72px;
+  right: clamp(24px, 6vw, 72px);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -1993,6 +2043,24 @@ select:focus {
 @media (max-width: 640px) {
   .app-shell {
     padding: 32px 20px;
+  }
+  
+  .user-header {
+    top: 48px;
+    right: 20px;
+  }
+  
+  .user-header__name {
+    display: none;
+  }
+  
+  .user-header__profile {
+    padding: 4px;
+  }
+  
+  .back-to-games-link {
+    padding: 8px 12px;
+    font-size: 0.8125rem;
   }
   
   .room-header {

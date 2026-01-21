@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GodRays } from "@paper-design/shaders-react";
@@ -9,6 +10,11 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+
+  // Установка заголовка страницы
+  useEffect(() => {
+    document.title = "PartyChaos";
+  }, []);
 
   return (
     <div className="landing-page">

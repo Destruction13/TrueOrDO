@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
 import AliasShaderBackground from "../components/alias/AliasShaderBackground";
@@ -7,6 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import Button from "../components/ui/Button";
 import AliasJoinScreen from "../components/alias/AliasJoinScreen";
 import AliasRoomScreen from "../components/alias/AliasRoomScreen";
+import EmailVerifyBanner from "../components/auth/EmailVerifyBanner";
 import "./AliasPage.css";
 
 const socket = io(import.meta.env.VITE_SERVER_URL || "/", { autoConnect: false });
@@ -60,6 +61,7 @@ function clearSession() {
 export default function AliasPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { roomCode: urlRoomCode } = useParams();
   const { user } = useAuth();
   
   const [connected, setConnected] = useState(false);
@@ -74,21 +76,23 @@ export default function AliasPage() {
   const [roundHistory, setRoundHistory] = useState([]);
   const [showHistoryAfterTurn, setShowHistoryAfterTurn] = useState(false);
   const [reviewTimeRemaining, setReviewTimeRemaining] = useState(null);
+  const [pendingJoinCode, setPendingJoinCode] = useState(null);
+
+  // Установка заголовка страницы
+  useEffect(() => {
+    document.title = "Alias";
+  }, []);
 
   useEffect(() => {
     socket.connect();
     return () => socket.disconnect();
   }, []);
 
-  // Restore session
+  // Restore session или вход по URL
   useEffect(() => {
     const tryRestore = async () => {
       const session = loadSession();
-      if (!session) {
-        setIsRestoring(false);
-        return;
-      }
-
+      
       const waitForConnection = () => new Promise(resolve => {
         if (socket.connected) resolve();
         else socket.once("connect", resolve);
@@ -96,23 +100,73 @@ export default function AliasPage() {
 
       await waitForConnection();
 
-      socket.emit("alias:room:rejoin", {
-        playerId: session.playerId,
-        roomCode: session.roomCode
+      // Если есть сохранённая сессия — пробуем восстановить
+      if (session) {
+        socket.emit("alias:room:rejoin", {
+          playerId: session.playerId,
+          roomCode: session.roomCode
+        }, (res) => {
+          if (res?.ok) {
+            setAliasState(res.state);
+            setMeId(res.playerId);
+            saveSession(res.playerId, res.state.room.code, session.playerName);
+            // Обновляем URL если он не соответствует комнате
+            if (urlRoomCode && urlRoomCode !== res.state.room.code) {
+              navigate(`/alias/${res.state.room.code}`, { replace: true });
+            } else if (!urlRoomCode) {
+              navigate(`/alias/${res.state.room.code}`, { replace: true });
+            }
+            setIsRestoring(false);
+          } else {
+            clearSession();
+            // После неудачного восстановления — проверяем URL
+            handleUrlJoin();
+          }
+        });
+      } else {
+        // Нет сессии — проверяем URL
+        handleUrlJoin();
+      }
+    };
+
+    const handleUrlJoin = () => {
+      // Если есть код в URL — запоминаем для автовхода
+      if (urlRoomCode) {
+        // Если пользователь авторизован — сразу входим
+        if (user?.nickname) {
+          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl);
+        } else {
+          // Иначе запоминаем код — JoinScreen покажет форму для ввода ника
+          setPendingJoinCode(urlRoomCode);
+          setIsRestoring(false);
+        }
+      } else {
+        setIsRestoring(false);
+      }
+    };
+
+    const joinRoomDirect = (code, name, avatarUrl) => {
+      const visitorId = getOrCreateVisitorId();
+      socket.emit("alias:room:join", { 
+        code, 
+        name, 
+        visitorId,
+        avatarUrl 
       }, (res) => {
         if (res?.ok) {
           setAliasState(res.state);
           setMeId(res.playerId);
-          saveSession(res.playerId, res.state.room.code, session.playerName);
+          saveSession(res.playerId, res.state.room.code, name);
+          setError("");
         } else {
-          clearSession();
+          setError(res?.error || "Не удалось войти в комнату");
         }
         setIsRestoring(false);
       });
     };
 
     tryRestore();
-  }, []);
+  }, [urlRoomCode, user, navigate]);
 
   // Socket events
   useEffect(() => {
@@ -210,6 +264,8 @@ export default function AliasPage() {
         setAliasState(result.state);
         setMeId(result.playerId);
         saveSession(result.playerId, result.state.room.code, name);
+        // Обновляем URL с кодом комнаты
+        navigate(`/alias/${result.state.room.code}`, { replace: true });
       }
       return result;
     },
@@ -221,6 +277,8 @@ export default function AliasPage() {
         setAliasState(result.state);
         setMeId(result.playerId);
         saveSession(result.playerId, result.state.room.code, name);
+        // Обновляем URL с кодом комнаты
+        navigate(`/alias/${result.state.room.code}`, { replace: true });
       }
       return result;
     },
@@ -234,6 +292,9 @@ export default function AliasPage() {
       setRoundHistory([]);
       setTimerRemaining(null);
       setIsPaused(false);
+      setPendingJoinCode(null);
+      // Убираем код из URL
+      navigate("/alias", { replace: true });
       return { ok: true };
     },
     createTeam: async (name) => handleAck(await emitWithAck("alias:teams:create", { name })),
@@ -273,9 +334,7 @@ export default function AliasPage() {
     return (
       <div className="alias-page">
         <AliasShaderBackground />
-        <button className="alias-back-btn" onClick={() => navigate("/games")}>
-          ← Все игры
-        </button>
+        <EmailVerifyBanner />
         <AliasJoinScreen
           connected={connected}
           error={error}
@@ -285,6 +344,8 @@ export default function AliasPage() {
           onProfile={() => navigate("/profile")}
           onLogin={() => navigate("/login", { state: { backgroundLocation: location } })}
           onClearError={() => setError("")}
+          initialCode={pendingJoinCode}
+          onBackToGames={() => navigate("/games")}
         />
       </div>
     );
@@ -293,10 +354,8 @@ export default function AliasPage() {
   return (
     <div className="alias-page alias-page--in-room">
       <AliasShaderBackground />
+      <EmailVerifyBanner />
       <div className="alias-shader-overlay" />
-      <button className="alias-back-btn alias-back-btn--in-game" onClick={() => navigate("/games")}>
-        ← Все игры
-      </button>
       <AliasRoomScreen
         connected={connected}
         error={error}

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GlowingEffect } from "../components/ui/GlowingEffect";
@@ -62,6 +63,11 @@ export default function GamesPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+
+  // Установка заголовка страницы
+  useEffect(() => {
+    document.title = "Игры — PartyChaos";
+  }, []);
 
   return (
     <div className="games-page">

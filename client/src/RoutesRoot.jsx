@@ -16,8 +16,14 @@ export default function RoutesRoot() {
       <Routes location={backgroundLocation || location}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/games" element={<GamesPage />} />
+        
+        {/* Truth or Dare - с опциональным кодом комнаты */}
         <Route path="/truth-or-dare" element={<TruthOrDarePage />} />
+        <Route path="/truth-or-dare/:roomCode" element={<TruthOrDarePage />} />
+        
+        {/* Alias - с опциональным кодом комнаты */}
         <Route path="/alias" element={<AliasPage />} />
+        <Route path="/alias/:roomCode" element={<AliasPage />} />
 
         {/* Full-page fallbacks if user opens these routes directly */}
         <Route path="/login" element={<App />} />

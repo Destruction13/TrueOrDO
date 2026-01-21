@@ -1,17 +1,22 @@
-import { useRef, useState } from "react";
+import { useState, useEffect } from "react";
 import Button from "./ui/Button";
 import PulseButton from "./ui/PulseButton";
-import GooeyText from "./ui/GooeyText";
+import TextShimmer from "./alias/TextShimmer";
 import RulesModal from "./ui/RulesModal";
 
-function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin, onClearError }) {
+function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin, onClearError, initialCode, onBackToGames }) {
   const [createName, setCreateName] = useState("");
   const [joinName, setJoinName] = useState("");
-  const [joinCode, setJoinCode] = useState("");
+  const [joinCode, setJoinCode] = useState(initialCode || "");
   const [loading, setLoading] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
-  const titleRef = useRef(null);
-  const titleRaf = useRef(0);
+
+  // Обновляем код если изменился initialCode
+  useEffect(() => {
+    if (initialCode) {
+      setJoinCode(initialCode);
+    }
+  }, [initialCode]);
 
   // Имя для создания: никнейм пользователя или введённое вручную
   const effectiveCreateName = user?.nickname || createName.trim();
@@ -45,51 +50,96 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
     setLoading(false);
   };
 
-  const handleTitleMove = (event) => {
-    if (!titleRef.current) {
-      return;
-    }
+  // Если есть код из URL — показываем упрощённый экран входа
+  if (initialCode) {
+    return (
+      <div className="app-shell">
+        <div className="hero">
+          <button className="back-to-games-link" onClick={onBackToGames} type="button">
+            ← Все игры
+          </button>
+          <div className="hero-tag">Truth or Dare</div>
+          <div
+            className="hero-title tod-hero-title"
+            role="heading"
+            aria-level={1}
+            aria-label="Правда или Действие"
+          >
+            <TextShimmer
+              as="h1"
+              className="tod-title-shimmer"
+              duration={3}
+              spread={3}
+            >
+              Правда или Действие
+            </TextShimmer>
+          </div>
+          <p>Вас пригласили в комнату <strong>{initialCode}</strong></p>
+        </div>
 
-    const rect = titleRef.current.getBoundingClientRect();
-    const x = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
-    const y = Math.min(Math.max((event.clientY - rect.top) / rect.height, 0), 1);
-    const rx = (0.5 - y) * 12;
-    const ry = (x - 0.5) * 12;
-    const glow = Math.max(0.25, 1 - (Math.abs(x - 0.5) + Math.abs(y - 0.5)));
+        <div className="join-screen join-screen--single">
+          <form className="glass-card" onSubmit={handleJoin}>
+            <h2>Присоединиться</h2>
+            
+            {user?.nickname ? (
+              <div className="field-info">
+                <span>Играете как</span>
+                <div className="field-user">
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="" className="field-user__avatar" />
+                  ) : (
+                    <span className="field-user__avatar-placeholder">
+                      {user.nickname[0].toUpperCase()}
+                    </span>
+                  )}
+                  <span className="field-user__name">{user.nickname}</span>
+                </div>
+              </div>
+            ) : (
+              <label className="field">
+                <span>Твоё имя</span>
+                <input
+                  type="text"
+                  value={joinName}
+                  onChange={handleInputChange(setJoinName)}
+                  placeholder="Введите имя"
+                  autoFocus
+                />
+              </label>
+            )}
+            
+            <PulseButton
+              size="lg"
+              type="submit"
+              loading={loading}
+              disabled={!connected || !effectiveJoinName}
+              fullWidth
+            >
+              Войти в комнату
+            </PulseButton>
 
-    if (titleRaf.current) {
-      cancelAnimationFrame(titleRaf.current);
-    }
+            {!user && (
+              <div className="invite-login-hint">
+                <span>Есть аккаунт?</span>
+                <Button variant="ghost" size="sm" onClick={onLogin}>
+                  Войти
+                </Button>
+              </div>
+            )}
+          </form>
+        </div>
 
-    titleRaf.current = requestAnimationFrame(() => {
-      const el = titleRef.current;
-      if (!el) {
-        return;
-      }
-      el.style.setProperty("--rx", `${rx.toFixed(2)}deg`);
-      el.style.setProperty("--ry", `${ry.toFixed(2)}deg`);
-      el.style.setProperty("--mx", `${(x * 100).toFixed(2)}%`);
-      el.style.setProperty("--my", `${(y * 100).toFixed(2)}%`);
-      el.style.setProperty("--glow", glow.toFixed(2));
-      titleRaf.current = 0;
-    });
-  };
-
-  const handleTitleLeave = () => {
-    const el = titleRef.current;
-    if (!el) {
-      return;
-    }
-    el.style.setProperty("--rx", "0deg");
-    el.style.setProperty("--ry", "0deg");
-    el.style.setProperty("--mx", "50%");
-    el.style.setProperty("--my", "50%");
-    el.style.setProperty("--glow", "0.35");
-  };
+        <div className="status-bar">
+          <span>{connected ? "Сервер на связи" : "Нет соединения с сервером"}</span>
+          {error ? <span className="error">{error}</span> : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
-      {/* User header */}
+      {/* User header - фиксированный в правом верхнем углу */}
       <div className="user-header">
         {user ? (
           <button className="user-header__profile" onClick={onProfile} type="button">
@@ -125,21 +175,24 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
       </div>
 
       <div className="hero">
-        <div className="hero-tag">True or Do</div>
+        <button className="back-to-games-link" onClick={onBackToGames} type="button">
+          ← Все игры
+        </button>
+        <div className="hero-tag">Truth or Dare</div>
         <div
-          className="hero-title"
-          ref={titleRef}
-          onPointerMove={handleTitleMove}
-          onPointerLeave={handleTitleLeave}
+          className="hero-title tod-hero-title"
           role="heading"
           aria-level={1}
           aria-label="Правда или Действие"
         >
-          <GooeyText
-            texts={["Правда", "или", "Действие"]}
-            className="hero-title__gooey"
-            textClassName="hero-title__text"
-          />
+          <TextShimmer
+            as="h1"
+            className="tod-title-shimmer"
+            duration={3}
+            spread={3}
+          >
+            Правда или Действие
+          </TextShimmer>
         </div>
         <p>Создай комнату, поделись кодом и запускай раунды в реальном времени.</p>
       </div>
