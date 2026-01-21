@@ -1,0 +1,263 @@
+/* ==========================================================================
+   CyberRunner — мини-игра в стиле Alias
+   ========================================================================== */
+
+.cyber-runner {
+  background: rgba(4, 16, 24, 0.95);
+  border: 1px solid rgba(46, 230, 255, 0.2);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(46, 230, 255, 0.1);
+}
+
+/* Header */
+.cyber-runner__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: rgba(10, 20, 35, 0.8);
+  border-bottom: 1px solid rgba(46, 230, 255, 0.15);
+}
+
+.cyber-runner__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2ee6ff;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.cyber-runner__icon {
+  font-size: 1.1rem;
+  animation: cyber-icon-bounce 1s ease-in-out infinite;
+}
+
+@keyframes cyber-icon-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.cyber-runner__scores {
+  display: flex;
+  gap: 1rem;
+}
+
+.cyber-runner__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.cyber-runner__score-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.cyber-runner__score-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.cyber-runner__score--best .cyber-runner__score-value {
+  color: #f97316;
+}
+
+.cyber-runner__close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cyber-runner__close:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+/* Canvas wrapper */
+.cyber-runner__canvas-wrapper {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cyber-runner__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Overlays */
+.cyber-runner__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 15, 26, 0.85);
+  backdrop-filter: blur(4px);
+}
+
+.cyber-runner__overlay--gameover {
+  background: rgba(10, 15, 26, 0.9);
+}
+
+.cyber-runner__start-text {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  animation: cyber-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes cyber-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.cyber-runner__gameover-text {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ef4444;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+  margin-bottom: 0.5rem;
+}
+
+.cyber-runner__final-score {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 0.25rem;
+}
+
+.cyber-runner__new-record {
+  font-size: 0.85rem;
+  color: #f97316;
+  font-weight: 600;
+  animation: cyber-glow 1s ease-in-out infinite;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes cyber-glow {
+  0%, 100% { text-shadow: 0 0 8px rgba(249, 115, 22, 0.5); }
+  50% { text-shadow: 0 0 16px rgba(249, 115, 22, 0.8); }
+}
+
+.cyber-runner__restart-hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 0.5rem;
+}
+
+/* Hint */
+.cyber-runner__hint {
+  padding: 0.5rem 1rem;
+  text-align: center;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.35);
+  background: rgba(10, 20, 35, 0.5);
+  border-top: 1px solid rgba(46, 230, 255, 0.1);
+}
+
+/* Mobile adaptations */
+@media (max-width: 640px) {
+  .cyber-runner {
+    border-radius: 12px;
+  }
+
+  .cyber-runner__header {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .cyber-runner__title {
+    font-size: 0.75rem;
+  }
+
+  .cyber-runner__icon {
+    font-size: 1rem;
+  }
+
+  .cyber-runner__scores {
+    gap: 0.75rem;
+  }
+
+  .cyber-runner__score-label {
+    font-size: 0.55rem;
+  }
+
+  .cyber-runner__score-value {
+    font-size: 0.9rem;
+  }
+
+  .cyber-runner__close {
+    width: 24px;
+    height: 24px;
+    font-size: 1.1rem;
+  }
+
+  .cyber-runner__start-text {
+    font-size: 0.8rem;
+  }
+
+  .cyber-runner__gameover-text {
+    font-size: 1.25rem;
+  }
+
+  .cyber-runner__final-score {
+    font-size: 0.9rem;
+  }
+
+  .cyber-runner__new-record {
+    font-size: 0.75rem;
+  }
+
+  .cyber-runner__restart-hint {
+    font-size: 0.7rem;
+  }
+
+  .cyber-runner__hint {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.65rem;
+  }
+}
+
+/* Touch feedback */
+.cyber-runner__canvas-wrapper:active {
+  opacity: 0.95;
+}
+
+/* Scanline effect (subtle) */
+.cyber-runner__canvas-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+}

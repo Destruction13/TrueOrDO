@@ -14,6 +14,30 @@ const { getWheelData, pickWheel1, pickWheel2, pickWheel2ForChaos, pickTruthQuest
 const { PrismaSessionStore } = require("./auth/session-store");
 const { createAuthRouter } = require("./auth/routes");
 const { createOAuthRouter } = require("./auth/oauth");
+const {
+  getDefaultAliasSettings,
+  normalizeAliasSettings,
+  serializeSettings: serializeAliasSettings,
+  generateAliasRoomCode,
+  normalizeName: normalizeAliasName,
+  makeUniqueName: makeUniqueAliasName,
+  buildAliasRoomState,
+  stopAliasTimer,
+  isAliasPaused,
+  buildDeck,
+  getNextWord,
+  getNextTeamAndExplainer,
+  resetExplainerIndexes,
+  addWordToHistory,
+  getRoundHistory,
+  getRoundTeamId,
+  clearRoundHistory,
+  updateWordInHistory,
+  aliasTimers,
+  aliasPausedRooms,
+  aliasPlayerSockets,
+  aliasReviewTimers
+} = require("./game/alias");
 
 const prisma = new PrismaClient();
 
@@ -109,7 +133,10 @@ const io = new Server(server, {
   cors: {
     origin: CLIENT_ORIGIN,
     credentials: true
-  }
+  },
+  // Быстрое обнаружение disconnect (по умолчанию pingInterval=25000, pingTimeout=20000)
+  pingInterval: 5000,  // Пинг каждые 5 секунд
+  pingTimeout: 3000    // Таймаут ответа 3 секунды
 });
 
 // Интеграция session с Socket.IO
@@ -352,7 +379,12 @@ function stopTimer(roomId) {
     roomTimers.delete(roomId);
   }
   // Также очищаем состояние паузы при остановке таймера
+  const wasPaused = pausedRooms.has(roomId);
   pausedRooms.delete(roomId);
+  // Уведомляем клиентов о снятии паузы, если игра была на паузе
+  if (wasPaused) {
+    io.to(roomId).emit("game:paused", { isPaused: false });
+  }
 }
 
 function pauseTimer(roomId) {
@@ -2256,7 +2288,1212 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ALIAS GAME EVENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  socket.on("alias:room:create", async (payload, ack) => {
+    const name = normalizeName(payload?.name);
+    const visitorId = payload?.visitorId || null;
+    if (!name) {
+      if (ack) ack({ ok: false, error: "Name required" });
+      return;
+    }
+    
+    let avatarUrl = null;
+    if (socket.data.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: socket.data.userId },
+        select: { avatarUrl: true }
+      });
+      avatarUrl = user?.avatarUrl || null;
+    }
+    
+    const code = await generateAliasRoomCode(prisma);
+    const settings = getDefaultAliasSettings();
+
+    const room = await prisma.aliasRoom.create({
+      data: {
+        code,
+        hostId: "pending",
+        settings: JSON.stringify(settings)
+      }
+    });
+    
+    const player = await prisma.aliasPlayer.create({
+      data: {
+        roomId: room.id,
+        name,
+        avatarUrl,
+        visitorId
+      }
+    });
+    
+    await prisma.aliasRoom.update({
+      where: { id: room.id },
+      data: { hostId: player.id }
+    });
+
+    socket.data.aliasRoomId = room.id;
+    socket.data.aliasPlayerId = player.id;
+    aliasPlayerSockets.set(player.id, socket.id);
+    socket.join(`alias:${room.id}`);
+
+    const state = await buildAliasRoomState(prisma, room.id);
+    io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true, state, playerId: player.id });
+  });
+
+  socket.on("alias:room:join", async (payload, ack) => {
+    const name = normalizeName(payload?.name);
+    const code = normalizeName(payload?.code).toUpperCase();
+    const visitorId = payload?.visitorId || null;
+    if (!name || !code) {
+      if (ack) ack({ ok: false, error: "Имя и код обязательны" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { code } });
+    if (!room) {
+      if (ack) ack({ ok: false, error: "Комната не найдена" });
+      return;
+    }
+
+    const players = await prisma.aliasPlayer.findMany({ where: { roomId: room.id } });
+    
+    // Проверяем, есть ли игрок с таким visitorId (реконнект)
+    let player = null;
+    if (visitorId) {
+      player = players.find(p => p.visitorId === visitorId && p.connectionStatus !== "left");
+    }
+
+    if (player) {
+      // Реконнект существующего игрока
+      await prisma.aliasPlayer.update({
+        where: { id: player.id },
+        data: { connectionStatus: "online", lastSeen: new Date() }
+      });
+      
+      socket.data.aliasRoomId = room.id;
+      socket.data.aliasPlayerId = player.id;
+      aliasPlayerSockets.set(player.id, socket.id);
+      socket.join(`alias:${room.id}`);
+      
+      io.to(`alias:${room.id}`).emit("alias:player:reconnected", { playerId: player.id, playerName: player.name });
+      
+      const state = await buildAliasRoomState(prisma, room.id);
+      io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+      
+      if (ack) ack({ ok: true, state, playerId: player.id, reconnected: true });
+      return;
+    }
+
+    // Новый игрок
+    const takenNames = players.filter(p => p.connectionStatus !== "left").map(p => p.name.toLowerCase());
+    const finalName = makeUniqueName(name, takenNames);
+
+    let avatarUrl = null;
+    if (socket.data.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: socket.data.userId },
+        select: { avatarUrl: true }
+      });
+      avatarUrl = user?.avatarUrl || null;
+    }
+
+    // Если игра активна (playing или reviewing), новые игроки становятся наблюдателями
+    const isGameActive = room.status === "playing" || room.status === "reviewing";
+    
+    player = await prisma.aliasPlayer.create({
+      data: {
+        roomId: room.id,
+        name: finalName,
+        avatarUrl,
+        visitorId,
+        isSpectator: isGameActive
+      }
+    });
+
+    socket.data.aliasRoomId = room.id;
+    socket.data.aliasPlayerId = player.id;
+    aliasPlayerSockets.set(player.id, socket.id);
+    socket.join(`alias:${room.id}`);
+
+    const state = await buildAliasRoomState(prisma, room.id);
+    io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true, state, playerId: player.id });
+  });
+
+  socket.on("alias:room:rejoin", async (payload, ack) => {
+    console.log("[Alias Rejoin] Received rejoin request:", payload);
+    const { playerId, roomCode } = payload || {};
+    if (!playerId || !roomCode) {
+      if (ack) ack({ ok: false, error: "Missing data" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { code: roomCode.toUpperCase() } });
+    if (!room) {
+      if (ack) ack({ ok: false, error: "Room not found" });
+      return;
+    }
+
+    const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
+    if (!player || player.roomId !== room.id) {
+      if (ack) ack({ ok: false, error: "Player not found" });
+      return;
+    }
+
+    // Если у игрока уже есть активный сокет — отключаем старый (две вкладки или reconnect)
+    const existingSocketId = aliasPlayerSockets.get(playerId);
+    if (existingSocketId && existingSocketId !== socket.id) {
+      const existingSocket = io.sockets.sockets.get(existingSocketId);
+      if (existingSocket) {
+        console.log("[Alias Rejoin] Disconnecting old socket for player:", playerId);
+        existingSocket.data.aliasRoomId = null;
+        existingSocket.data.aliasPlayerId = null;
+        existingSocket.emit("alias:session:replaced", { message: "Session replaced by another tab" });
+        existingSocket.disconnect(true);
+      }
+    }
+
+    // Обновляем статус на online
+    await prisma.aliasPlayer.update({
+      where: { id: playerId },
+      data: { connectionStatus: "online", lastSeen: new Date() }
+    });
+
+    socket.data.aliasRoomId = room.id;
+    socket.data.aliasPlayerId = player.id;
+    aliasPlayerSockets.set(player.id, socket.id);
+    socket.join(`alias:${room.id}`);
+
+    // Уведомляем о реконнекте
+    io.to(`alias:${room.id}`).emit("alias:player:reconnected", { 
+      playerId: player.id, 
+      playerName: player.name 
+    });
+
+    const state = await buildAliasRoomState(prisma, room.id);
+    io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true, state, playerId: player.id });
+  });
+
+  socket.on("alias:teams:create", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    // Проверяем, не идёт ли игра
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (room && (room.status === "playing" || room.status === "reviewing")) {
+      if (ack) ack({ ok: false, error: "Нельзя создавать команды во время игры" });
+      return;
+    }
+
+    // Получаем текущего игрока и его старую команду
+    const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
+    const oldTeamId = player?.teamId;
+
+    const teams = await prisma.aliasTeam.findMany({ where: { roomId } });
+    const teamName = normalizeName(payload?.name) || `Команда ${teams.length + 1}`;
+    
+    const team = await prisma.aliasTeam.create({
+      data: {
+        roomId,
+        name: teamName,
+        turnOrder: teams.length,
+        creatorId: playerId // Сохраняем создателя команды
+      }
+    });
+
+    // Автоматически добавляем создателя в новую команду
+    await prisma.aliasPlayer.update({
+      where: { id: playerId },
+      data: { teamId: team.id, explainOrder: 0, isSpectator: false, isReady: false }
+    });
+
+    // Удаляем старую команду, если в ней никого не осталось
+    if (oldTeamId) {
+      const remaining = await prisma.aliasPlayer.count({ where: { teamId: oldTeamId } });
+      if (remaining === 0) {
+        await prisma.aliasTeam.delete({ where: { id: oldTeamId } });
+      }
+    }
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true, teamId: team.id });
+  });
+
+  socket.on("alias:teams:rename", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    const { teamId, name } = payload || {};
+    
+    if (!roomId || !teamId || !name?.trim()) {
+      if (ack) ack({ ok: false, error: "Missing data" });
+      return;
+    }
+
+    const team = await prisma.aliasTeam.findUnique({ where: { id: teamId } });
+    if (!team || team.roomId !== roomId) {
+      if (ack) ack({ ok: false, error: "Team not found" });
+      return;
+    }
+
+    // Только создатель команды может переименовывать
+    if (team.creatorId !== playerId) {
+      if (ack) ack({ ok: false, error: "Only team creator can rename" });
+      return;
+    }
+
+    await prisma.aliasTeam.update({
+      where: { id: teamId },
+      data: { name: name.trim() }
+    });
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:teams:join", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    const teamId = payload?.teamId;
+    
+    if (!roomId || !playerId || !teamId) {
+      if (ack) ack({ ok: false, error: "Missing data" });
+      return;
+    }
+
+    // Нельзя присоединяться во время игры
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (room && (room.status === "playing" || room.status === "reviewing")) {
+      if (ack) ack({ ok: false, error: "Нельзя вступать в команды во время игры" });
+      return;
+    }
+
+    const team = await prisma.aliasTeam.findUnique({ where: { id: teamId } });
+    if (!team || team.roomId !== roomId) {
+      if (ack) ack({ ok: false, error: "Team not found" });
+      return;
+    }
+
+    // Получаем старую команду игрока
+    const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
+    const oldTeamId = player?.teamId;
+
+    const teamMembers = await prisma.aliasPlayer.findMany({ where: { teamId } });
+    
+    await prisma.aliasPlayer.update({
+      where: { id: playerId },
+      data: { teamId, explainOrder: teamMembers.length, isSpectator: false, isReady: false }
+    });
+
+    // Удаляем старую команду, если в ней никого не осталось
+    if (oldTeamId && oldTeamId !== teamId) {
+      const remaining = await prisma.aliasPlayer.count({ where: { teamId: oldTeamId } });
+      if (remaining === 0) {
+        await prisma.aliasTeam.delete({ where: { id: oldTeamId } });
+      }
+    }
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:teams:leave", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId || !playerId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    // Запрет выхода из команды во время игры
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (room && room.status === "playing") {
+      if (ack) ack({ ok: false, error: "Cannot leave team during game" });
+      return;
+    }
+
+    const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
+    const oldTeamId = player?.teamId;
+
+    // Переводим игрока в наблюдатели (без команды)
+    await prisma.aliasPlayer.update({
+      where: { id: playerId },
+      data: { teamId: null, isReady: false, isSpectator: true }
+    });
+
+    // Удаляем команду только если в ней никого не осталось
+    if (oldTeamId) {
+      const remaining = await prisma.aliasPlayer.count({ where: { teamId: oldTeamId } });
+      if (remaining === 0) {
+        await prisma.aliasTeam.delete({ where: { id: oldTeamId } });
+      }
+    }
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:settings:update", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.hostId !== playerId) {
+      if (ack) ack({ ok: false, error: "Host only" });
+      return;
+    }
+
+    const currentSettings = normalizeAliasSettings(room.settings);
+    const newSettings = {
+      ...currentSettings,
+      ...(payload?.difficulty && { difficulty: payload.difficulty }),
+      ...(payload?.turnSeconds && { turnSeconds: Math.max(30, Math.min(300, payload.turnSeconds)) }),
+      ...(payload?.targetScore && { targetScore: Math.max(10, Math.min(100, payload.targetScore)) }),
+      ...(typeof payload?.skipPenalty === "number" && { skipPenalty: payload.skipPenalty === -1 ? -1 : 0 })
+    };
+
+    await prisma.aliasRoom.update({
+      where: { id: roomId },
+      data: { settings: JSON.stringify(newSettings) }
+    });
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:ready:set", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId || !playerId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const isReady = payload?.isReady !== false;
+    
+    // Проверяем статус комнаты - нельзя готовиться во время просмотра отчёта
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (room?.status === "reviewing") {
+      if (ack) ack({ ok: false, error: "Дождитесь подтверждения отчёта" });
+      return;
+    }
+
+    await prisma.aliasPlayer.update({
+      where: { id: playerId },
+      data: { isReady }
+    });
+
+    // Проверяем, все ли готовы, и если да — определяем следующего объясняющего
+    const players = await prisma.aliasPlayer.findMany({ where: { roomId } });
+    const teams = await prisma.aliasTeam.findMany({ where: { roomId }, orderBy: { turnOrder: "asc" } });
+    
+    // Проверяем что есть команды с минимум 2 игроками
+    const teamsWithEnoughPlayers = teams.filter(t => {
+      const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
+      return teamPlayers.length >= 2;
+    });
+    
+    // Определяем следующую команду (с минимум 2 игроками)
+    let nextTeamId = room.currentTeamId;
+    if (!nextTeamId && teamsWithEnoughPlayers.length > 0) {
+      nextTeamId = teamsWithEnoughPlayers[0].id;
+    }
+    
+    // Проверяем готовность только игроков активной команды (не всей комнаты)
+    const activeTeamPlayers = nextTeamId 
+      ? players.filter(p => p.teamId === nextTeamId && p.connectionStatus === "online" && !p.isSpectator)
+      : [];
+    const allReady = activeTeamPlayers.length >= 2 && activeTeamPlayers.every(p => p.isReady);
+    
+    if (allReady && teamsWithEnoughPlayers.length > 0 && room.status === "lobby" && !room.currentExplainerId) {
+      // Выбираем первую команду с достаточным количеством игроков и первого объясняющего
+      const { teamId, explainerId } = getNextTeamAndExplainer(teamsWithEnoughPlayers, players, null, null);
+      
+      if (teamId && explainerId) {
+        await prisma.aliasRoom.update({
+          where: { id: roomId },
+          data: { currentTeamId: teamId, currentExplainerId: explainerId }
+        });
+      }
+    }
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:turn:start", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.status === "playing") {
+      if (ack) ack({ ok: false, error: "Cannot start now" });
+      return;
+    }
+
+    // Нельзя начать новый раунд, пока не подтверждён отчёт предыдущего
+    if (room.status === "reviewing") {
+      if (ack) ack({ ok: false, error: "Сначала подтвердите отчёт предыдущего раунда" });
+      return;
+    }
+
+    if (isAliasPaused(roomId)) {
+      if (ack) ack({ ok: false, error: "Game is paused" });
+      return;
+    }
+
+    const players = await prisma.aliasPlayer.findMany({ where: { roomId } });
+    const teams = await prisma.aliasTeam.findMany({ where: { roomId }, orderBy: { turnOrder: "asc" } });
+
+    if (teams.length < 1) {
+      if (ack) ack({ ok: false, error: "Нужна минимум 1 команда" });
+      return;
+    }
+
+    // Определяем активную команду (текущую или следующую по очереди)
+    let activeTeamId = room.currentTeamId;
+    if (!activeTeamId) {
+      // Ищем первую команду с минимум 2 игроками
+      const firstValidTeam = teams.find(t => {
+        const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
+        return teamPlayers.length >= 2;
+      });
+      activeTeamId = firstValidTeam?.id;
+    }
+
+    if (!activeTeamId) {
+      if (ack) ack({ ok: false, error: "Нет команды с достаточным количеством игроков" });
+      return;
+    }
+
+    // Проверяем, что в активной команде минимум 2 игрока (один объясняет, другой угадывает)
+    const activeTeamPlayers = players.filter(p => p.teamId === activeTeamId && p.connectionStatus === "online" && !p.isSpectator);
+    
+    if (activeTeamPlayers.length < 2) {
+      if (ack) ack({ ok: false, error: "В команде недостаточно игроков (нужно минимум 2)" });
+      return;
+    }
+
+    // Проверяем готовность только игроков активной команды (не всей комнаты)
+    const allReady = activeTeamPlayers.every(p => p.isReady);
+    
+    if (!allReady) {
+      if (ack) ack({ ok: false, error: "Не все игроки команды готовы" });
+      return;
+    }
+    
+    // Список команд с достаточным количеством игроков (для выбора следующей)
+    const teamsWithPlayers = teams.filter(t => {
+      const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
+      return teamPlayers.length >= 2;
+    });
+
+    // Только назначенный объясняющий может начать ход
+    const startingPlayerId = socket.data.aliasPlayerId;
+    if (room.currentExplainerId && room.currentExplainerId !== startingPlayerId) {
+      if (ack) ack({ ok: false, error: "Только объясняющий может начать ход" });
+      return;
+    }
+
+    const settings = normalizeAliasSettings(room.settings);
+
+    // Build deck if needed
+    let deck = JSON.parse(room.deck || "[]");
+    if (deck.length === 0) {
+      deck = await buildDeck(prisma, settings.difficulty);
+      await prisma.aliasRoom.update({
+        where: { id: roomId },
+        data: { deck: JSON.stringify(deck) }
+      });
+    }
+
+    // Используем уже назначенного объясняющего, если он есть
+    // НЕ вызываем getNextTeamAndExplainer здесь, т.к. он уже был вызван в alias:ready:set
+    let teamId = room.currentTeamId;
+    let explainerId = room.currentExplainerId;
+
+    // Если по какой-то причине объясняющий не назначен, назначаем (только из команд с минимум 2 игроками)
+    if (!teamId || !explainerId) {
+      const result = getNextTeamAndExplainer(teamsWithPlayers, players, null, null);
+      teamId = result.teamId;
+      explainerId = result.explainerId;
+    }
+
+    if (!explainerId) {
+      if (ack) ack({ ok: false, error: "No explainer available" });
+      return;
+    }
+
+    // Get first word
+    const word = await getNextWord(prisma, roomId);
+    if (!word) {
+      if (ack) ack({ ok: false, error: "No words available" });
+      return;
+    }
+
+    const turnEndsAt = new Date(Date.now() + settings.turnSeconds * 1000);
+
+    // Очищаем историю предыдущего раунда перед началом нового хода
+    clearRoundHistory(roomId);
+
+    await prisma.aliasRoom.update({
+      where: { id: roomId },
+      data: {
+        status: "playing",
+        currentTeamId: teamId,
+        currentExplainerId: explainerId,
+        turnStartedAt: new Date(),
+        turnEndsAt
+      }
+    });
+
+    // Reset ready status
+    await prisma.aliasPlayer.updateMany({
+      where: { roomId },
+      data: { isReady: false }
+    });
+
+    // Start timer
+    const timerCallback = async () => {
+      await endAliasTurnInternal(roomId, "timeout");
+    };
+    
+    const timerState = { intervalId: null, remaining: settings.turnSeconds, roomId };
+    io.to(`alias:${roomId}`).emit("alias:timer:tick", { remaining: timerState.remaining });
+    
+    timerState.intervalId = setInterval(async () => {
+      if (isAliasPaused(roomId)) return;
+      timerState.remaining -= 1;
+      io.to(`alias:${roomId}`).emit("alias:timer:tick", { remaining: timerState.remaining });
+      if (timerState.remaining <= 0) {
+        clearInterval(timerState.intervalId);
+        aliasTimers.delete(roomId);
+        await timerCallback();
+      }
+    }, 1000);
+    aliasTimers.set(roomId, timerState);
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+    io.to(`alias:${roomId}`).emit("alias:turn:started", { teamId, explainerId, turnEndsAt });
+    // Отправляем пустую историю при старте нового хода
+    io.to(`alias:${roomId}`).emit("alias:history:updated", { history: [] });
+
+    // Send word only to explainer
+    const explainerSocketId = aliasPlayerSockets.get(explainerId);
+    if (explainerSocketId) {
+      io.to(explainerSocketId).emit("alias:word:current", { word });
+    }
+
+    if (ack) ack({ ok: true });
+  });
+
+  async function endAliasTurnInternal(roomId, reason) {
+    stopAliasTimer(roomId);
+    
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room) return;
+
+    // Переходим в статус reviewing (просмотр отчёта)
+    // Проверка победителя будет после подтверждения отчёта
+    await prisma.aliasRoom.update({
+      where: { id: roomId },
+      data: {
+        status: "reviewing",
+        currentWordId: null,
+        turnStartedAt: null,
+        turnEndsAt: null
+      }
+    });
+
+    // Отправляем финальную историю раунда
+    const finalHistory = getRoundHistory(roomId);
+    io.to(`alias:${roomId}`).emit("alias:turn:ended", { 
+      reason, 
+      roundHistory: finalHistory 
+    });
+
+    // Запускаем таймер автоподтверждения (60 секунд)
+    const REVIEW_TIMEOUT_SECONDS = 60;
+    const reviewEndsAt = Date.now() + REVIEW_TIMEOUT_SECONDS * 1000;
+    
+    // Останавливаем предыдущий таймер review если есть
+    const existingReviewTimer = aliasReviewTimers.get(roomId);
+    if (existingReviewTimer?.interval) {
+      clearInterval(existingReviewTimer.interval);
+    }
+
+    // Отправляем тики таймера review каждую секунду
+    const reviewInterval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((reviewEndsAt - Date.now()) / 1000));
+      io.to(`alias:${roomId}`).emit("alias:review:tick", { remaining });
+      
+      if (remaining <= 0) {
+        clearInterval(reviewInterval);
+        aliasReviewTimers.delete(roomId);
+        // Автоподтверждение
+        confirmReportInternal(roomId);
+      }
+    }, 1000);
+
+    aliasReviewTimers.set(roomId, { interval: reviewInterval, endsAt: reviewEndsAt });
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+  }
+
+  // Функция подтверждения отчёта (вызывается вручную или автоматически)
+  async function confirmReportInternal(roomId) {
+    // Останавливаем таймер review
+    const reviewTimer = aliasReviewTimers.get(roomId);
+    if (reviewTimer?.interval) {
+      clearInterval(reviewTimer.interval);
+      aliasReviewTimers.delete(roomId);
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.status !== "reviewing") return;
+
+    const teams = await prisma.aliasTeam.findMany({ where: { roomId }, orderBy: { turnOrder: "asc" } });
+    const players = await prisma.aliasPlayer.findMany({ where: { roomId } });
+    const settings = normalizeAliasSettings(room.settings);
+
+    // Теперь проверяем победителя (после возможных корректировок в отчёте)
+    const winningTeam = teams.find(t => t.score >= settings.targetScore);
+    if (winningTeam) {
+      await prisma.aliasRoom.update({
+        where: { id: roomId },
+        data: { status: "finished" }
+      });
+      io.to(`alias:${roomId}`).emit("alias:game:finished", {
+        winnerId: winningTeam.id,
+        winnerName: winningTeam.name,
+        finalScores: teams.map(t => ({ id: t.id, name: t.name, score: t.score }))
+      });
+      const state = await buildAliasRoomState(prisma, roomId);
+      io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+      // Очищаем историю раунда
+      clearRoundHistory(roomId);
+      return;
+    }
+
+    // Определяем следующую команду и объясняющего (только из команд с минимум 2 игроками)
+    const teamsWithEnoughPlayers = teams.filter(t => {
+      const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
+      return teamPlayers.length >= 2;
+    });
+    
+    let teamId = null;
+    let explainerId = null;
+    
+    if (teamsWithEnoughPlayers.length > 0) {
+      const result = getNextTeamAndExplainer(teamsWithEnoughPlayers, players, room.currentTeamId, room.currentExplainerId);
+      teamId = result.teamId;
+      explainerId = result.explainerId;
+    }
+
+    await prisma.aliasRoom.update({
+      where: { id: roomId },
+      data: {
+        status: "lobby",
+        currentTeamId: teamId,
+        currentExplainerId: explainerId
+      }
+    });
+
+    io.to(`alias:${roomId}`).emit("alias:report:confirmed", { 
+      nextTeamId: teamId, 
+      nextExplainerId: explainerId 
+    });
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+    
+    // Очищаем историю раунда
+    clearRoundHistory(roomId);
+  }
+
+  socket.on("alias:turn:next", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.status !== "playing" || room.currentExplainerId !== playerId) {
+      if (ack) ack({ ok: false, error: "Not allowed" });
+      return;
+    }
+
+    if (isAliasPaused(roomId)) {
+      if (ack) ack({ ok: false, error: "Game is paused" });
+      return;
+    }
+
+    // Add point to team
+    await prisma.aliasTeam.update({
+      where: { id: room.currentTeamId },
+      data: { score: { increment: 1 } }
+    });
+
+    // Получаем текущее слово для записи в историю
+    const currentRoom = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (currentRoom?.currentWordId) {
+      const currentWord = await prisma.aliasWord.findUnique({ where: { id: currentRoom.currentWordId } });
+      if (currentWord) {
+        addWordToHistory(roomId, currentWord.text, true, room.currentTeamId);
+        // Отправляем обновлённую историю всем игрокам
+        const updatedHistory = getRoundHistory(roomId);
+        io.to(`alias:${roomId}`).emit("alias:history:updated", { history: updatedHistory });
+      }
+    }
+
+    io.to(`alias:${roomId}`).emit("alias:word:result", { correct: true, word: null });
+
+    // Get next word
+    const word = await getNextWord(prisma, roomId);
+    if (!word) {
+      await endAliasTurnInternal(roomId, "no_words");
+      if (ack) ack({ ok: true });
+      return;
+    }
+
+    // Send word only to explainer
+    const explainerSocketId = aliasPlayerSockets.get(playerId);
+    if (explainerSocketId) {
+      io.to(explainerSocketId).emit("alias:word:current", { word });
+    }
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:turn:skip", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.status !== "playing" || room.currentExplainerId !== playerId) {
+      if (ack) ack({ ok: false, error: "Not allowed" });
+      return;
+    }
+
+    if (isAliasPaused(roomId)) {
+      if (ack) ack({ ok: false, error: "Game is paused" });
+      return;
+    }
+
+    const settings = normalizeAliasSettings(room.settings);
+    
+    // Получаем текущее слово для записи в историю
+    if (room.currentWordId) {
+      const currentWord = await prisma.aliasWord.findUnique({ where: { id: room.currentWordId } });
+      if (currentWord) {
+        addWordToHistory(roomId, currentWord.text, false, room.currentTeamId);
+        // Отправляем обновлённую историю всем игрокам
+        const updatedHistory = getRoundHistory(roomId);
+        io.to(`alias:${roomId}`).emit("alias:history:updated", { history: updatedHistory });
+      }
+    }
+    
+    // Apply skip penalty (but never below 0)
+    if (settings.skipPenalty === -1) {
+      const team = await prisma.aliasTeam.findUnique({ where: { id: room.currentTeamId } });
+      if (team && team.score > 0) {
+        await prisma.aliasTeam.update({
+          where: { id: room.currentTeamId },
+          data: { score: { decrement: 1 } }
+        });
+      }
+    }
+
+    io.to(`alias:${roomId}`).emit("alias:word:result", { correct: false, skipped: true });
+
+    // Get next word
+    const word = await getNextWord(prisma, roomId);
+    if (!word) {
+      await endAliasTurnInternal(roomId, "no_words");
+      if (ack) ack({ ok: true });
+      return;
+    }
+
+    // Send word only to explainer
+    const explainerSocketId = aliasPlayerSockets.get(playerId);
+    if (explainerSocketId) {
+      io.to(explainerSocketId).emit("alias:word:current", { word });
+    }
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:turn:skipTurn", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.hostId !== playerId) {
+      if (ack) ack({ ok: false, error: "Host only" });
+      return;
+    }
+
+    await endAliasTurnInternal(roomId, "skipped");
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:pause", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.hostId !== playerId) {
+      if (ack) ack({ ok: false, error: "Host only" });
+      return;
+    }
+
+    const pauseState = aliasPausedRooms.get(roomId);
+    const isPaused = pauseState?.isPaused || false;
+    
+    if (isPaused) {
+      // Resume - восстанавливаем таймер
+      const { remainingWhenPaused } = pauseState;
+      aliasPausedRooms.delete(roomId);
+      io.to(`alias:${roomId}`).emit("alias:paused", { isPaused: false });
+      
+      // Перезапускаем таймер с оставшимся временем
+      if (remainingWhenPaused > 0 && room.status === "playing") {
+        const settings = normalizeAliasSettings(room.settings);
+        
+        const timerState = { intervalId: null, remaining: remainingWhenPaused, roomId };
+        io.to(`alias:${roomId}`).emit("alias:timer:tick", { remaining: timerState.remaining });
+        
+        timerState.intervalId = setInterval(async () => {
+          if (isAliasPaused(roomId)) return;
+          timerState.remaining -= 1;
+          io.to(`alias:${roomId}`).emit("alias:timer:tick", { remaining: timerState.remaining });
+          if (timerState.remaining <= 0) {
+            clearInterval(timerState.intervalId);
+            aliasTimers.delete(roomId);
+            await endAliasTurnInternal(roomId, "timeout");
+          }
+        }, 1000);
+        aliasTimers.set(roomId, timerState);
+      }
+    } else {
+      // Pause - останавливаем таймер и сохраняем оставшееся время
+      const timer = aliasTimers.get(roomId);
+      if (timer) {
+        clearInterval(timer.intervalId);
+        aliasPausedRooms.set(roomId, { isPaused: true, remainingWhenPaused: timer.remaining });
+        aliasTimers.delete(roomId);
+      } else {
+        aliasPausedRooms.set(roomId, { isPaused: true, remainingWhenPaused: 0 });
+      }
+      io.to(`alias:${roomId}`).emit("alias:paused", { isPaused: true });
+    }
+
+    if (ack) ack({ ok: true, isPaused: !isPaused });
+  });
+
+  socket.on("alias:reset", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.hostId !== playerId) {
+      if (ack) ack({ ok: false, error: "Host only" });
+      return;
+    }
+
+    stopAliasTimer(roomId);
+    aliasPausedRooms.delete(roomId);
+
+    // Получаем ID команд для сброса индексов объясняющих
+    const teams = await prisma.aliasTeam.findMany({ where: { roomId }, select: { id: true } });
+    resetExplainerIndexes(teams.map(t => t.id));
+
+    // Reset teams scores
+    await prisma.aliasTeam.updateMany({
+      where: { roomId },
+      data: { score: 0 }
+    });
+
+    // Reset players
+    await prisma.aliasPlayer.updateMany({
+      where: { roomId },
+      data: { isReady: false }
+    });
+
+    // Reset room
+    await prisma.aliasRoom.update({
+      where: { id: roomId },
+      data: {
+        status: "lobby",
+        currentTeamId: null,
+        currentExplainerId: null,
+        currentWordId: null,
+        turnStartedAt: null,
+        turnEndsAt: null,
+        deck: "[]",
+        usedWordIds: "[]"
+      }
+    });
+
+    io.to(`alias:${roomId}`).emit("alias:paused", { isPaused: false });
+    io.to(`alias:${roomId}`).emit("alias:reset", {});
+    
+    // Очищаем историю раунда
+    clearRoundHistory(roomId);
+    
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  // Получить историю слов текущего раунда
+  socket.on("alias:history:get", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+    
+    const history = getRoundHistory(roomId);
+    if (ack) ack({ ok: true, history });
+  });
+
+  // Изменить результат слова в истории (для корректировки очков)
+  socket.on("alias:history:update", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const { index, correct } = payload || {};
+    
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+    
+    if (typeof index !== "number" || typeof correct !== "boolean") {
+      if (ack) ack({ ok: false, error: "Неверные параметры" });
+      return;
+    }
+    
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room) {
+      if (ack) ack({ ok: false, error: "Комната не найдена" });
+      return;
+    }
+    
+    const history = getRoundHistory(roomId);
+    if (index < 0 || index >= history.length) {
+      if (ack) ack({ ok: false, error: "Неверный индекс" });
+      return;
+    }
+    
+    const oldCorrect = history[index].correct;
+    if (oldCorrect === correct) {
+      if (ack) ack({ ok: true, history });
+      return;
+    }
+    
+    // Обновляем историю
+    updateWordInHistory(roomId, index, correct);
+    
+    // Корректируем очки команды (используем сохранённый teamId раунда, а не текущий)
+    const roundTeamId = getRoundTeamId(roomId) || room.currentTeamId;
+    const team = await prisma.aliasTeam.findUnique({ where: { id: roundTeamId } });
+    if (team) {
+      const scoreDelta = correct ? 1 : -1; // Если меняем false->true: +1, если true->false: -1
+      const newScore = Math.max(0, team.score + scoreDelta);
+      await prisma.aliasTeam.update({
+        where: { id: team.id },
+        data: { score: newScore }
+      });
+    }
+    
+    const updatedHistory = getRoundHistory(roomId);
+    io.to(`alias:${roomId}`).emit("alias:history:updated", { history: updatedHistory });
+    
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true, history: updatedHistory });
+  });
+
+  // Подтверждение отчёта (ручное)
+  socket.on("alias:report:confirm", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    
+    if (!roomId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+    
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    if (!room || room.status !== "reviewing") {
+      if (ack) ack({ ok: false, error: "Комната не в режиме просмотра отчёта" });
+      return;
+    }
+    
+    await confirmReportInternal(roomId);
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:room:leave", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    if (!roomId || !playerId) {
+      if (ack) ack({ ok: true });
+      return;
+    }
+
+    const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+    const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
+    const oldTeamId = player?.teamId;
+
+    // Передача хоста следующему игроку, если выходит хост
+    if (room && room.hostId === playerId) {
+      const remainingPlayers = await prisma.aliasPlayer.findMany({
+        where: { roomId, id: { not: playerId } },
+        orderBy: { joinedAt: "asc" }
+      });
+      
+      const newHost = remainingPlayers[0];
+      if (newHost) {
+        await prisma.aliasRoom.update({
+          where: { id: roomId },
+          data: { hostId: newHost.id }
+        });
+        io.to(`alias:${roomId}`).emit("alias:host:changed", { newHostId: newHost.id, newHostName: newHost.name });
+      }
+    }
+
+    // ПОЛНОСТЬЮ УДАЛЯЕМ игрока из базы при выходе
+    await prisma.aliasPlayer.delete({ where: { id: playerId } });
+
+    // Auto-delete empty teams
+    if (oldTeamId) {
+      const remaining = await prisma.aliasPlayer.count({ where: { teamId: oldTeamId } });
+      if (remaining === 0) {
+        await prisma.aliasTeam.delete({ where: { id: oldTeamId } }).catch(() => {});
+      }
+    }
+
+    socket.leave(`alias:${roomId}`);
+    socket.data.aliasRoomId = null;
+    socket.data.aliasPlayerId = null;
+    aliasPlayerSockets.delete(playerId);
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
   socket.on("disconnect", async () => {
+    console.log("[Socket Disconnect] Socket ID:", socket.id, "aliasPlayerId:", socket.data.aliasPlayerId, "aliasRoomId:", socket.data.aliasRoomId);
+    
+    // Handle Alias disconnect
+    if (socket.data.aliasPlayerId && socket.data.aliasRoomId) {
+      const aliasPlayerId = socket.data.aliasPlayerId;
+      const aliasRoomId = socket.data.aliasRoomId;
+      
+      // Проверяем, что отключающийся сокет действительно является актуальным для этого игрока
+      // Если игрок уже переподключился через другой сокет - не помечаем его как disconnected
+      const currentSocketId = aliasPlayerSockets.get(aliasPlayerId);
+      console.log("[Alias Disconnect] Player:", aliasPlayerId, "currentSocketId:", currentSocketId, "this socket.id:", socket.id);
+      
+      if (currentSocketId && currentSocketId !== socket.id) {
+        console.log("[Alias Disconnect] Ignoring disconnect from stale socket for player:", aliasPlayerId);
+        return; // Этот сокет устарел, игрок уже подключен через новый сокет
+      }
+      
+      try {
+        const player = await prisma.aliasPlayer.findUnique({ where: { id: aliasPlayerId } });
+        if (player) {
+          console.log("[Alias Disconnect] Marking player as disconnected:", aliasPlayerId, player.name);
+          await prisma.aliasPlayer.update({
+            where: { id: aliasPlayerId },
+            data: { connectionStatus: "disconnected", lastSeen: new Date() }
+          });
+          
+          // Сообщаем другим игрокам о дисконнекте
+          io.to(`alias:${aliasRoomId}`).emit("alias:player:disconnected", { 
+            playerId: aliasPlayerId, 
+            playerName: player.name 
+          });
+          
+          const state = await buildAliasRoomState(prisma, aliasRoomId);
+          io.to(`alias:${aliasRoomId}`).emit("alias:state:sync", state);
+        }
+      } catch (e) {
+        console.error("Alias disconnect error:", e);
+      }
+      aliasPlayerSockets.delete(aliasPlayerId);
+    }
+
+    // Handle Truth or Dare disconnect
     if (socket.data.playerId && socket.data.roomId) {
       const playerId = socket.data.playerId;
       const roomId = socket.data.roomId;

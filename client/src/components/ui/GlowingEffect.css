@@ -1,0 +1,102 @@
+/* GlowingEffect component styles */
+
+/* Glass border - always visible */
+.glowing-effect-glass-border {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--border-width, 4px);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Inner highlight line for glass effect */
+.glowing-effect-glass-border::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+/* Glow container - for the cursor-following effect */
+.glowing-effect-glow-container {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+/* The radial glow that follows cursor - confined to border only */
+.glowing-effect-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--border-width, 4px);
+  background: radial-gradient(
+    var(--glow-size, 200px) circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    var(--glow-color-1, #dd7bbb) 0%,
+    var(--glow-color-2, #d79f1e) 25%,
+    var(--glow-color-3, #5a922c) 50%,
+    transparent 100%
+  );
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.glowing-effect-glow--active {
+  opacity: 1;
+}
+
+/* Outer glow blur effect */
+.glowing-effect-outer-glow {
+  position: absolute;
+  inset: calc(-1 * var(--border-width, 4px));
+  border-radius: inherit;
+  padding: var(--border-width, 4px);
+  background: radial-gradient(
+    var(--glow-size, 200px) circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    var(--glow-color-1, #dd7bbb) 0%,
+    var(--glow-color-2, #d79f1e) 25%,
+    var(--glow-color-3, #5a922c) 50%,
+    transparent 100%
+  );
+  filter: blur(15px);
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: -1;
+}
+
+.glowing-effect-outer-glow--active {
+  opacity: 0.7;
+}

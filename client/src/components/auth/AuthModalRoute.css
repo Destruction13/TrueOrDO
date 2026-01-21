@@ -1,0 +1,41 @@
+.auth-modal-route {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+/* Not a "gray page" – it keeps the background visible but blurred/dimmed */
+.auth-modal-route__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.auth-modal-route__panel {
+  position: relative;
+  width: min(520px, 100%);
+  /* No extra "container" visuals */
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  max-height: none;
+}
+
+/* Remove the full-screen centering container from AuthScreen when used as a modal */
+.auth-modal-route .auth-screen {
+  min-height: auto;
+  padding: 0;
+  align-items: stretch;
+}
+
+/* The AuthScreen card itself should be the only visible container */
+.auth-modal-route .auth-card {
+  max-width: 520px;
+}

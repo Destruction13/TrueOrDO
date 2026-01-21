@@ -150,3 +150,78 @@ model Vote {
 
   @@unique([roundId, voterPlayerId])
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ALIAS GAME MODELS
+// ═══════════════════════════════════════════════════════════════════════════
+
+model AliasWord {
+  id         String   @id @default(cuid())
+  text       String
+  difficulty String   // "easy" | "normal" | "hard"
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@unique([text, difficulty])
+  @@index([difficulty, isActive])
+}
+
+model AliasRoom {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  hostId    String
+  status    String   @default("lobby") // "lobby" | "playing" | "paused" | "finished"
+  settings  String   @default("{}") // JSON: { difficulty, turnSeconds, targetScore, skipPenalty }
+  
+  // Текущий ход
+  currentTeamId       String?
+  currentExplainerId  String?
+  turnStartedAt       DateTime?
+  turnEndsAt          DateTime?
+  currentWordId       String?
+  
+  // Колода (JSON массив ID слов)
+  deck           String   @default("[]")
+  usedWordIds    String   @default("[]")
+  
+  createdAt DateTime @default(now())
+
+  teams   AliasTeam[]
+  players AliasPlayer[]
+}
+
+model AliasTeam {
+  id        String   @id @default(cuid())
+  roomId    String
+  name      String
+  score     Int      @default(0)
+  turnOrder Int      @default(0) // Порядок хода команд
+  creatorId String?  // ID игрока, создавшего команду (для права редактирования)
+  createdAt DateTime @default(now())
+
+  room    AliasRoom     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  members AliasPlayer[]
+
+  @@index([roomId])
+}
+
+model AliasPlayer {
+  id               String   @id @default(cuid())
+  roomId           String
+  visitorId        String?
+  name             String
+  avatarUrl        String?
+  teamId           String?
+  isReady          Boolean  @default(false)
+  isSpectator      Boolean  @default(false)
+  connectionStatus String   @default("online") // "online" | "disconnected" | "left"
+  explainOrder     Int      @default(0) // Порядок объяснения внутри команды
+  joinedAt         DateTime @default(now())
+  lastSeen         DateTime @default(now())
+
+  room AliasRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  team AliasTeam? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([roomId])
+  @@index([teamId])
+}

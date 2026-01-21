@@ -1903,35 +1903,136 @@ select:focus {
     --reel-visible: 5;
   }
 }
-@media (max-width: 640px) {
-  .app-shell {
-    padding: 32px 20px;
-  }
+@media (max-width: 800px) {
+  /* Хедер - всегда в одну строку */
   .room-header {
-    flex-direction: column;
-    align-items: flex-start;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
   }
+  
   .room-header__left {
-    gap: 12px;
+    flex-shrink: 0;
+    gap: 8px;
   }
-  .rules-btn-inline {
-    padding: 6px 10px;
+  
+  .room-code-block {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .room-code-label {
+    display: none;
+  }
+  
+  .room-code {
+    font-size: 18px;
+  }
+  
+  /* Мета по центру, занимает оставшееся место */
+  .room-meta {
+    flex: 1;
+    justify-content: center;
+    gap: 6px;
+  }
+  
+  .pill {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+  
+  /* Скрываем текст "Онлайн" и "Ведущий", оставляем только иконки */
+  .pill.online::before {
+    content: "●";
+    color: #4ade80;
+  }
+  .pill.online {
+    font-size: 0;
+    padding: 4px 8px;
+  }
+  .pill.online::before {
     font-size: 12px;
+  }
+  
+  .pill.offline::before {
+    content: "○";
+    color: #fbbf24;
+  }
+  .pill.offline {
+    font-size: 0;
+    padding: 4px 8px;
+  }
+  .pill.offline::before {
+    font-size: 12px;
+  }
+  
+  .pill.accent {
+    font-size: 0;
+    padding: 4px 8px;
+  }
+  .pill.accent::before {
+    content: "👑";
+    font-size: 12px;
+  }
+  
+  .rules-btn-inline {
+    padding: 6px;
+  }
+  .rules-btn-inline span {
+    display: none;
   }
   .rules-btn-inline svg {
     width: 16px;
     height: 16px;
   }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 32px 20px;
+  }
+  
+  .room-header {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  
+  .room-code {
+    font-size: 16px;
+  }
+  
+  .pill {
+    padding: 3px 6px;
+  }
+  
   .casino-wheel__frame {
     width: min(420px, 92vw);
   }
 }
 
-@media (max-width: 400px) {
-  .rules-btn-inline span {
-    display: none;
+@media (max-width: 480px) {
+  .room-header {
+    padding: 6px 8px;
   }
-  .rules-btn-inline {
-    padding: 8px;
+  
+  .room-code {
+    font-size: 14px;
+  }
+  
+  .room-meta {
+    gap: 4px;
+  }
+  
+  .pill {
+    padding: 2px 5px;
+  }
+  
+  .pill.online::before,
+  .pill.offline::before,
+  .pill.accent::before {
+    font-size: 10px;
   }
 }

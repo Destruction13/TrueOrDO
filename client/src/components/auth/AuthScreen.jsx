@@ -28,9 +28,14 @@ function GoogleIcon() {
   );
 }
 
-export default function AuthScreen({ onSuccess, onClose }) {
-  const [mode, setMode] = useState("login"); // login | register | forgot
+export default function AuthScreen({ onSuccess, onClose, initialMode = "login" }) {
+  const [mode, setMode] = useState(initialMode); // login | register | forgot
   const [oauthError, setOauthError] = useState(null);
+
+  // Sync initialMode changes (e.g. /login vs /register modal)
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   // Проверяем OAuth ошибки из URL
   useEffect(() => {
