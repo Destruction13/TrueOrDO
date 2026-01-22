@@ -1,7 +1,14 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import * as authApi from "../api/auth";
+import { io } from "socket.io-client";
 
 const AuthContext = createContext(null);
+
+// Создаём глобальный socket для синхронизации профиля
+const socket = io(import.meta.env.VITE_SERVER_URL || "/", {
+  withCredentials: true,
+  autoConnect: true
+});
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -11,6 +18,19 @@ export function AuthProvider({ children }) {
   // Загрузка пользователя при старте
   useEffect(() => {
     checkAuth();
+  }, []);
+
+  // Слушаем обновления профиля через socket
+  useEffect(() => {
+    const handleProfileUpdate = (updatedUser) => {
+      console.log("Profile updated via socket:", updatedUser);
+      setUser(updatedUser);
+    };
+
+    socket.on("user:profile:updated", handleProfileUpdate);
+    return () => {
+      socket.off("user:profile:updated", handleProfileUpdate);
+    };
   }, []);
 
   const checkAuth = useCallback(async () => {

@@ -156,7 +156,8 @@
 .alias-lobby__settings-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  position: relative;
   margin-bottom: 1rem;
   cursor: default;
 }
@@ -165,7 +166,6 @@
   margin: 0;
   font-size: 1rem;
   color: #fff;
-  flex: 1;
   text-align: center;
 }
 
@@ -237,6 +237,10 @@
   color: #f97316;
   cursor: pointer;
   transition: all 0.2s;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .alias-settings-gear:hover {
@@ -1415,8 +1419,8 @@
   justify-content: center;
 }
 
-/* Mobile */
-@media (max-width: 768px) {
+/* Mobile/Tablet - единый порог 1200px */
+@media (max-width: 1200px) {
   .alias-main {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto;
@@ -1424,23 +1428,24 @@
     padding: 0.75rem;
   }
   
-  /* Во время игры: игровая панель сверху, команды, отчёт */
+  /* Во время игры: игровая панель СВЕРХУ, команды СНИЗУ */
   .alias-main--playing {
-    grid-template-columns: 75% 25%;
+    grid-template-columns: 1fr;
     grid-template-rows: auto auto;
-  }
-  
-  .alias-main--playing .alias-teams-panel {
-    grid-column: 1 / -1;
-    order: 1;
   }
   
   .alias-main--playing .alias-game-panel {
     order: 0;
   }
   
+  .alias-main--playing .alias-teams-panel {
+    grid-column: 1;
+    order: 1;
+  }
+  
+  /* Скрываем отдельную панель отчёта - она встроена в игровой блок */
   .alias-main--playing .alias-report-panel {
-    order: 0;
+    display: none;
   }
 
   .alias-teams-panel {
@@ -1518,53 +1523,6 @@
     margin-bottom: 0.75rem;
   }
   
-  /* Report panel on mobile - справа, уменьшенный шрифт */
-  .alias-report-panel {
-    max-height: calc(100vh - 120px);
-    font-size: 0.8rem;
-  }
-  
-  .alias-report-panel__header {
-    padding: 0.5rem 0.75rem;
-  }
-  
-  .alias-report-panel__header h3 {
-    font-size: 0.8rem;
-  }
-  
-  .alias-report-panel__content {
-    padding: 0.5rem;
-  }
-  
-  .alias-report-panel__footer {
-    padding: 0.5rem 0.75rem;
-    gap: 0.5rem;
-  }
-  
-  .alias-report-panel__stat {
-    font-size: 0.75rem;
-  }
-  
-  .alias-report-panel .alias-history-item {
-    padding: 0.4rem 0.5rem;
-    gap: 0.35rem;
-  }
-  
-  .alias-report-panel .alias-history-item__word {
-    font-size: 0.7rem;
-  }
-  
-  .alias-report-panel .alias-history-item__indicator svg {
-    width: 12px;
-    height: 12px;
-  }
-  
-  .alias-report-panel .alias-history-item__toggle {
-    width: 22px;
-    height: 22px;
-    font-size: 0.9rem;
-  }
-  
   /* Mobile ready button in teams section */
   .alias-mobile-ready {
     margin-top: 1rem;
@@ -1620,6 +1578,20 @@
   .alias-mobile-settings-btn__text {
     font-size: 0.9rem;
     font-weight: 500;
+  }
+  
+  /* Встроенный отчёт - без скролла, растягивается */
+  .alias-mobile-inline-report__list {
+    gap: 0.4rem;
+  }
+  
+  .alias-mobile-inline-report .alias-history-item {
+    padding: 0.5rem 0.6rem;
+  }
+  
+  .alias-mobile-inline-report .alias-history-item__word {
+    font-size: 0.95rem;
+    flex: 1;
   }
 }
 
@@ -2101,7 +2073,7 @@
   padding: 0.75rem 1rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .alias-history-panel--playing {
     width: 100%;
     max-width: 100%;
@@ -2111,8 +2083,25 @@
     bottom: 4.5rem;
   }
   
+  /* Отчёт после игры: убираем скролл, расширяем вертикально */
+  .alias-history-panel--lobby .alias-history-panel__content {
+    max-height: none;
+    overflow-y: visible;
+  }
+  
   .alias-history-panel--lobby .alias-history-list--horizontal {
-    justify-content: center;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+  }
+  
+  .alias-history-panel--lobby .alias-history-item {
+    width: 100%;
+  }
+  
+  .alias-history-panel--lobby .alias-history-item__word {
+    flex: 1;
+    text-align: left;
   }
 }
 
@@ -2129,20 +2118,88 @@
   }
 }
 
-/* Mobile: отчёт после игры - 1 слово в строку, строго по порядку */
-@media (max-width: 768px) {
-  .alias-history-panel--lobby .alias-history-list--horizontal {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 0.5rem;
+/* ═══════════════════════════════════════════════════════════════════════════
+   МОБИЛКА: Секция статуса (под командами)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.alias-mobile-status-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Мобильный блок готовности с информацией об объясняющем */
+.alias-mobile-ready-block {
+  text-align: center;
+}
+
+.alias-mobile-ready-block__explainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.alias-mobile-ready-block__label {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.alias-mobile-ready-block__name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f97316;
+}
+
+.alias-mobile-ready-block__you {
+  font-size: 1rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #fff 0%, #f97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.alias-mobile-ready-block__status {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   МОБИЛКА: Встроенный отчёт раунда (во время игры)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.alias-mobile-inline-report {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+}
+
+/* Для объясняющего — чуть больше отступ от кнопок */
+.alias-mobile-inline-report--explainer {
+  margin-top: 1.5rem;
+}
+
+.alias-mobile-inline-report__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Используем существующие стили .alias-history-item для элементов списка */
+
+/* Дополнительные мобильные стили для встроенного отчёта */
+@media (max-width: 480px) {
+  .alias-mobile-inline-report .alias-history-item {
+    padding: 0.4rem 0.5rem;
   }
   
-  .alias-history-panel--lobby .alias-history-item {
-    width: 100%;
-  }
-  
-  .alias-history-panel--lobby .alias-history-item__word {
-    flex: 1;
-    text-align: left;
+  .alias-mobile-inline-report .alias-history-item__word {
+    font-size: 0.9rem;
   }
 }

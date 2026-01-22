@@ -49,7 +49,7 @@ const avatarStorage = multer.diskStorage({
 
 const avatarUpload = multer({
   storage: avatarStorage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     if (allowedTypes.includes(file.mimetype)) {
@@ -64,8 +64,20 @@ const avatarUpload = multer({
  * Создание auth роутера
  * @param {import("@prisma/client").PrismaClient} prisma
  * @param {import("./session-store").PrismaSessionStore} sessionStore
+ * @param {import("socket.io").Server} io
  */
-function createAuthRouter(prisma, sessionStore) {
+function createAuthRouter(prisma, sessionStore, io) {
+  
+  // Функция для отправки обновления профиля всем сокетам пользователя
+  const emitProfileUpdate = (userId, userData) => {
+    if (!io) return;
+    // Отправляем событие всем подключённым сокетам этого пользователя
+    for (const [socketId, socket] of io.sockets.sockets) {
+      if (socket.data.userId === userId) {
+        socket.emit("user:profile:updated", userData);
+      }
+    }
+  };
   const router = express.Router();
 
   // Middleware для проверки авторизации
@@ -517,16 +529,21 @@ function createAuthRouter(prisma, sessionStore) {
         data: updates
       });
 
+      const userData = {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        emailVerified: !!user.emailVerifiedAt
+      };
+
+      // Уведомляем все сокеты пользователя об обновлении профиля
+      emitProfileUpdate(user.id, userData);
+
       res.json({
         ok: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          nickname: user.nickname,
-          avatarUrl: user.avatarUrl,
-          bio: user.bio,
-          emailVerified: !!user.emailVerifiedAt
-        }
+        user: userData
       });
     } catch (error) {
       console.error("Update profile error:", error);
@@ -542,7 +559,7 @@ function createAuthRouter(prisma, sessionStore) {
       if (err) {
         if (err instanceof multer.MulterError) {
           if (err.code === "LIMIT_FILE_SIZE") {
-            return res.status(400).json({ error: "Файл слишком большой (макс. 2MB)" });
+            return res.status(400).json({ error: "Файл слишком большой (макс. 10MB)" });
           }
         }
         return res.status(400).json({ error: err.message });
@@ -570,6 +587,16 @@ function createAuthRouter(prisma, sessionStore) {
         const updated = await prisma.user.update({
           where: { id: req.session.userId },
           data: { avatarUrl }
+        });
+
+        // Уведомляем все сокеты пользователя об обновлении аватара
+        emitProfileUpdate(updated.id, {
+          id: updated.id,
+          email: updated.email,
+          nickname: updated.nickname,
+          avatarUrl: updated.avatarUrl,
+          bio: updated.bio,
+          emailVerified: !!updated.emailVerifiedAt
         });
 
         res.json({

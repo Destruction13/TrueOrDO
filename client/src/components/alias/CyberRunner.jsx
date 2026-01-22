@@ -5,13 +5,20 @@ import "./CyberRunner.css";
 /**
  * CyberRunner — мини-игра для ожидающих игроков
  * Кибер-бегун прыгает через неоновые препятствия
+ * 
+ * @param {string} roomCode - код комнаты для привязки лидерборда
+ * @param {string} playerName - имя текущего игрока
+ * @param {function} onScoreUpdate - колбэк при обновлении очков (score, playerName)
+ * @param {function} onClose - колбэк при закрытии
  */
-export default function CyberRunner({ onClose }) {
+export default function CyberRunner({ roomCode, playerName, onScoreUpdate, onClose }) {
   const canvasRef = useRef(null);
   const gameLoopRef = useRef(null);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(() => {
-    const saved = localStorage.getItem("cyberrunner_highscore");
+    // Персональный рекорд сохраняем в localStorage по комнате
+    const key = roomCode ? `cyberrunner_highscore_${roomCode}` : "cyberrunner_highscore";
+    const saved = localStorage.getItem(key);
     return saved ? parseInt(saved, 10) : 0;
   });
   const [gameState, setGameState] = useState("idle"); // idle, playing, gameover
@@ -25,6 +32,11 @@ export default function CyberRunner({ onClose }) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Целевой FPS для фиксированной скорости (независимо от герцовки монитора)
+  const TARGET_FPS = 240;
+  const TARGET_FRAME_TIME = 1000 / TARGET_FPS; // ~4.17ms на кадр
+  const lastFrameTimeRef = useRef(0);
+
   // Игровые константы
   const GAME = useRef({
     // Размеры
@@ -34,28 +46,28 @@ export default function CyberRunner({ onClose }) {
     
     // Игрок
     player: {
-      x: 50,
+      x: 60,
       y: 0,
-      width: 30,
-      height: 40,
+      width: 36,
+      height: 48,
       velocityY: 0,
       isJumping: false,
     },
     
-    // Физика
-    gravity: 0.5,      // Медленнее падение
-    jumpForce: -12,    // Выше прыжок
+    // Физика (настроено для TARGET_FPS=240)
+    gravity: 0.5,
+    jumpForce: -12,
     
     // Препятствия
     obstacles: [],
-    obstacleSpeed: 1.2, // Очень медленный старт
+    obstacleSpeed: 3.0, // Базовая скорость для 240 FPS (уменьшена для комфортной игры)
     obstacleTimer: 0,
-    obstacleInterval: 220, // Много времени между препятствиями
-    minObstacleGap: 220, // Огромное расстояние между препятствиями
+    obstacleInterval: 180, // Интервал в мс
+    minObstacleGap: 180,
     
     // Счёт
     score: 0,
-    frameCount: 0,
+    gameTime: 0, // Время игры в мс
     
     // Цвета (кибер-тема)
     colors: {
@@ -79,21 +91,25 @@ export default function CyberRunner({ onClose }) {
     const container = canvas.parentElement;
     const rect = container.getBoundingClientRect();
     
-    // Устанавливаем размеры canvas
+    // Устанавливаем размеры canvas — увеличенный размер
     canvas.width = rect.width;
-    canvas.height = Math.min(rect.width * 0.4, 180); // Пропорциональная высота
+    canvas.height = Math.min(rect.width * 0.5, 280); // Увеличенная высота
     
     const g = GAME.current;
     g.width = canvas.width;
     g.height = canvas.height;
-    g.groundY = canvas.height - 30;
+    g.groundY = canvas.height - 40;
     g.player.y = g.groundY - g.player.height;
     
     // Адаптивные размеры для мобильных
     if (isMobile) {
-      g.player.width = 24;
-      g.player.height = 32;
-      g.jumpForce = -10;
+      g.player.width = 30;
+      g.player.height = 40;
+      g.jumpForce = -11;
+    } else {
+      g.player.width = 36;
+      g.player.height = 48;
+      g.jumpForce = -12;
     }
   }, [isMobile]);
 
@@ -105,11 +121,12 @@ export default function CyberRunner({ onClose }) {
     g.player.isJumping = false;
     g.obstacles = [];
     g.score = 0;
-    g.frameCount = 0;
+    g.gameTime = 0;
     g.obstacleTimer = 0;
-    g.obstacleSpeed = isMobile ? 1.0 : 1.2; // Очень медленный старт
-    g.obstacleInterval = 220;
-    g.minObstacleGap = 220;
+    g.obstacleSpeed = isMobile ? 2.5 : 3.0; // Базовая скорость для 240 FPS (уменьшена для комфортной игры)
+    g.obstacleInterval = 180;
+    g.minObstacleGap = 180;
+    lastFrameTimeRef.current = 0;
     setScore(0);
   }, [isMobile]);
 
@@ -140,7 +157,7 @@ export default function CyberRunner({ onClose }) {
     );
   }, []);
 
-  // Отрисовка игрока (кибер-силуэт)
+  // Отрисовка игрока (кибер-силуэт с рюкзаком как в Among Us)
   const drawPlayer = useCallback((ctx, player, colors) => {
     const { x, y, width, height } = player;
     
@@ -156,6 +173,45 @@ export default function CyberRunner({ onClose }) {
     
     // Туловище
     ctx.fillRect(x + width * 0.1, y + height * 0.3, width * 0.8, height * 0.4);
+    
+    // Рюкзак (на спине, слева от персонажа — т.к. бежит вправо)
+    const backpackWidth = width * 0.35;
+    const backpackHeight = height * 0.35;
+    const backpackX = x - backpackWidth * 0.6;
+    const backpackY = y + height * 0.32;
+    
+    // Основа рюкзака
+    ctx.fillStyle = "#8b5cf6"; // Фиолетовый цвет рюкзака
+    ctx.shadowColor = "rgba(139, 92, 246, 0.6)";
+    ctx.shadowBlur = 10;
+    
+    // Скруглённый рюкзак (рисуем как прямоугольник с закруглёнными углами)
+    ctx.beginPath();
+    const bpRadius = 4;
+    ctx.moveTo(backpackX + bpRadius, backpackY);
+    ctx.lineTo(backpackX + backpackWidth - bpRadius, backpackY);
+    ctx.quadraticCurveTo(backpackX + backpackWidth, backpackY, backpackX + backpackWidth, backpackY + bpRadius);
+    ctx.lineTo(backpackX + backpackWidth, backpackY + backpackHeight - bpRadius);
+    ctx.quadraticCurveTo(backpackX + backpackWidth, backpackY + backpackHeight, backpackX + backpackWidth - bpRadius, backpackY + backpackHeight);
+    ctx.lineTo(backpackX + bpRadius, backpackY + backpackHeight);
+    ctx.quadraticCurveTo(backpackX, backpackY + backpackHeight, backpackX, backpackY + backpackHeight - bpRadius);
+    ctx.lineTo(backpackX, backpackY + bpRadius);
+    ctx.quadraticCurveTo(backpackX, backpackY, backpackX + bpRadius, backpackY);
+    ctx.fill();
+    
+    // Деталь рюкзака — горизонтальная полоска
+    ctx.fillStyle = "#7c3aed";
+    ctx.fillRect(backpackX + 2, backpackY + backpackHeight * 0.4, backpackWidth - 4, 3);
+    
+    // Лямка рюкзака (соединяет с телом)
+    ctx.fillStyle = "#6d28d9";
+    ctx.fillRect(backpackX + backpackWidth - 2, backpackY + 4, 4, backpackHeight * 0.3);
+    ctx.fillRect(backpackX + backpackWidth - 2, backpackY + backpackHeight * 0.55, 4, backpackHeight * 0.3);
+    
+    // Возвращаем свечение игрока для остальных частей
+    ctx.shadowColor = colors.playerGlow;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = colors.player;
     
     // Ноги (анимация бега)
     const legOffset = Math.sin(Date.now() / 50) * 3;
@@ -193,10 +249,10 @@ export default function CyberRunner({ onClose }) {
   }, []);
 
   // Отрисовка земли
-  const drawGround = useCallback((ctx, width, groundY, colors, frameCount) => {
+  const drawGround = useCallback((ctx, width, groundY, colors, gameTime) => {
     // Основа земли
     ctx.fillStyle = colors.ground;
-    ctx.fillRect(0, groundY, width, 30);
+    ctx.fillRect(0, groundY, width, 40);
     
     // Неоновая линия
     ctx.strokeStyle = colors.groundLine;
@@ -208,20 +264,21 @@ export default function CyberRunner({ onClose }) {
     ctx.lineTo(width, groundY);
     ctx.stroke();
     
-    // Бегущие точки на земле
+    // Бегущие точки на земле (скорость привязана к времени)
     ctx.fillStyle = colors.groundLine;
-    const dotSpacing = 40;
-    const offset = (frameCount * 5) % dotSpacing;
+    const dotSpacing = 50;
+    const speed = 0.15; // пикселей в мс
+    const offset = (gameTime * speed) % dotSpacing;
     for (let x = -offset; x < width; x += dotSpacing) {
       ctx.beginPath();
-      ctx.arc(x, groundY + 15, 2, 0, Math.PI * 2);
+      ctx.arc(x, groundY + 20, 3, 0, Math.PI * 2);
       ctx.fill();
     }
     
     ctx.shadowBlur = 0;
   }, []);
 
-  // Игровой цикл
+  // Игровой цикл с delta-time для фиксированной скорости
   useEffect(() => {
     if (gameState !== "playing") return;
     
@@ -231,17 +288,30 @@ export default function CyberRunner({ onClose }) {
     const ctx = canvas.getContext("2d");
     const g = GAME.current;
 
-    const gameLoop = () => {
+    const gameLoop = (currentTime) => {
+      // Расчёт delta-time
+      if (lastFrameTimeRef.current === 0) {
+        lastFrameTimeRef.current = currentTime;
+      }
+      const deltaTime = currentTime - lastFrameTimeRef.current;
+      lastFrameTimeRef.current = currentTime;
+      
+      // Коэффициент для нормализации скорости (относительно TARGET_FPS=240)
+      const timeScale = deltaTime / TARGET_FRAME_TIME;
+      
+      // Обновляем игровое время
+      g.gameTime += deltaTime;
+      
       // Очистка
       ctx.fillStyle = g.colors.bg;
       ctx.fillRect(0, 0, g.width, g.height);
       
-      // Земля
-      drawGround(ctx, g.width, g.groundY, g.colors, g.frameCount);
+      // Земля (используем gameTime для анимации)
+      drawGround(ctx, g.width, g.groundY, g.colors, g.gameTime);
       
-      // Физика игрока
-      g.player.velocityY += g.gravity;
-      g.player.y += g.player.velocityY;
+      // Физика игрока с учётом delta-time
+      g.player.velocityY += g.gravity * timeScale;
+      g.player.y += g.player.velocityY * timeScale;
       
       // Ограничение земли
       if (g.player.y >= g.groundY - g.player.height) {
@@ -253,36 +323,43 @@ export default function CyberRunner({ onClose }) {
       // Отрисовка игрока
       drawPlayer(ctx, g.player, g.colors);
       
-      // Генерация препятствий
-      g.obstacleTimer++;
+      // Генерация препятствий (таймер в мс)
+      g.obstacleTimer += deltaTime;
       if (g.obstacleTimer >= g.obstacleInterval) {
         const lastObstacle = g.obstacles[g.obstacles.length - 1];
         const canSpawn = !lastObstacle || lastObstacle.x < g.width - g.minObstacleGap;
         
         if (canSpawn) {
-          const obstacleHeight = 18 + Math.random() * 12; // Меньшие препятствия
+          const obstacleHeight = 24 + Math.random() * 16; // Увеличенные препятствия
           g.obstacles.push({
             x: g.width,
             y: g.groundY - obstacleHeight,
-            width: 12 + Math.random() * 8, // Уже по ширине тоже
+            width: 16 + Math.random() * 10,
             height: obstacleHeight,
             passed: false,
           });
           g.obstacleTimer = 0;
-          g.obstacleInterval = 60 + Math.random() * 60;
+          // Рандомный интервал между препятствиями (800-1400мс в начале)
+          g.obstacleInterval = Math.max(600 + Math.random() * 600, g.minObstacleGap * 3);
         }
       }
       
       // Обновление и отрисовка препятствий
       g.obstacles = g.obstacles.filter(obs => {
-        obs.x -= g.obstacleSpeed;
+        // Движение с учётом delta-time
+        obs.x -= g.obstacleSpeed * timeScale;
         
         // Проверка столкновения
         if (checkCollision(g.player, obs)) {
           // Game Over
           if (g.score > highScore) {
             setHighScore(g.score);
-            localStorage.setItem("cyberrunner_highscore", g.score.toString());
+            const key = roomCode ? `cyberrunner_highscore_${roomCode}` : "cyberrunner_highscore";
+            localStorage.setItem(key, g.score.toString());
+          }
+          // Отправляем результат в лидерборд
+          if (onScoreUpdate && g.score > 0) {
+            onScoreUpdate(g.score, playerName);
           }
           setGameState("gameover");
           return false;
@@ -300,15 +377,11 @@ export default function CyberRunner({ onClose }) {
         return obs.x > -obs.width;
       });
       
-      // Увеличение сложности — очень плавная прогрессия
-      g.frameCount++;
-      if (g.frameCount % 300 === 0) {
-        // Скорость увеличивается каждые ~5 секунд
-        g.obstacleSpeed = Math.min(g.obstacleSpeed + 0.2, 8);
-        // Препятствия появляются чаще (но не слишком)
-        g.obstacleInterval = Math.max(g.obstacleInterval - 5, 80);
-        g.minObstacleGap = Math.max(g.minObstacleGap - 5, 120);
-      }
+      // Увеличение сложности каждые 5 секунд игрового времени
+      const difficultyStep = Math.floor(g.gameTime / 5000);
+      const baseSpeed = isMobile ? 2.5 : 3.0;
+      g.obstacleSpeed = Math.min(baseSpeed + difficultyStep * 0.5, 8);
+      g.minObstacleGap = Math.max(180 - difficultyStep * 8, 130);
       
       gameLoopRef.current = requestAnimationFrame(gameLoop);
     };
@@ -320,7 +393,7 @@ export default function CyberRunner({ onClose }) {
         cancelAnimationFrame(gameLoopRef.current);
       }
     };
-  }, [gameState, checkCollision, drawGround, drawPlayer, drawObstacle, highScore]);
+  }, [gameState, checkCollision, drawGround, drawPlayer, drawObstacle, highScore, isMobile, TARGET_FRAME_TIME, roomCode, playerName, onScoreUpdate]);
 
   // Отрисовка idle/gameover экрана
   useEffect(() => {

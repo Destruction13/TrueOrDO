@@ -104,11 +104,10 @@ app.get("/api/wheels", (req, res) => {
   res.json(getWheelData());
 });
 
-// Auth routes
-app.use("/api", createAuthRouter(prisma, sessionStore));
-
 // OAuth routes (Discord, Google)
 app.use("/api", createOAuthRouter(prisma));
+
+// Auth routes подключаются после создания io (см. ниже)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STATIC FILES (Client)
@@ -138,6 +137,9 @@ const io = new Server(server, {
   pingInterval: 5000,  // Пинг каждые 5 секунд
   pingTimeout: 3000    // Таймаут ответа 3 секунды
 });
+
+// Auth routes (после создания io)
+app.use("/api", createAuthRouter(prisma, sessionStore, io));
 
 // Интеграция session с Socket.IO
 io.use((socket, next) => {
@@ -932,9 +934,9 @@ io.on("connection", (socket) => {
       return;
     }
     
-    // Получаем avatarUrl если пользователь авторизован
-    let avatarUrl = null;
-    if (socket.data.userId) {
+    // Получаем avatarUrl из payload или из сессии пользователя
+    let avatarUrl = payload?.avatarUrl || null;
+    if (!avatarUrl && socket.data.userId) {
       const user = await prisma.user.findUnique({
         where: { id: socket.data.userId },
         select: { avatarUrl: true }
@@ -1064,9 +1066,9 @@ io.on("connection", (socket) => {
       .map((player) => player.name.toLowerCase());
     const finalName = makeUniqueName(name, takenNames);
 
-    // Получаем avatarUrl если пользователь авторизован
-    let avatarUrl = null;
-    if (socket.data.userId) {
+    // Получаем avatarUrl из payload или из сессии пользователя
+    let avatarUrl = payload?.avatarUrl || null;
+    if (!avatarUrl && socket.data.userId) {
       const user = await prisma.user.findUnique({
         where: { id: socket.data.userId },
         select: { avatarUrl: true }
@@ -1967,6 +1969,55 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Обновление профиля игрока в комнате (никнейм, аватар)
+  socket.on("player:update_profile", async (payload, ack) => {
+    await touchPlayer(socket);
+    if (!socket.data.roomId || !socket.data.playerId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+    
+    const { nickname, avatarUrl } = payload || {};
+    const roomId = socket.data.roomId;
+    const playerId = socket.data.playerId;
+    
+    try {
+      // Получаем текущего игрока
+      const player = await prisma.player.findUnique({
+        where: { id: playerId }
+      });
+      
+      if (!player || player.roomId !== roomId) {
+        if (ack) ack({ ok: false, error: "Player not found" });
+        return;
+      }
+      
+      // Обновляем данные игрока
+      const updateData = {};
+      if (nickname && nickname.trim()) {
+        updateData.name = nickname.trim().slice(0, 20);
+      }
+      if (avatarUrl !== undefined) {
+        updateData.avatarUrl = avatarUrl;
+      }
+      
+      if (Object.keys(updateData).length > 0) {
+        await prisma.player.update({
+          where: { id: playerId },
+          data: updateData
+        });
+        
+        // Отправляем обновлённое состояние всем в комнате
+        await emitRoomState(roomId);
+      }
+      
+      if (ack) ack({ ok: true });
+    } catch (error) {
+      console.error("player:update_profile error:", error);
+      if (ack) ack({ ok: false, error: "Failed to update profile" });
+    }
+  });
+
   socket.on("admin:kick", async (payload, ack) => {
     await touchPlayer(socket);
     if (!socket.data.roomId) {
@@ -2300,8 +2351,9 @@ io.on("connection", (socket) => {
       return;
     }
     
-    let avatarUrl = null;
-    if (socket.data.userId) {
+    // Получаем avatarUrl из payload или из сессии пользователя
+    let avatarUrl = payload?.avatarUrl || null;
+    if (!avatarUrl && socket.data.userId) {
       const user = await prisma.user.findUnique({
         where: { id: socket.data.userId },
         select: { avatarUrl: true }
@@ -2393,8 +2445,9 @@ io.on("connection", (socket) => {
     const takenNames = players.filter(p => p.connectionStatus !== "left").map(p => p.name.toLowerCase());
     const finalName = makeUniqueName(name, takenNames);
 
-    let avatarUrl = null;
-    if (socket.data.userId) {
+    // Получаем avatarUrl из payload или из сессии пользователя
+    let avatarUrl = payload?.avatarUrl || null;
+    if (!avatarUrl && socket.data.userId) {
       const user = await prisma.user.findUnique({
         where: { id: socket.data.userId },
         select: { avatarUrl: true }
@@ -2927,6 +2980,15 @@ io.on("connection", (socket) => {
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     if (!room) return;
 
+    // Добавляем последнее слово в историю (если было), чтобы можно было отметить его в отчёте
+    // По умолчанию помечаем как не отгаданное, но игроки могут изменить это в отчёте
+    if (room.currentWordId) {
+      const currentWord = await prisma.aliasWord.findUnique({ where: { id: room.currentWordId } });
+      if (currentWord) {
+        addWordToHistory(roomId, currentWord.text, false, room.currentTeamId);
+      }
+    }
+
     // Переходим в статус reviewing (просмотр отчёта)
     // Проверка победителя будет после подтверждения отчёта
     await prisma.aliasRoom.update({
@@ -3449,6 +3511,55 @@ io.on("connection", (socket) => {
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
 
     if (ack) ack({ ok: true });
+  });
+
+  // Обновление профиля игрока Alias в комнате (никнейм, аватар)
+  socket.on("alias:player:update_profile", async (payload, ack) => {
+    if (!socket.data.aliasRoomId || !socket.data.aliasPlayerId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+    
+    const { nickname, avatarUrl } = payload || {};
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    
+    try {
+      // Получаем текущего игрока
+      const player = await prisma.aliasPlayer.findUnique({
+        where: { id: playerId }
+      });
+      
+      if (!player || player.roomId !== roomId) {
+        if (ack) ack({ ok: false, error: "Player not found" });
+        return;
+      }
+      
+      // Обновляем данные игрока
+      const updateData = {};
+      if (nickname && nickname.trim()) {
+        updateData.name = nickname.trim().slice(0, 20);
+      }
+      if (avatarUrl !== undefined) {
+        updateData.avatarUrl = avatarUrl;
+      }
+      
+      if (Object.keys(updateData).length > 0) {
+        await prisma.aliasPlayer.update({
+          where: { id: playerId },
+          data: updateData
+        });
+        
+        // Отправляем обновлённое состояние всем в комнате
+        const state = await buildAliasRoomState(prisma, roomId);
+        io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+      }
+      
+      if (ack) ack({ ok: true });
+    } catch (error) {
+      console.error("alias:player:update_profile error:", error);
+      if (ack) ack({ ok: false, error: "Failed to update profile" });
+    }
   });
 
   socket.on("disconnect", async () => {

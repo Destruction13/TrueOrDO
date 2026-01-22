@@ -36,7 +36,7 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
       return;
     }
     setLoading(true);
-    await onCreate(effectiveCreateName);
+    await onCreate(effectiveCreateName, user?.avatarUrl);
     setLoading(false);
   };
 
@@ -46,7 +46,7 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
       return;
     }
     setLoading(true);
-    await onJoin(effectiveJoinName, joinCode.trim().toUpperCase());
+    await onJoin(effectiveJoinName, joinCode.trim().toUpperCase(), user?.avatarUrl);
     setLoading(false);
   };
 

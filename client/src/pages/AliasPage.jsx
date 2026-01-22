@@ -247,6 +247,26 @@ export default function AliasPage() {
     };
   }, [meId]);
 
+  // Синхронизация профиля с игрой при изменении user
+  // Сравниваем данные user с данными игрока в состоянии комнаты
+  useEffect(() => {
+    if (!aliasState || !meId || !user) return;
+    
+    // Находим текущего игрока в состоянии
+    const currentPlayer = aliasState.players?.find(p => p.id === meId);
+    if (!currentPlayer) return;
+    
+    // Проверяем, отличаются ли данные профиля от данных в игре
+    const needsUpdate = currentPlayer.avatarUrl !== user.avatarUrl;
+    
+    if (needsUpdate) {
+      socket.emit("alias:player:update_profile", {
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl
+      });
+    }
+  }, [user?.nickname, user?.avatarUrl, aliasState, meId]);
+
   const emitWithAck = (event, payload) => new Promise(resolve => socket.emit(event, payload, resolve));
 
   const handleAck = (res) => {
@@ -256,9 +276,9 @@ export default function AliasPage() {
   };
 
   const actions = useMemo(() => ({
-    createRoom: async (name) => {
+    createRoom: async (name, avatarUrl) => {
       const visitorId = getOrCreateVisitorId();
-      const res = await emitWithAck("alias:room:create", { name, visitorId });
+      const res = await emitWithAck("alias:room:create", { name, visitorId, avatarUrl });
       const result = handleAck(res);
       if (result.ok) {
         setAliasState(result.state);
@@ -269,9 +289,9 @@ export default function AliasPage() {
       }
       return result;
     },
-    joinRoom: async (name, code) => {
+    joinRoom: async (name, code, avatarUrl) => {
       const visitorId = getOrCreateVisitorId();
-      const res = await emitWithAck("alias:room:join", { name, code, visitorId });
+      const res = await emitWithAck("alias:room:join", { name, code, visitorId, avatarUrl });
       const result = handleAck(res);
       if (result.ok) {
         setAliasState(result.state);

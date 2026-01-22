@@ -40,8 +40,8 @@ function checkIsMobile() {
   // Проверка на планшет (iPad, Android tablet)
   const isTablet = /iPad|Android(?!.*Mobile)/i.test(userAgent);
 
-  // Проверка размера экрана (мобильные обычно < 768px ширина)
-  const isSmallScreen = window.innerWidth <= 768;
+  // Проверка размера экрана (мобильные/планшеты < 1200px ширина)
+  const isSmallScreen = window.innerWidth <= 1200;
 
   // Проверка touch-устройства
   const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;

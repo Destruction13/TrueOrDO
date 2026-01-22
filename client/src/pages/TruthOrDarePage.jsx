@@ -225,6 +225,26 @@ export default function TruthOrDarePage() {
     };
   }, []);
 
+  // Синхронизация профиля с игрой при изменении user
+  // Сравниваем данные user с данными игрока в состоянии комнаты
+  useEffect(() => {
+    if (!roomState || !meId || !user) return;
+    
+    // Находим текущего игрока в состоянии
+    const currentPlayer = roomState.players?.find(p => p.id === meId);
+    if (!currentPlayer) return;
+    
+    // Проверяем, отличаются ли данные профиля от данных в игре
+    const needsUpdate = currentPlayer.avatarUrl !== user.avatarUrl;
+    
+    if (needsUpdate) {
+      socket.emit("player:update_profile", {
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl
+      });
+    }
+  }, [user?.nickname, user?.avatarUrl, roomState, meId]);
+
   useEffect(() => {
     const handleConnect = () => setConnected(true);
     const handleDisconnect = () => setConnected(false);
@@ -489,9 +509,9 @@ export default function TruthOrDarePage() {
 
   const actions = useMemo(
     () => ({
-      createRoom: async (name) => {
+      createRoom: async (name, avatarUrl) => {
         const visitorId = getOrCreateVisitorId();
-        const response = await emitWithAck("room:create", { name, visitorId });
+        const response = await emitWithAck("room:create", { name, visitorId, avatarUrl });
         const result = handleAck(response);
         if (result.ok) {
           setRoomState(result.state);
@@ -502,9 +522,9 @@ export default function TruthOrDarePage() {
         }
         return result;
       },
-      joinRoom: async (name, code) => {
+      joinRoom: async (name, code, avatarUrl) => {
         const visitorId = getOrCreateVisitorId();
-        const response = await emitWithAck("room:join", { name, code, visitorId });
+        const response = await emitWithAck("room:join", { name, code, visitorId, avatarUrl });
         
         if (response?.error === "banned") {
           setBannedModal({ isOpen: true, roomCode: code.toUpperCase() });

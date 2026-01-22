@@ -41,25 +41,21 @@ class PrismaSessionStore extends session.Store {
       
       const data = JSON.stringify(sessionData);
       
-      if (userId) {
-        await this.prisma.session.upsert({
-          where: { sid },
-          create: {
-            sid,
-            userId,
-            data,
-            expiresAt
-          },
-          update: {
-            userId,
-            data,
-            expiresAt
-          }
-        });
-      } else {
-        // Для неавторизованных сессий просто храним в памяти (или пропускаем)
-        // Можно расширить логику если нужно
-      }
+      // Сохраняем сессию в базу (и для авторизованных, и для анонимных)
+      await this.prisma.session.upsert({
+        where: { sid },
+        create: {
+          sid,
+          userId,
+          data,
+          expiresAt
+        },
+        update: {
+          userId,
+          data,
+          expiresAt
+        }
+      });
       
       callback?.(null);
     } catch (error) {
