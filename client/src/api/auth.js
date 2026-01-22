@@ -21,8 +21,41 @@ async function request(endpoint, options = {}) {
     config.body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(url, config);
-  const data = await response.json();
+  let response;
+  try {
+    response = await fetch(url, config);
+  } catch (networkError) {
+    const error = new Error("Нет соединения с сервером. Проверьте интернет.");
+    error.status = 0;
+    error.isNetworkError = true;
+    throw error;
+  }
+
+  // Пробуем распарсить JSON, но если сервер вернул HTML (ошибка nginx) — обрабатываем
+  let data;
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      const error = new Error("Ошибка сервера. Попробуйте позже.");
+      error.status = response.status;
+      error.isParseError = true;
+      throw error;
+    }
+  } else {
+    // Сервер вернул не JSON (скорее всего HTML-страницу ошибки от nginx)
+    const error = new Error(
+      response.status === 413 
+        ? "Файл слишком большой" 
+        : response.status === 502 || response.status === 504
+          ? "Сервер временно недоступен. Попробуйте позже."
+          : "Ошибка сервера. Попробуйте позже."
+    );
+    error.status = response.status;
+    error.isServerError = true;
+    throw error;
+  }
 
   if (!response.ok) {
     const error = new Error(data.error || "Ошибка запроса");
@@ -106,14 +139,46 @@ export async function uploadAvatar(file) {
   const formData = new FormData();
   formData.append("avatar", file);
 
-  const response = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    body: formData
-    // НЕ устанавливаем Content-Type — браузер сделает это автоматически с boundary
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      body: formData
+      // НЕ устанавливаем Content-Type — браузер сделает это автоматически с boundary
+    });
+  } catch (networkError) {
+    const error = new Error("Нет соединения с сервером. Проверьте интернет.");
+    error.status = 0;
+    error.isNetworkError = true;
+    throw error;
+  }
 
-  const data = await response.json();
+  // Проверяем Content-Type ответа
+  let data;
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      const error = new Error("Ошибка сервера при загрузке. Попробуйте позже.");
+      error.status = response.status;
+      error.isParseError = true;
+      throw error;
+    }
+  } else {
+    // Сервер вернул не JSON (HTML-страница ошибки от nginx)
+    const error = new Error(
+      response.status === 413 
+        ? "Файл слишком большой. Максимум 10 МБ." 
+        : response.status === 502 || response.status === 504
+          ? "Сервер временно недоступен. Попробуйте позже."
+          : "Ошибка загрузки. Попробуйте другое изображение или позже."
+    );
+    error.status = response.status;
+    error.isServerError = true;
+    throw error;
+  }
 
   if (!response.ok) {
     const error = new Error(data.error || "Ошибка загрузки");

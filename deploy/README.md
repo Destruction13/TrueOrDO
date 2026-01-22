@@ -5,7 +5,7 @@
 На своём ПК открой PowerShell или терминал и подключись к VPS:
 
 ```bash
-ssh root@<IP_СЕРВЕРА>
+ssh root@<72.56.84.248>
 ```
 
 (если спросит пароль — вводи свой root-пароль, ничего не будет видно, это норм)
@@ -47,6 +47,7 @@ sudo bash deploy/update.sh
 ```
 
 Он автоматически:
+
 - создаст бэкап базы данных в `backups/`;
 - подтянет последнюю версию из `main`;
 - обновит зависимости (`npm install`);
@@ -56,6 +57,7 @@ sudo bash deploy/update.sh
 - проверит health endpoint.
 
 ✅ Если всё прошло успешно, ты увидишь:
+
 ```
 ═══════════════════════════════════════════════════════════════════════════════
  ✓ Update Complete!
@@ -75,6 +77,7 @@ nano /opt/partychaos/server/.env
 Редактируешь нужные значения (SMTP, OAuth и т.д.).
 
 Сохраняешь:
+
 - `Ctrl + O` → `Enter` → `Ctrl + X`
 
 После изменения .env перезапусти backend:
@@ -88,6 +91,7 @@ sudo -u partychaos pm2 restart partychaos
 ## Шаг 6. Проверяем что всё работает
 
 ### Статус PM2:
+
 ```bash
 sudo -u partychaos pm2 status
 ```
@@ -95,6 +99,7 @@ sudo -u partychaos pm2 status
 Должен быть статус `online`.
 
 ### Health check:
+
 ```bash
 curl http://127.0.0.1:3001/api/health
 ```
@@ -102,6 +107,7 @@ curl http://127.0.0.1:3001/api/health
 Должен вернуть `{"status":"ok"}` или HTTP 200.
 
 ### Проверка фронтенда:
+
 ```bash
 ls -la /opt/partychaos/client/dist/index.html
 ```
@@ -134,16 +140,16 @@ sudo -u partychaos pm2 logs partychaos --err --lines 50
 
 ## Шаг 8. Полезные команды
 
-| Действие | Команда |
-|----------|---------|
-| Статус сервера | `sudo -u partychaos pm2 status` |
-| Перезапуск | `sudo -u partychaos pm2 restart partychaos` |
-| Остановка | `sudo -u partychaos pm2 stop partychaos` |
-| Запуск | `sudo -u partychaos pm2 start partychaos` |
-| Логи | `sudo -u partychaos pm2 logs partychaos` |
-| Selftest | `sudo bash /opt/partychaos/deploy/selftest.sh` |
-| Nginx статус | `systemctl status nginx` |
-| Nginx reload | `systemctl reload nginx` |
+| Действие            | Команда                                   |
+| --------------------------- | ------------------------------------------------ |
+| Статус сервера | `sudo -u partychaos pm2 status`                |
+| Перезапуск        | `sudo -u partychaos pm2 restart partychaos`    |
+| Остановка          | `sudo -u partychaos pm2 stop partychaos`       |
+| Запуск                | `sudo -u partychaos pm2 start partychaos`      |
+| Логи                    | `sudo -u partychaos pm2 logs partychaos`       |
+| Selftest                    | `sudo bash /opt/partychaos/deploy/selftest.sh` |
+| Nginx статус          | `systemctl status nginx`                       |
+| Nginx reload                | `systemctl reload nginx`                       |
 
 ---
 
@@ -175,6 +181,7 @@ sudo -u partychaos pm2 logs partychaos --lines 100
 ```
 
 Частые проблемы:
+
 - Неправильный `.env` — проверь `DATABASE_URL` и `SESSION_SECRET`
 - Права доступа — запусти `chown -R partychaos:partychaos /opt/partychaos`
 
@@ -202,17 +209,66 @@ sudo bash /opt/partychaos/deploy/install.sh
 
 ## 📁 Важные пути
 
-| Что | Путь |
-|-----|------|
-| Проект | `/opt/partychaos/` |
-| Фронтенд билд | `/opt/partychaos/client/dist/` |
-| Backend | `/opt/partychaos/server/` |
-| База данных | `/opt/partychaos/server/prisma/prod.db` |
-| Конфиг .env | `/opt/partychaos/server/.env` |
-| Бэкапы БД | `/opt/partychaos/backups/` |
-| Аватарки | `/opt/partychaos/server/uploads/avatars/` |
-| Nginx конфиг | `/etc/nginx/sites-available/partychaos.ru` |
-| SSL сертификаты | `/etc/letsencrypt/live/partychaos.ru/` |
+| Что                     | Путь                                     |
+| -------------------------- | -------------------------------------------- |
+| Проект               | `/opt/partychaos/`                         |
+| Фронтенд билд  | `/opt/partychaos/client/dist/`             |
+| Backend                    | `/opt/partychaos/server/`                  |
+| База данных      | `/opt/partychaos/server/prisma/prod.db`    |
+| Конфиг .env          | `/opt/partychaos/server/.env`              |
+| Бэкапы БД          | `/opt/partychaos/backups/`                 |
+| Аватарки           | `/opt/partychaos/server/uploads/avatars/`  |
+| Nginx конфиг         | `/etc/nginx/sites-available/partychaos.ru` |
+| SSL сертификаты | `/etc/letsencrypt/live/partychaos.ru/`     |
+
+---
+
+## 🔧 Настройка Nginx для загрузки файлов
+
+Если аватарки не загружаются (ошибка 413 или пустой ответ), нужно увеличить лимит размера файлов в nginx:
+
+```bash
+sudo nano /etc/nginx/sites-available/partychaos.ru
+```
+
+Добавь в блок `server { ... }`:
+
+```nginx
+client_max_body_size 15M;  # Разрешаем файлы до 15MB
+```
+
+Также убедись, что проксирование настроено правильно для API:
+
+```nginx
+location /api/ {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    
+    # Важно для загрузки файлов
+    client_max_body_size 15M;
+    proxy_read_timeout 60s;
+}
+
+location /uploads/ {
+    alias /opt/partychaos/server/uploads/;
+    expires 7d;
+    add_header Cache-Control "public, immutable";
+}
+```
+
+После изменения:
+
+```bash
+sudo nginx -t           # Проверка конфига
+sudo systemctl reload nginx  # Применение изменений
+```
 
 ---
 
@@ -223,12 +279,14 @@ sudo bash /opt/partychaos/deploy/install.sh
 Проект использует npm workspaces (определены в корневом `package.json`). При установке зависимостей npm hoistит их в корневой `node_modules/`. Это нормальное поведение.
 
 **Правильный способ установки:**
+
 ```bash
 cd /opt/partychaos
 npm install --include=dev
 ```
 
 **Правильный способ сборки:**
+
 ```bash
 npm run build  # делегирует в client workspace
 ```
