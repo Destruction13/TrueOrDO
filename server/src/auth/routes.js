@@ -191,7 +191,8 @@ function createAuthRouter(prisma, sessionStore, io) {
       });
 
       // Единое сообщение для безопасности
-      if (!user || !(await verifyPassword(password, user.passwordHash))) {
+      // Проверяем: пользователь существует, у него есть пароль (не OAuth-only), и пароль верный
+      if (!user || !user.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
         return res.status(401).json({ error: "Неверный email или пароль" });
       }
 
