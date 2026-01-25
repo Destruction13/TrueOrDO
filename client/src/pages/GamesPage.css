@@ -115,19 +115,42 @@
   border-radius: 12px;
 }
 
+.game-card__image {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 0;
+  overflow: visible;
+  transform: scale(1.3);
+  transform-origin: center;
+}
+
+.game-card__image--truth-or-dare {
+  transform: scale(2.2);
+}
+
+.game-card__image--alias {
+  transform: scale(1.3);
+}
+
 .game-card__info {
   flex: 1;
   min-width: 0;
 }
 
 .game-card__title {
-  font-size: 1.25rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  color: #fff;
   margin: 0 0 0.25rem;
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  background: linear-gradient(to bottom, #ff88cc 0%, #ff88cc 39%, #66ddff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.6)) drop-shadow(0 0 16px rgba(255, 102, 204, 0.4));
 }
 
 .game-card__badge {
@@ -197,6 +220,12 @@
     width: 52px;
     height: 52px;
     font-size: 2rem;
+  }
+
+  .game-card__image {
+    width: 52px;
+    height: 52px;
+    transform: scale(1.1);
   }
 
   .game-card__title {

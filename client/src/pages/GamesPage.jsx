@@ -15,6 +15,7 @@ const games = [
     path: "/truth-or-dare",
     available: true,
     icon: "🎯",
+    image: "/tod-preview.png",
   },
   {
     id: "alias",
@@ -22,7 +23,8 @@ const games = [
     description: "Объясни слово — не называя его!",
     path: "/alias",
     available: true,
-    icon: "💬",
+    icon: "🎭",
+    image: "/alias-preview.png",
   },
   {
     id: "codenames",
@@ -53,7 +55,11 @@ function GameCard({ game, index, onClick }) {
       />
       
       <div className="game-card__content">
-        <div className="game-card__icon">{game.icon}</div>
+        {game.image ? (
+          <img src={game.image} alt={game.title} className={`game-card__image game-card__image--${game.id}`} />
+        ) : (
+          <div className="game-card__icon">{game.icon}</div>
+        )}
         <div className="game-card__info">
           <h3 className="game-card__title">
             {game.title}
