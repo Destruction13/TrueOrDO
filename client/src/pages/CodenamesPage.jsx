@@ -1,0 +1,362 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { io } from "socket.io-client";
+import CodenamesShaderBackground from "../components/codenames/CodenamesShaderBackground";
+import { useAuth } from "../context/AuthContext";
+import CodenamesJoinScreen from "../components/codenames/CodenamesJoinScreen";
+import CodenamesRoomScreen from "../components/codenames/CodenamesRoomScreen";
+import EmailVerifyBanner from "../components/auth/EmailVerifyBanner";
+import "./CodenamesPage.css";
+
+const socket = io(import.meta.env.VITE_SERVER_URL || "/", { autoConnect: false });
+
+const SESSION_KEYS = {
+  PLAYER_ID: "codenames:playerId",
+  ROOM_CODE: "codenames:roomCode",
+  PLAYER_NAME: "codenames:playerName",
+  VISITOR_ID: "codenames:visitorId"
+};
+
+function getOrCreateVisitorId() {
+  try {
+    let visitorId = localStorage.getItem(SESSION_KEYS.VISITOR_ID);
+    if (!visitorId) {
+      visitorId = "cv_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem(SESSION_KEYS.VISITOR_ID, visitorId);
+    }
+    return visitorId;
+  } catch {
+    return "cv_" + Math.random().toString(36).substring(2);
+  }
+}
+
+function saveSession(playerId, roomCode, playerName) {
+  try {
+    localStorage.setItem(SESSION_KEYS.PLAYER_ID, playerId);
+    localStorage.setItem(SESSION_KEYS.ROOM_CODE, roomCode);
+    if (playerName) localStorage.setItem(SESSION_KEYS.PLAYER_NAME, playerName);
+  } catch {}
+}
+
+function loadSession() {
+  try {
+    const playerId = localStorage.getItem(SESSION_KEYS.PLAYER_ID);
+    const roomCode = localStorage.getItem(SESSION_KEYS.ROOM_CODE);
+    const playerName = localStorage.getItem(SESSION_KEYS.PLAYER_NAME);
+    if (playerId && roomCode) return { playerId, roomCode, playerName };
+  } catch {}
+  return null;
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEYS.PLAYER_ID);
+    localStorage.removeItem(SESSION_KEYS.ROOM_CODE);
+    localStorage.removeItem(SESSION_KEYS.PLAYER_NAME);
+  } catch {}
+}
+
+export default function CodenamesPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { roomCode: urlRoomCode } = useParams();
+  const { user } = useAuth();
+  
+  const [connected, setConnected] = useState(false);
+  const [gameState, setGameState] = useState(null);
+  const [meId, setMeId] = useState(null);
+  const [error, setError] = useState("");
+  const [isRestoring, setIsRestoring] = useState(true);
+  const [gameFinished, setGameFinished] = useState(null);
+  const [pendingJoinCode, setPendingJoinCode] = useState(null);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Установка заголовка страницы
+  useEffect(() => {
+    document.title = "Codenames";
+  }, []);
+
+  // Синхронизация профиля при изменении user
+  useEffect(() => {
+    if (user && gameState && meId) {
+      const me = gameState.players?.find(p => p.id === meId);
+      if (me && (me.name !== user.nickname || me.avatarUrl !== user.avatarUrl)) {
+        socket.emit("codenames:player:update_profile", {
+          nickname: user.nickname,
+          avatarUrl: user.avatarUrl
+        });
+      }
+    }
+  }, [user?.nickname, user?.avatarUrl, gameState, meId]);
+
+  useEffect(() => {
+    socket.connect();
+    return () => socket.disconnect();
+  }, []);
+
+  // Restore session или вход по URL
+  useEffect(() => {
+    const tryRestore = async () => {
+      const session = loadSession();
+      
+      const waitForConnection = () => new Promise(resolve => {
+        if (socket.connected) resolve();
+        else socket.once("connect", resolve);
+      });
+
+      await waitForConnection();
+
+      if (session) {
+        socket.emit("codenames:room:rejoin", {
+          playerId: session.playerId,
+          roomCode: session.roomCode
+        }, (res) => {
+          if (res?.ok) {
+            setGameState(res.state);
+            setMeId(res.playerId);
+            saveSession(res.playerId, res.state.room.code, session.playerName);
+            if (urlRoomCode && urlRoomCode !== res.state.room.code) {
+              navigate(`/codenames/${res.state.room.code}`, { replace: true });
+            } else if (!urlRoomCode) {
+              navigate(`/codenames/${res.state.room.code}`, { replace: true });
+            }
+            setIsRestoring(false);
+          } else {
+            clearSession();
+            handleUrlJoin();
+          }
+        });
+      } else {
+        handleUrlJoin();
+      }
+    };
+
+    const handleUrlJoin = () => {
+      if (urlRoomCode) {
+        if (user?.nickname) {
+          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl);
+        } else {
+          setPendingJoinCode(urlRoomCode);
+          setIsRestoring(false);
+        }
+      } else {
+        setIsRestoring(false);
+      }
+    };
+
+    const joinRoomDirect = (code, name, avatarUrl) => {
+      const visitorId = getOrCreateVisitorId();
+      socket.emit("codenames:room:join", { 
+        code, 
+        name, 
+        visitorId,
+        avatarUrl 
+      }, (res) => {
+        if (res?.ok) {
+          setGameState(res.state);
+          setMeId(res.playerId);
+          saveSession(res.playerId, res.state.room.code, name);
+          setError("");
+        } else {
+          setError(res?.error || "Не удалось войти в комнату");
+        }
+        setIsRestoring(false);
+      });
+    };
+
+    tryRestore();
+  }, [urlRoomCode, user, navigate]);
+
+  // Socket events
+  useEffect(() => {
+    const onConnect = () => {
+      setConnected(true);
+      const session = loadSession();
+      if (session && meId) {
+        socket.emit("codenames:room:rejoin", {
+          playerId: session.playerId,
+          roomCode: session.roomCode
+        }, (res) => {
+          if (res?.ok) {
+            setGameState(res.state);
+          }
+        });
+      }
+    };
+    const onDisconnect = () => setConnected(false);
+    
+    const onStateSync = (state) => {
+      setGameState(state);
+    };
+    const onGameFinished = (data) => setGameFinished(data);
+    const onGameReset = () => {
+      setGameFinished(null);
+      setIsPaused(false);
+    };
+    const onGamePaused = (data) => {
+      setIsPaused(data.isPaused);
+    };
+    
+    // Обработчик кика игрока
+    const onPlayerKicked = (data) => {
+      clearSession();
+      setGameState(null);
+      setMeId(null);
+      setGameFinished(null);
+      setPendingJoinCode(null);
+      setError(data?.message || "Вы были удалены из комнаты");
+      navigate("/codenames", { replace: true });
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("codenames:state:sync", onStateSync);
+    socket.on("codenames:game:finished", onGameFinished);
+    socket.on("codenames:game:reset", onGameReset);
+    socket.on("codenames:game:paused", onGamePaused);
+    socket.on("codenames:player:kicked", onPlayerKicked);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("codenames:state:sync", onStateSync);
+      socket.off("codenames:game:finished", onGameFinished);
+      socket.off("codenames:game:reset", onGameReset);
+      socket.off("codenames:game:paused", onGamePaused);
+      socket.off("codenames:player:kicked", onPlayerKicked);
+    };
+  }, [meId, navigate]);
+
+  const emitWithAck = (event, payload) => new Promise(resolve => socket.emit(event, payload, resolve));
+
+  const handleAck = (res) => {
+    if (!res?.ok) {
+      setError(res?.error || "Ошибка");
+      // Автоматически очищаем ошибку через 3 секунды
+      setTimeout(() => setError(""), 3000);
+    } else {
+      setError("");
+    }
+    return res;
+  };
+
+  const actions = useMemo(() => ({
+    createRoom: async (name, avatarUrl) => {
+      const visitorId = getOrCreateVisitorId();
+      const res = await emitWithAck("codenames:room:create", { name, visitorId, avatarUrl });
+      const result = handleAck(res);
+      if (result.ok) {
+        setGameState(result.state);
+        setMeId(result.playerId);
+        saveSession(result.playerId, result.state.room.code, name);
+        navigate(`/codenames/${result.state.room.code}`, { replace: true });
+      }
+      return result;
+    },
+    joinRoom: async (name, code, avatarUrl) => {
+      const visitorId = getOrCreateVisitorId();
+      const res = await emitWithAck("codenames:room:join", { name, code, visitorId, avatarUrl });
+      const result = handleAck(res);
+      if (result.ok) {
+        setGameState(result.state);
+        setMeId(result.playerId);
+        saveSession(result.playerId, result.state.room.code, name);
+        navigate(`/codenames/${result.state.room.code}`, { replace: true });
+      }
+      return result;
+    },
+    leaveRoom: async () => {
+      socket.emit("codenames:room:leave", {});
+      clearSession();
+      setGameState(null);
+      setMeId(null);
+      setGameFinished(null);
+      setPendingJoinCode(null);
+      navigate("/codenames", { replace: true });
+      return { ok: true };
+    },
+    joinTeam: async (team) => handleAck(await emitWithAck("codenames:team:join", { team })),
+    setRole: async (role) => handleAck(await emitWithAck("codenames:role:set", { role })),
+    startGame: async () => handleAck(await emitWithAck("codenames:game:start", {})),
+    giveHint: async (word, count) => handleAck(await emitWithAck("codenames:hint:give", { word, count })),
+    voteForCard: async (cardId) => handleAck(await emitWithAck("codenames:card:vote", { cardId })),
+    cancelVote: async () => handleAck(await emitWithAck("codenames:card:cancelVote", {})),
+    selectCard: async (cardId) => handleAck(await emitWithAck("codenames:card:select", { cardId })),
+    cancelSelectCard: async () => handleAck(await emitWithAck("codenames:card:cancel", {})),
+    revealCard: async (cardId) => handleAck(await emitWithAck("codenames:card:reveal", { cardId })),
+    endTurn: async () => handleAck(await emitWithAck("codenames:turn:end", {})),
+    voteEndTurn: async () => handleAck(await emitWithAck("codenames:turn:voteEnd", {})),
+    resetGame: async () => handleAck(await emitWithAck("codenames:game:reset", {})),
+    toggleRoomOpen: async () => handleAck(await emitWithAck("codenames:room:toggle", {})),
+    skipTurn: async () => handleAck(await emitWithAck("codenames:turn:skip", {})),
+    kickPlayer: async (targetPlayerId) => handleAck(await emitWithAck("codenames:player:kick", { targetPlayerId })),
+    updateSettings: async (settings) => handleAck(await emitWithAck("codenames:settings:update", { settings })),
+    updateProfile: async (nickname, avatarUrl) => handleAck(await emitWithAck("codenames:player:update_profile", { nickname, avatarUrl })),
+    pauseGame: async () => handleAck(await emitWithAck("codenames:game:pause", {})),
+    resumeGame: async () => handleAck(await emitWithAck("codenames:game:resume", {})),
+    renameTeam: async (team, name) => handleAck(await emitWithAck("codenames:team:rename", { team, name })),
+    navigateToGames: () => navigate("/games")
+  }), [navigate]);
+
+  // Определяем цвет шейдера на основе состояния игры
+  const shaderColorMode = useMemo(() => {
+    // При завершении игры - цвет победителя
+    if (gameState?.room?.status === "finished" && gameState?.room?.winner) {
+      return gameState.room.winner; // "red" или "blue"
+    }
+    // Во время игры - цвет команды, чей ход
+    if (gameState?.room?.status === "playing" && gameState?.room?.currentTeam) {
+      return gameState.room.currentTeam; // "red" или "blue"
+    }
+    return "neutral";
+  }, [gameState?.room?.status, gameState?.room?.winner, gameState?.room?.currentTeam]);
+
+  if (isRestoring) {
+    return (
+      <div className="codenames-page">
+        <CodenamesShaderBackground colorMode="neutral" />
+        <div className="codenames-loading-screen">
+          <div className="codenames-loading-screen__spinner" />
+          <p>Восстановление сессии...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!gameState) {
+    return (
+      <div className="codenames-page">
+        <CodenamesShaderBackground colorMode="neutral" />
+        <EmailVerifyBanner />
+        <CodenamesJoinScreen
+          connected={connected}
+          error={error}
+          onCreate={actions.createRoom}
+          onJoin={actions.joinRoom}
+          user={user}
+          onProfile={() => navigate("/profile")}
+          onLogin={() => navigate("/login", { state: { backgroundLocation: location } })}
+          onClearError={() => setError("")}
+          initialCode={pendingJoinCode}
+          onBackToGames={() => navigate("/games")}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="codenames-page codenames-page--in-room">
+      <CodenamesShaderBackground colorMode={shaderColorMode} />
+      <EmailVerifyBanner />
+      <div className="codenames-shader-overlay" />
+      <CodenamesRoomScreen
+        connected={connected}
+        error={error}
+        meId={meId}
+        gameState={gameState}
+        actions={actions}
+        isPaused={isPaused}
+      />
+    </div>
+  );
+}

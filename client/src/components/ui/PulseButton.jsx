@@ -134,7 +134,7 @@ const PulseButton = forwardRef(function PulseButton(
           {/* Базовый контур */}
           <path
             d={buttonPath}
-            stroke="rgba(46, 230, 255, 0.3)"
+            stroke="rgba(138, 43, 226, 0.4)"
             strokeWidth="1"
             fill="none"
           />
@@ -151,11 +151,6 @@ const PulseButton = forwardRef(function PulseButton(
             />
           ))}
 
-          {/* Угловые точки свечения */}
-          <circle cx={rx} cy={rx} r="2" fill="rgba(46, 230, 255, 0.6)" />
-          <circle cx={width - rx} cy={rx} r="2" fill="rgba(46, 230, 255, 0.6)" />
-          <circle cx={width - rx} cy={height - rx} r="2" fill="rgba(46, 230, 255, 0.6)" />
-          <circle cx={rx} cy={height - rx} r="2" fill="rgba(46, 230, 255, 0.6)" />
 
           {/* Градиенты */}
           <defs>
@@ -168,11 +163,11 @@ const PulseButton = forwardRef(function PulseButton(
                 animate={beam.animate}
                 transition={beam.transition}
               >
-                <stop offset="0%" stopColor="#2ee6ff" stopOpacity="0" />
-                <stop offset="20%" stopColor="#2ee6ff" stopOpacity="1" />
-                <stop offset="50%" stopColor="#7cff6b" stopOpacity="1" />
-                <stop offset="80%" stopColor="#ff7ad9" stopOpacity="1" />
-                <stop offset="100%" stopColor="#ff7ad9" stopOpacity="0" />
+                <stop offset="0%" stopColor="#ff3366" stopOpacity="0" />
+                <stop offset="25%" stopColor="#ff3366" stopOpacity="1" />
+                <stop offset="50%" stopColor="#aa44ff" stopOpacity="1" />
+                <stop offset="75%" stopColor="#4466ff" stopOpacity="1" />
+                <stop offset="100%" stopColor="#4466ff" stopOpacity="0" />
               </motion.linearGradient>
             ))}
           </defs>

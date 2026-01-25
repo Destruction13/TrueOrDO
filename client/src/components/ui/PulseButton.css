@@ -85,18 +85,18 @@
   inset: 1px;
   z-index: 1;
   border-radius: 999px;
-  background: linear-gradient(120deg, #2ee6ff, #7cff6b);
+  background: linear-gradient(120deg, #ff3366, #aa44ff, #4466ff);
   box-shadow: 
-    0 4px 20px rgba(46, 230, 255, 0.4),
-    0 8px 40px rgba(46, 230, 255, 0.2),
+    0 4px 20px rgba(170, 68, 255, 0.4),
+    0 8px 40px rgba(255, 51, 102, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
   transition: box-shadow 200ms ease;
 }
 
 .pulse-btn:hover:not(:disabled) .pulse-btn__bg {
   box-shadow: 
-    0 6px 28px rgba(46, 230, 255, 0.5),
-    0 12px 50px rgba(46, 230, 255, 0.3),
+    0 6px 28px rgba(170, 68, 255, 0.5),
+    0 12px 50px rgba(255, 51, 102, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
@@ -166,8 +166,8 @@
 
 .pulse-btn:active:not(:disabled) .pulse-btn__bg {
   box-shadow: 
-    0 2px 12px rgba(46, 230, 255, 0.4),
-    0 4px 20px rgba(46, 230, 255, 0.2),
+    0 2px 12px rgba(170, 68, 255, 0.4),
+    0 4px 20px rgba(255, 51, 102, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
@@ -192,7 +192,7 @@
 }
 
 .pulse-btn:focus-visible {
-  outline: 2px solid #2ee6ff;
+  outline: 2px solid #aa44ff;
   outline-offset: 3px;
 }
 

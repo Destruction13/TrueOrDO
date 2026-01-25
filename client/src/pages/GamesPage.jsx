@@ -24,6 +24,14 @@ const games = [
     available: true,
     icon: "💬",
   },
+  {
+    id: "codenames",
+    title: "Codenames",
+    description: "Разгадывай слова по подсказкам капитана!",
+    path: "/codenames",
+    available: true,
+    icon: "🕵️",
+  },
 ];
 
 function GameCard({ game, index, onClick }) {

@@ -23,6 +23,7 @@
     "express": "^4.19.2",
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.18.2",
+    "hyphen": "^1.14.1",
     "multer": "^2.0.2",
     "nanoid": "^5.0.3",
     "nodemailer": "^7.0.12",
