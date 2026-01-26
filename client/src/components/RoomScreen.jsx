@@ -279,7 +279,9 @@ function RoomScreen({
     <div className="app-shell">
       <header className="room-header">
         <div className="room-header__left">
-          <div className="room-code-block">
+          <div className="room-code-block" onClick={() => {
+            navigator.clipboard.writeText(`${window.location.origin}/truth-or-dare/${room.code}`);
+          }} title="Скопировать ссылку">
             <div className="room-code-label">Код комнаты</div>
             <div className="room-code">{room.code}</div>
           </div>

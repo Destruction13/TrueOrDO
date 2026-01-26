@@ -364,6 +364,18 @@ function joinTeam(code, playerId, team) {
     player.role = null;
   }
   
+  // Сбрасываем голос за завершение хода при смене команды
+  if (player.team !== team && room.endTurnVotes) {
+    room.endTurnVotes = room.endTurnVotes.filter(id => id !== playerId);
+  }
+  
+  // Сбрасываем голос за карточку при смене команды
+  if (player.team !== team && room.cardVotes) {
+    for (const cardId in room.cardVotes) {
+      room.cardVotes[cardId] = room.cardVotes[cardId].filter(id => id !== playerId);
+    }
+  }
+  
   player.team = team;
   
   // Автоматически назначаем роль агента, если капитан уже есть
@@ -619,9 +631,12 @@ function voteForCard(code, playerId, cardId) {
   room.cardVotes[cardId].push(playerId);
 
   // Проверяем, все ли агенты команды проголосовали за одну карточку
+  // Агентами считаются все игроки команды, кроме капитана и наблюдателей
+  // (включая игроков без явной роли - они тоже могут голосовать)
   const teamOperatives = room.players.filter(
     p => p.team === room.currentTeam && 
-        p.role === ROLES.OPERATIVE && 
+        p.role !== ROLES.CAPTAIN && 
+        p.role !== ROLES.SPECTATOR &&
         p.connectionStatus === "online"
   );
   
@@ -845,7 +860,9 @@ function voteEndTurn(code, playerId) {
   const player = room.players.find(p => p.id === playerId);
   if (!player) return { error: "Игрок не найден" };
   if (player.team !== room.currentTeam) return { error: "Сейчас не ход вашей команды" };
-  if (player.role !== ROLES.OPERATIVE) return { error: "Только агенты могут голосовать за завершение хода" };
+  // Агентами считаются все игроки команды, кроме капитана и наблюдателей
+  if (player.role === ROLES.CAPTAIN) return { error: "Капитан не может голосовать за завершение хода" };
+  if (player.role === ROLES.SPECTATOR) return { error: "Наблюдатели не могут голосовать" };
   if (!room.currentHint) return { error: "Сначала должна быть дана подсказка" };
 
   // Инициализируем массив голосов если нет
@@ -866,9 +883,11 @@ function voteEndTurn(code, playerId) {
   room.endTurnVotes.push(playerId);
 
   // Проверяем, все ли агенты команды проголосовали
+  // Агентами считаются все игроки команды, кроме капитана и наблюдателей
   const teamOperatives = room.players.filter(
     p => p.team === room.currentTeam && 
-        p.role === ROLES.OPERATIVE && 
+        p.role !== ROLES.CAPTAIN && 
+        p.role !== ROLES.SPECTATOR &&
         p.connectionStatus === "online"
   );
   
@@ -1356,15 +1375,22 @@ function buildRoomState(room, forPlayerId = null) {
   }
   
   // Подготавливаем информацию о голосах за завершение хода
+  // Фильтруем только голоса от игроков текущей команды
   const endTurnVotes = (room.endTurnVotes || []).map(vid => {
     const voter = room.players.find(p => p.id === vid);
-    return voter ? { id: voter.id, name: voter.name, avatarUrl: voter.avatarUrl } : null;
+    // Проверяем, что голосующий из текущей команды
+    if (voter && voter.team === room.currentTeam) {
+      return { id: voter.id, name: voter.name, avatarUrl: voter.avatarUrl };
+    }
+    return null;
   }).filter(Boolean);
 
   // Считаем количество агентов в текущей команде
+  // Агентами считаются все игроки команды, кроме капитана и наблюдателей
   const teamOperativesCount = room.players.filter(
     p => p.team === room.currentTeam && 
-        p.role === ROLES.OPERATIVE && 
+        p.role !== ROLES.CAPTAIN && 
+        p.role !== ROLES.SPECTATOR &&
         p.connectionStatus === "online"
   ).length;
 

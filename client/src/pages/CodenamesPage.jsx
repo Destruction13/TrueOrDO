@@ -56,6 +56,27 @@ function clearSession() {
   } catch {}
 }
 
+// Выход из других игр при входе в Codenames
+function leaveOtherGames() {
+  // Выход из Truth or Dare
+  const todPlayerId = localStorage.getItem("tod:playerId");
+  if (todPlayerId) {
+    socket.emit("room:leave", { playerId: todPlayerId });
+    localStorage.removeItem("tod:playerId");
+    localStorage.removeItem("tod:roomCode");
+    localStorage.removeItem("tod:playerName");
+  }
+  
+  // Выход из Alias
+  const aliasPlayerId = localStorage.getItem("alias:playerId");
+  if (aliasPlayerId) {
+    socket.emit("alias:room:leave", { playerId: aliasPlayerId });
+    localStorage.removeItem("alias:playerId");
+    localStorage.removeItem("alias:roomCode");
+    localStorage.removeItem("alias:playerName");
+  }
+}
+
 export default function CodenamesPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -105,6 +126,20 @@ export default function CodenamesPage() {
       });
 
       await waitForConnection();
+      
+      // Выходим из других игр при входе в Codenames
+      leaveOtherGames();
+
+      // Если в URL есть код комнаты, отличный от сохранённой сессии — 
+      // сначала выходим из старой комнаты, затем присоединяемся к новой
+      if (urlRoomCode && session && session.roomCode !== urlRoomCode) {
+        // Отправляем серверу команду выхода из старой комнаты
+        socket.emit("codenames:room:leave", { playerId: session.playerId }, () => {
+          clearSession(); // Очищаем старую сессию
+          handleUrlJoin(); // Присоединяемся к комнате из URL
+        });
+        return;
+      }
 
       if (session) {
         socket.emit("codenames:room:rejoin", {
@@ -115,9 +150,7 @@ export default function CodenamesPage() {
             setGameState(res.state);
             setMeId(res.playerId);
             saveSession(res.playerId, res.state.room.code, session.playerName);
-            if (urlRoomCode && urlRoomCode !== res.state.room.code) {
-              navigate(`/codenames/${res.state.room.code}`, { replace: true });
-            } else if (!urlRoomCode) {
+            if (!urlRoomCode) {
               navigate(`/codenames/${res.state.room.code}`, { replace: true });
             }
             setIsRestoring(false);

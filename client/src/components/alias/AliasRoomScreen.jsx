@@ -253,7 +253,9 @@ export default function AliasRoomScreen({
       {/* Header - новый дизайн */}
       <header className="alias-header-new">
         <div className="alias-header-new__left">
-          <div className="room-code-block">
+          <div className="room-code-block" onClick={() => {
+            navigator.clipboard.writeText(`${window.location.origin}/alias/${room.code}`);
+          }} title="Скопировать ссылку">
             <div className="room-code-label">Код комнаты</div>
             <div className="room-code">{room.code}</div>
           </div>

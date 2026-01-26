@@ -1028,6 +1028,130 @@ async function maybeFinalizeVote(roomId, roundId) {
   await emitRoomState(roomId);
 }
 
+// Таймеры автовыхода из комнат (5 часов)
+const roomAutoLeaveTimers = new Map();
+const ROOM_AUTO_LEAVE_MS = 5 * 60 * 60 * 1000; // 5 часов
+
+// Вспомогательная функция для выхода из всех комнат перед присоединением к новой
+async function leaveAllRooms(socket) {
+  // Выход из Truth or Dare
+  if (socket.data.roomId && socket.data.playerId) {
+    const roomId = socket.data.roomId;
+    const playerId = socket.data.playerId;
+    try {
+      await prisma.player.update({
+        where: { id: playerId },
+        data: { connectionStatus: "left", lastSeen: new Date() }
+      });
+      playerSockets.delete(playerId);
+      socket.leave(roomId);
+      
+      const state = await buildRoomState(roomId);
+      io.to(roomId).emit("player:list", state.players);
+      io.to(roomId).emit("player:left", { playerId });
+    } catch (e) {
+      console.error("leaveAllRooms: Truth or Dare error:", e);
+    }
+    socket.data.roomId = null;
+    socket.data.playerId = null;
+  }
+
+  // Выход из Alias
+  if (socket.data.aliasRoomId && socket.data.aliasPlayerId) {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    try {
+      const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+      const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
+      const oldTeamId = player?.teamId;
+
+      // Передача хоста
+      if (room && room.hostId === playerId) {
+        const remainingPlayers = await prisma.aliasPlayer.findMany({
+          where: { roomId, id: { not: playerId } },
+          orderBy: { joinedAt: "asc" }
+        });
+        const newHost = remainingPlayers[0];
+        if (newHost) {
+          await prisma.aliasRoom.update({
+            where: { id: roomId },
+            data: { hostId: newHost.id }
+          });
+          io.to(`alias:${roomId}`).emit("alias:host:changed", { newHostId: newHost.id, newHostName: newHost.name });
+        }
+      }
+
+      await prisma.aliasPlayer.delete({ where: { id: playerId } }).catch(() => {});
+      
+      if (oldTeamId) {
+        const remaining = await prisma.aliasPlayer.count({ where: { teamId: oldTeamId } });
+        if (remaining === 0) {
+          await prisma.aliasTeam.delete({ where: { id: oldTeamId } }).catch(() => {});
+        }
+      }
+
+      socket.leave(`alias:${roomId}`);
+      aliasPlayerSockets.delete(playerId);
+      
+      const state = await buildAliasRoomState(prisma, roomId);
+      io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+    } catch (e) {
+      console.error("leaveAllRooms: Alias error:", e);
+    }
+    socket.data.aliasRoomId = null;
+    socket.data.aliasPlayerId = null;
+  }
+
+  // Выход из Codenames
+  if (socket.data.codenamesRoomCode && socket.data.codenamesPlayerId) {
+    const roomCode = socket.data.codenamesRoomCode;
+    const playerId = socket.data.codenamesPlayerId;
+    try {
+      const result = leaveCodenamesRoom(roomCode, playerId);
+      socket.leave(`codenames:${roomCode}`);
+      codenamesPlayerSockets.delete(playerId);
+      
+      if (!result.deleted && result.room) {
+        result.room.players.forEach(p => {
+          const socketId = codenamesPlayerSockets.get(p.id);
+          if (socketId) {
+            io.to(socketId).emit("codenames:state:sync", buildCodenamesRoomState(result.room, p.id));
+          }
+        });
+      }
+    } catch (e) {
+      console.error("leaveAllRooms: Codenames error:", e);
+    }
+    socket.data.codenamesRoomCode = null;
+    socket.data.codenamesPlayerId = null;
+  }
+
+  // Очищаем таймер автовыхода
+  const timerId = roomAutoLeaveTimers.get(socket.id);
+  if (timerId) {
+    clearTimeout(timerId);
+    roomAutoLeaveTimers.delete(socket.id);
+  }
+}
+
+// Устанавливает таймер автовыхода из комнаты через 5 часов
+function setAutoLeaveTimer(socket) {
+  // Очищаем предыдущий таймер, если есть
+  const existingTimerId = roomAutoLeaveTimers.get(socket.id);
+  if (existingTimerId) {
+    clearTimeout(existingTimerId);
+  }
+
+  const timerId = setTimeout(async () => {
+    console.log(`Auto-leaving rooms for socket ${socket.id} after 5 hours`);
+    await leaveAllRooms(socket);
+    socket.emit("auto:leave", { reason: "timeout", message: "Вы были автоматически отключены после 5 часов бездействия" });
+    roomAutoLeaveTimers.delete(socket.id);
+  }, ROOM_AUTO_LEAVE_MS);
+
+  roomAutoLeaveTimers.set(socket.id, timerId);
+}
+
 io.on("connection", (socket) => {
   socket.on("room:create", async (payload, ack) => {
     const name = normalizeName(payload?.name);
@@ -1038,6 +1162,9 @@ io.on("connection", (socket) => {
       }
       return;
     }
+
+    // Выходим из всех предыдущих комнат перед созданием новой
+    await leaveAllRooms(socket);
     
     // Получаем avatarUrl из payload или из сессии пользователя
     let avatarUrl = payload?.avatarUrl || null;
@@ -1076,6 +1203,7 @@ io.on("connection", (socket) => {
     socket.data.playerId = player.id;
     playerSockets.set(player.id, socket.id);
     socket.join(room.id);
+    setAutoLeaveTimer(socket);
 
     const state = await buildRoomState(room.id);
     io.to(room.id).emit("player:list", state.players);
@@ -1096,6 +1224,9 @@ io.on("connection", (socket) => {
       }
       return;
     }
+
+    // Выходим из всех предыдущих комнат перед присоединением
+    await leaveAllRooms(socket);
 
     const room = await prisma.room.findUnique({ where: { code } });
     if (!room) {
@@ -1138,6 +1269,7 @@ io.on("connection", (socket) => {
       socket.data.playerId = player.id;
       playerSockets.set(player.id, socket.id);
       socket.join(room.id);
+      setAutoLeaveTimer(socket);
       
       // Уведомляем всех о реконнекте
       io.to(room.id).emit("player:connection_status", {
@@ -1195,6 +1327,7 @@ io.on("connection", (socket) => {
     socket.data.playerId = player.id;
     playerSockets.set(player.id, socket.id);
     socket.join(room.id);
+    setAutoLeaveTimer(socket);
 
     const state = await buildRoomState(room.id);
     io.to(room.id).emit("player:list", state.players);
@@ -2455,6 +2588,9 @@ io.on("connection", (socket) => {
       if (ack) ack({ ok: false, error: "Name required" });
       return;
     }
+
+    // Выходим из всех предыдущих комнат перед созданием новой
+    await leaveAllRooms(socket);
     
     // Получаем avatarUrl из payload или из сессии пользователя
     let avatarUrl = payload?.avatarUrl || null;
@@ -2511,6 +2647,9 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // Выходим из всех предыдущих комнат перед присоединением
+    await leaveAllRooms(socket);
+
     const room = await prisma.aliasRoom.findUnique({ where: { code } });
     if (!room) {
       if (ack) ack({ ok: false, error: "Комната не найдена" });
@@ -2536,6 +2675,7 @@ io.on("connection", (socket) => {
       socket.data.aliasPlayerId = player.id;
       aliasPlayerSockets.set(player.id, socket.id);
       socket.join(`alias:${room.id}`);
+      setAutoLeaveTimer(socket);
       
       io.to(`alias:${room.id}`).emit("alias:player:reconnected", { playerId: player.id, playerName: player.name });
       
@@ -2577,6 +2717,7 @@ io.on("connection", (socket) => {
     socket.data.aliasPlayerId = player.id;
     aliasPlayerSockets.set(player.id, socket.id);
     socket.join(`alias:${room.id}`);
+    setAutoLeaveTimer(socket);
 
     const state = await buildAliasRoomState(prisma, room.id);
     io.to(`alias:${room.id}`).emit("alias:state:sync", state);
@@ -3679,6 +3820,9 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // Выходим из всех предыдущих комнат перед созданием новой
+    await leaveAllRooms(socket);
+
     let avatarUrl = payload?.avatarUrl || null;
     if (!avatarUrl && socket.data.userId) {
       const user = await prisma.user.findUnique({
@@ -3709,6 +3853,9 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // Выходим из всех предыдущих комнат перед присоединением
+    await leaveAllRooms(socket);
+
     let avatarUrl = payload?.avatarUrl || null;
     if (!avatarUrl && socket.data.userId) {
       const user = await prisma.user.findUnique({
@@ -3728,6 +3875,7 @@ io.on("connection", (socket) => {
     socket.data.codenamesPlayerId = result.playerId;
     codenamesPlayerSockets.set(result.playerId, socket.id);
     socket.join(`codenames:${result.room.code}`);
+    setAutoLeaveTimer(socket);
 
     // Отправляем состояние всем игрокам
     const room = result.room;
@@ -4569,6 +4717,13 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", async () => {
     console.log("[Socket Disconnect] Socket ID:", socket.id, "aliasPlayerId:", socket.data.aliasPlayerId, "aliasRoomId:", socket.data.aliasRoomId);
+    
+    // Очищаем таймер автовыхода при отключении
+    const autoLeaveTimerId = roomAutoLeaveTimers.get(socket.id);
+    if (autoLeaveTimerId) {
+      clearTimeout(autoLeaveTimerId);
+      roomAutoLeaveTimers.delete(socket.id);
+    }
     
     // Handle Codenames disconnect
     if (socket.data.codenamesPlayerId && socket.data.codenamesRoomCode) {

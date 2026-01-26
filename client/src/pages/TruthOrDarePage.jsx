@@ -83,6 +83,27 @@ function clearSession() {
   }
 }
 
+// Выход из других игр при входе в Truth or Dare
+function leaveOtherGames() {
+  // Выход из Alias
+  const aliasPlayerId = localStorage.getItem("alias:playerId");
+  if (aliasPlayerId) {
+    socket.emit("alias:room:leave", { playerId: aliasPlayerId });
+    localStorage.removeItem("alias:playerId");
+    localStorage.removeItem("alias:roomCode");
+    localStorage.removeItem("alias:playerName");
+  }
+  
+  // Выход из Codenames
+  const codenamesPlayerId = localStorage.getItem("codenames:playerId");
+  if (codenamesPlayerId) {
+    socket.emit("codenames:room:leave", { playerId: codenamesPlayerId });
+    localStorage.removeItem("codenames:playerId");
+    localStorage.removeItem("codenames:roomCode");
+    localStorage.removeItem("codenames:playerName");
+  }
+}
+
 export default function TruthOrDarePage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -134,6 +155,20 @@ export default function TruthOrDarePage() {
       };
 
       await waitForConnection();
+      
+      // Выходим из других игр при входе в Truth or Dare
+      leaveOtherGames();
+
+      // Если в URL есть код комнаты, отличный от сохранённой сессии — 
+      // сначала выходим из старой комнаты, затем присоединяемся к новой
+      if (urlRoomCode && session && session.roomCode !== urlRoomCode) {
+        // Отправляем серверу команду выхода из старой комнаты
+        socket.emit("room:leave", { playerId: session.playerId }, () => {
+          clearSession(); // Очищаем старую сессию
+          handleUrlJoin(); // Присоединяемся к комнате из URL
+        });
+        return;
+      }
 
       // Если есть сохранённая сессия — пробуем восстановить
       if (session) {
@@ -151,9 +186,7 @@ export default function TruthOrDarePage() {
             saveSession(response.playerId, response.state.room.code, response.playerName);
             log("Session restored successfully");
             // Обновляем URL если он не соответствует комнате
-            if (urlRoomCode && urlRoomCode !== response.state.room.code) {
-              navigate(`/truth-or-dare/${response.state.room.code}`, { replace: true });
-            } else if (!urlRoomCode) {
+            if (!urlRoomCode) {
               navigate(`/truth-or-dare/${response.state.room.code}`, { replace: true });
             }
             setIsRestoring(false);
