@@ -41,6 +41,14 @@ const {
 } = require("./game/alias");
 
 const {
+  isTeamFull,
+  findNextFullTeam,
+  checkTurnChange
+} = require("./game/alias-turn-helpers");
+
+const { checkAndUpdateAliasTurn, getNextFullTeamAndExplainer } = require("./game/alias-check-turn");
+
+const {
   TEAMS: CODENAMES_TEAMS,
   TIMER_SETTINGS: CODENAMES_TIMER_SETTINGS,
   normalizeName: normalizeCodenamesName,
@@ -2961,6 +2969,9 @@ io.on("connection", (socket) => {
     const state = await buildAliasRoomState(prisma, roomId);
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
 
+    // Проверяем, нужно ли передать ход другой команде
+    await checkAndUpdateAliasTurn(prisma, roomId, io);
+
     if (ack) ack({ ok: true });
   });
 
@@ -2999,6 +3010,9 @@ io.on("connection", (socket) => {
 
     const state = await buildAliasRoomState(prisma, roomId);
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    // Проверяем, нужно ли передать ход другой команде
+    await checkAndUpdateAliasTurn(prisma, roomId, io);
 
     if (ack) ack({ ok: true });
   });
@@ -3400,7 +3414,7 @@ io.on("connection", (socket) => {
     let explainerId = null;
     
     if (teamsWithEnoughPlayers.length > 0) {
-      const result = getNextTeamAndExplainer(teamsWithEnoughPlayers, players, room.currentTeamId, room.currentExplainerId);
+      const result = await getNextFullTeamAndExplainer(prisma, roomId, room.currentTeamId, room.currentExplainerId);
       teamId = result.teamId;
       explainerId = result.explainerId;
     }
