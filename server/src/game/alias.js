@@ -15,6 +15,7 @@ const aliasPausedRooms = new Map();
 const aliasPlayerSockets = new Map();
 const aliasRoundHistory = new Map(); // roomId -> [{ word, correct, timestamp }]
 const aliasReviewTimers = new Map(); // roomId -> { interval, endsAt }
+const aliasCyberLeaderboard = new Map(); // roomId -> [{ playerName, score, date }]
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DEFAULT SETTINGS
@@ -24,7 +25,12 @@ function getDefaultAliasSettings() {
     difficulty: "normal",
     turnSeconds: 60,
     targetScore: 30,
-    skipPenalty: 0 // 0 or -1
+    skipPenalty: 0, // 0 or -1
+
+    // Победитель определяется только после того, как все команды отыграют текущий круг.
+    // Здесь храним "предварительного" победителя (команда, которая первой достигла цели).
+    // Финальный победитель выбирается в конце круга по максимальному счёту.
+    pendingWinnerTeamId: null
   };
 }
 
@@ -310,6 +316,58 @@ function updateWordInHistory(roomId, index, correct) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CYBERRUNNER LEADERBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateCyberLeaderboard(roomId, playerName, score) {
+  if (!roomId || !playerName || score <= 0) return null;
+  
+  if (!aliasCyberLeaderboard.has(roomId)) {
+    aliasCyberLeaderboard.set(roomId, []);
+  }
+  
+  const leaderboard = aliasCyberLeaderboard.get(roomId);
+  
+  // Проверяем, есть ли уже лучший результат этого игрока
+  const existingBetterOrEqual = leaderboard.find(
+    e => e.playerName === playerName && e.score >= score
+  );
+  
+  if (existingBetterOrEqual) {
+    return leaderboard; // Не добавляем если уже есть лучший результат
+  }
+  
+  // Удаляем предыдущие худшие результаты этого игрока
+  const filtered = leaderboard.filter(
+    e => e.playerName !== playerName || e.score > score
+  );
+  
+  // Добавляем новый результат
+  filtered.push({
+    playerName,
+    score,
+    date: Date.now()
+  });
+  
+  // Сортируем по очкам и храним топ-20
+  const updated = filtered
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20);
+  
+  aliasCyberLeaderboard.set(roomId, updated);
+  
+  return updated;
+}
+
+function getCyberLeaderboard(roomId) {
+  return aliasCyberLeaderboard.get(roomId) || [];
+}
+
+function clearCyberLeaderboard(roomId) {
+  aliasCyberLeaderboard.delete(roomId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════
 async function shuffleAliasTeams(prisma, roomId, playerId) {
@@ -412,6 +470,9 @@ module.exports = {
   getRoundTeamId,
   clearRoundHistory,
   updateWordInHistory,
+  updateCyberLeaderboard,
+  getCyberLeaderboard,
+  clearCyberLeaderboard,
   aliasTimers,
   aliasPausedRooms,
   aliasPlayerSockets,

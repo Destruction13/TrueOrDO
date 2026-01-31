@@ -266,7 +266,7 @@
 }
 
 /* Mobile: вертикальный лейаут */
-@media (max-width: 640px) {
+@media (max-width: 1200px) {
   .cyber-runner-container {
     flex-direction: column;
     align-items: center;

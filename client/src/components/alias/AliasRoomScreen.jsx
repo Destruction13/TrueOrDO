@@ -38,12 +38,17 @@ export default function AliasRoomScreen({
   timerRemaining,
   currentWord,
   isPaused,
-  gameFinished,
+  gameFinishedData,
+  showGameFinishedModal,
+  onCloseGameFinished,
+  onOpenGameFinished,
   roundHistory,
   showHistoryAfterTurn,
   onCloseHistoryAfterTurn,
   reviewTimeRemaining,
-  actions
+  actions,
+  cyberLeaderboard,
+  setCyberLeaderboard
 }) {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
@@ -61,27 +66,24 @@ export default function AliasRoomScreen({
   const editInputRef = useRef(null);
   const historyListRef = useRef(null);
 
-  // Лидерборд для CyberRunner (привязан к комнате)
-  const [cyberLeaderboard, setCyberLeaderboard] = useState(() => {
-    // Пытаемся загрузить сохранённый лидерборд для этой комнаты
+  // Управление показом alert "Проверьте результаты!" (показываем только раз на комнату)
+  const [showReportAlert, setShowReportAlert] = useState(() => {
     const roomCode = aliasState?.room?.code;
-    if (roomCode) {
-      const saved = localStorage.getItem(`cyberrunner_leaderboard_${roomCode}`);
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch {
-          return [];
-        }
-      }
-    }
-    return [];
+    if (!roomCode) return true;
+    const alertKey = `alias_alert_dismissed_${roomCode}`;
+    return !localStorage.getItem(alertKey);
   });
+
+  // Лидерборд управляется на уровне AliasPage.jsx и передаётся через пропсы
 
   // Обновление лидерборда при новом результате
   const handleCyberScoreUpdate = useCallback((score, playerName) => {
     if (!playerName || score <= 0) return;
     
+    // Отправляем score на сервер для синхронизации с другими игроками
+    actions.updateCyberScore(score);
+    
+    // Локально обновляем сразу для responsiveness (сервер пришлёт обновление всем)
     setCyberLeaderboard(prev => {
       // Добавляем новый результат
       const newEntry = {
@@ -108,18 +110,9 @@ export default function AliasRoomScreen({
         .sort((a, b) => b.score - a.score)
         .slice(0, 20); // Храним топ-20
       
-      // Сохраняем в localStorage
-      const roomCode = aliasState?.room?.code;
-      if (roomCode) {
-        localStorage.setItem(
-          `cyberrunner_leaderboard_${roomCode}`,
-          JSON.stringify(updated)
-        );
-      }
-      
       return updated;
     });
-  }, [aliasState?.room?.code]);
+  }, [actions]);
 
   // Автоскролл к новым словам (наверх списка)
   useEffect(() => {
@@ -134,6 +127,7 @@ export default function AliasRoomScreen({
   const myTeam = teams.find(t => t.id === me?.teamId);
   const isPlaying = room.status === "playing";
   const isGameActive = room.status === "playing" || room.status === "reviewing";
+  const isFinished = room.status === "finished";
   const isExplainer = room.currentExplainerId === meId;
   const currentTeam = teams.find(t => t.id === room.currentTeamId);
   const currentExplainer = players.find(p => p.id === room.currentExplainerId);
@@ -187,12 +181,16 @@ export default function AliasRoomScreen({
   };
 
   const handleStartEditTeamName = (team) => {
-    // Только создатель команды может редактировать
-    if (team.creatorId !== meId) return;
+    // Переименовывать может любой игрок своей команды
+    if (me?.teamId !== team.id) return;
+
     setEditingTeamId(team.id);
     setEditingTeamName(team.name);
     // Фокус на input после рендера
-    setTimeout(() => editInputRef.current?.focus(), 0);
+    setTimeout(() => {
+      editInputRef.current?.focus();
+      editInputRef.current?.select();
+    }, 0);
   };
 
   const handleSaveTeamName = async () => {
@@ -209,8 +207,8 @@ export default function AliasRoomScreen({
     }
   };
 
-  // Game finished overlay
-  if (gameFinished) {
+  // Game finished overlay (модалка результатов)
+  if (showGameFinishedModal && gameFinishedData) {
     return (
       <div className="alias-room">
         <div className="alias-finished">
@@ -219,14 +217,23 @@ export default function AliasRoomScreen({
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
           >
+            <button
+              className="alias-finished__close"
+              onClick={onCloseGameFinished}
+              title="Закрыть"
+              aria-label="Закрыть"
+            >
+              ✕
+            </button>
+
             <div className="alias-finished__trophy">🏆</div>
             <h2 className="alias-finished__title">Игра окончена!</h2>
             <div className="alias-finished__winner">
-              Победитель: <strong>{gameFinished.winnerName}</strong>
+              Победитель: <strong>{gameFinishedData.winnerName}</strong>
             </div>
             <div className="alias-finished__scores">
-              {gameFinished.finalScores.map(t => (
-                <div key={t.id} className={`alias-finished__score ${t.id === gameFinished.winnerId ? "winner" : ""}`}>
+              {gameFinishedData.finalScores.map(t => (
+                <div key={t.id} className={`alias-finished__score ${t.id === gameFinishedData.winnerId ? "winner" : ""}`}>
                   <span>{t.name}</span>
                   <span>{t.score}</span>
                 </div>
@@ -238,9 +245,6 @@ export default function AliasRoomScreen({
                   Новая игра
                 </Button>
               )}
-              <Button variant="ghost" onClick={actions.leaveRoom}>
-                Выйти
-              </Button>
             </div>
           </motion.div>
         </div>
@@ -270,6 +274,21 @@ export default function AliasRoomScreen({
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </button>
+
+          {/* Хост: быстрый сброс/новая игра после завершения игры */}
+          {isHost && isFinished && !isPlaying && room.status !== "reviewing" && (
+            <button
+              className="alias-header-btn alias-header-btn--reset"
+              onClick={actions.resetRoom}
+              title="Новая игра"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              </svg>
+            </button>
+          )}
+
           {/* Кнопка выхода - только иконка, рядом с правилами */}
           <button 
             className="alias-header-btn alias-header-btn--exit"
@@ -390,7 +409,7 @@ export default function AliasRoomScreen({
               const members = players.filter(p => p.teamId === team.id);
               const onlineMembers = members.filter(p => p.connectionStatus === "online" && !p.isSpectator);
               const isCurrentTeam = room.currentTeamId === team.id;
-              const canEditName = team.creatorId === meId;
+              const canEditName = me?.teamId === team.id;
               const isEditing = editingTeamId === team.id;
               const isIncomplete = onlineMembers.length > 0 && onlineMembers.length < 2;
               const isPotentialWinner = potentialWinners.includes(team.id);
@@ -548,7 +567,7 @@ export default function AliasRoomScreen({
           </div>
 
           {/* МОБИЛКА: Блок объясняющего/готовности - под командами */}
-          {isMobile && !isPlaying && me?.teamId && room.status !== "reviewing" && (
+          {isMobile && !isFinished && !isPlaying && me?.teamId && room.status !== "reviewing" && (
             <div className="alias-mobile-status-section">
               {me.teamId === activeTeamId ? (
                 /* Я в активной команде */
@@ -820,6 +839,50 @@ export default function AliasRoomScreen({
                       onScoreUpdate={handleCyberScoreUpdate}
                     />
                     <CyberRunnerLeaderboard leaderboard={cyberLeaderboard} />
+                    
+                    {/* Лента слов играющей команды (только для мобильных) */}
+                    {isMobile && isPlaying && roundHistory.length > 0 && (
+                      <div className="alias-opponent-word-feed">
+                        <div className="alias-opponent-word-feed__header">
+                          Слова команды {teams.find(t => t.id === room.currentTeamId)?.name || ""}
+                        </div>
+                        <div className="alias-opponent-word-feed__list">
+                          {[...roundHistory].reverse().map((item, revIndex) => {
+                            const index = roundHistory.length - 1 - revIndex;
+                            return (
+                              <motion.div
+                                key={index}
+                                className={`alias-history-item ${item.correct ? "alias-history-item--correct" : "alias-history-item--skipped"} ${revIndex === 0 ? "alias-history-item--new" : ""}`}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: revIndex * 0.03 }}
+                              >
+                                <span className="alias-history-item__indicator">
+                                  {item.correct ? (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                  ) : (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                      <line x1="18" y1="6" x2="6" y2="18" />
+                                      <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                  )}
+                                </span>
+                                <span className="alias-history-item__word">{item.word}</span>
+                                <button
+                                  className={`alias-history-item__toggle ${item.correct ? "alias-history-item__toggle--minus" : "alias-history-item__toggle--plus"}`}
+                                  onClick={() => actions.updateHistory(index, !item.correct)}
+                                  title={item.correct ? "Снять очко" : "Добавить очко"}
+                                >
+                                  {item.correct ? "−" : "+"}
+                                </button>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -903,7 +966,7 @@ export default function AliasRoomScreen({
               </div>
 
               {/* Десктоп: Ready button - только для игроков активной команды и не во время reviewing */}
-              {!isMobile && me?.teamId && me.teamId === activeTeamId && room.status !== "reviewing" && !canStart && (
+              {!isFinished && !isMobile && me?.teamId && me.teamId === activeTeamId && room.status !== "reviewing" && !canStart && (
                 <div className="alias-ready-section">
                   <Button
                     variant={me.isReady ? "secondary" : "primary"}
@@ -919,7 +982,7 @@ export default function AliasRoomScreen({
               )}
 
               {/* Статус для игроков неактивной команды */}
-              {me?.teamId && activeTeamId && me.teamId !== activeTeamId && !isPlaying && room.status !== "reviewing" && (
+              {!isFinished && me?.teamId && activeTeamId && me.teamId !== activeTeamId && !isPlaying && room.status !== "reviewing" && (
                 <div className="alias-waiting-team">
                   <div className="alias-waiting-team__icon">⏳</div>
                   <div className="alias-waiting-team__text">
@@ -929,7 +992,7 @@ export default function AliasRoomScreen({
               )}
 
               {/* Start section - показываем кто будет объяснять (не во время reviewing) - ДЕСКТОП */}
-              {!isMobile && canStart && room.currentExplainerId && room.status !== "reviewing" && (
+              {!isFinished && !isMobile && canStart && room.currentExplainerId && room.status !== "reviewing" && (
                 <div className="alias-start-section">
                   {room.currentExplainerId === meId ? (
                     /* Компактный блок для объясняющего */
@@ -1112,7 +1175,7 @@ export default function AliasRoomScreen({
         )}
 
         {/* History Panel - снизу в лобби после завершения хода */}
-        {!isPlaying && showHistoryAfterTurn && roundHistory.length > 0 && (
+        {!isPlaying && !isFinished && showHistoryAfterTurn && roundHistory.length > 0 && (
           <motion.div
             className="alias-history-panel alias-history-panel--lobby"
             initial={{ y: 100, opacity: 0 }}
@@ -1126,20 +1189,28 @@ export default function AliasRoomScreen({
                 onClick={onCloseHistoryAfterTurn}
               >×</button>
             </div>
-            <div className="alias-history-panel__alert" id="report-alert">
-              <div className="alias-history-panel__alert-icon">⚠️</div>
-              <div className="alias-history-panel__alert-text">
-                <strong>Проверьте результаты!</strong>
-                <span>Нажмите <span className="alias-history-panel__alert-btn">−</span> чтобы снять очко за слово с нарушением правил</span>
+            {showReportAlert && (
+              <div className="alias-history-panel__alert" id="report-alert">
+                <div className="alias-history-panel__alert-icon">⚠️</div>
+                <div className="alias-history-panel__alert-text">
+                  <strong>Проверьте результаты!</strong>
+                  <span>Нажмите <span className="alias-history-panel__alert-btn">−</span> чтобы снять очко за слово с нарушением правил</span>
+                </div>
+                <button 
+                  className="alias-history-panel__alert-close"
+                  onClick={() => {
+                    const roomCode = aliasState?.room?.code;
+                    if (roomCode) {
+                      localStorage.setItem(`alias_alert_dismissed_${roomCode}`, 'true');
+                    }
+                    setShowReportAlert(false);
+                  }}
+                  title="Закрыть"
+                >
+                  ✕
+                </button>
               </div>
-              <button 
-                className="alias-history-panel__alert-close"
-                onClick={() => document.getElementById('report-alert')?.remove()}
-                title="Закрыть"
-              >
-                ×
-              </button>
-            </div>
+            )}
             <div className="alias-history-panel__content">
               <div className="alias-history-list alias-history-list--horizontal">
                 {roundHistory.map((item, index) => (

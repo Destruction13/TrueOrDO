@@ -75,6 +75,19 @@
   color: #f87171;
 }
 
+/* Хост: кнопка "Новая игра" (видна после завершения игры) */
+.alias-header-btn--reset {
+  background: rgba(74, 222, 128, 0.08);
+  border-color: rgba(74, 222, 128, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.alias-header-btn--reset:hover {
+  background: rgba(74, 222, 128, 0.14);
+  border-color: rgba(74, 222, 128, 0.45);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.12);
+}
+
 /* Profile in header */
 .alias-header-profile {
   position: relative;
@@ -919,6 +932,52 @@
   width: 100%;
 }
 
+/* ===== КОНТЕЙНЕР CYBERRUNNER ===== */
+.cyber-runner-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+/*
+  На десктопе (в т.ч. >1200px) делаем CyberRunner по ширине как лидерборд (как в мобильной версии).
+  Иначе из-за min-width/max-width у .cyber-runner игра может быть шире/уже таблицы.
+*/
+@media (min-width: 1201px) {
+  .cyber-runner-container .cyber-runner,
+  .cyber-runner-container .cyber-leaderboard {
+    width: 100%;
+    max-width: none;
+    min-width: auto;
+  }
+}
+
+/* ===== ЛЕНТА СЛОВ ПОД CYBERRUNNER (только мобильные) ===== */
+.alias-opponent-word-feed {
+  width: 100%;
+  margin-top: 1.5rem; /* Отступ под лидербордом */
+  padding: 0;
+}
+
+.alias-opponent-word-feed__header {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 0.75rem;
+  text-align: center;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.alias-opponent-word-feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
 .alias-waiting-team {
   display: flex;
   align-items: center;
@@ -1384,12 +1443,40 @@
 }
 
 .alias-finished__card {
+  position: relative;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
   padding: 2.5rem;
   text-align: center;
   max-width: 400px;
+}
+
+.alias-finished__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.alias-finished__close:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.alias-finished__close:active {
+  transform: translateY(0);
 }
 
 .alias-finished__trophy {
@@ -1440,6 +1527,14 @@
   display: flex;
   gap: 0.75rem;
   justify-content: center;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+/* Для хоста "Новая игра" должна быть визуально по центру блока */
+.alias-finished__actions .btn {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Mobile/Tablet - единый порог 1200px */

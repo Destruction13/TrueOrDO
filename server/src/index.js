@@ -33,6 +33,9 @@ const {
   getRoundTeamId,
   clearRoundHistory,
   updateWordInHistory,
+  updateCyberLeaderboard,
+  getCyberLeaderboard,
+  clearCyberLeaderboard,
   aliasTimers,
   aliasPausedRooms,
   aliasPlayerSockets,
@@ -2672,6 +2675,9 @@ io.on("connection", (socket) => {
     const state = await buildAliasRoomState(prisma, room.id);
     io.to(`alias:${room.id}`).emit("alias:state:sync", state);
 
+    // Синхронизируем текущий лидерборд CyberRunner
+    socket.emit("alias:cyber:leaderboard", { leaderboard: getCyberLeaderboard(room.id) });
+
     if (ack) ack({ ok: true, state, playerId: player.id });
   });
 
@@ -2718,6 +2724,9 @@ io.on("connection", (socket) => {
       
       const state = await buildAliasRoomState(prisma, room.id);
       io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+
+      // Синхронизируем текущий лидерборд CyberRunner только для переподключившегося клиента
+      socket.emit("alias:cyber:leaderboard", { leaderboard: getCyberLeaderboard(room.id) });
 
       // Форсируем актуальные значения таймеров только для переподключившегося клиента
       const timer = aliasTimers.get(room.id);
@@ -2769,6 +2778,9 @@ io.on("connection", (socket) => {
 
     const state = await buildAliasRoomState(prisma, room.id);
     io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+
+    // Синхронизируем текущий лидерборд CyberRunner
+    socket.emit("alias:cyber:leaderboard", { leaderboard: getCyberLeaderboard(room.id) });
 
     if (ack) ack({ ok: true, state, playerId: player.id });
   });
@@ -2825,6 +2837,9 @@ io.on("connection", (socket) => {
 
     const state = await buildAliasRoomState(prisma, room.id);
     io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+
+    // Синхронизируем текущий лидерборд CyberRunner только для переподключившегося клиента
+    socket.emit("alias:cyber:leaderboard", { leaderboard: getCyberLeaderboard(room.id) });
 
     // Форсируем актуальные значения таймеров только для переподключившегося клиента
     const timer = aliasTimers.get(room.id);
@@ -2907,9 +2922,15 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Только создатель команды может переименовывать
-    if (team.creatorId !== playerId) {
-      if (ack) ack({ ok: false, error: "Only team creator can rename" });
+    // Переименовывать может любой игрок, который состоит в этой команде.
+    const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
+    if (!player || player.roomId !== roomId) {
+      if (ack) ack({ ok: false, error: "Игрок не найден" });
+      return;
+    }
+
+    if (player.teamId !== teamId) {
+      if (ack) ack({ ok: false, error: "Переименовать может только участник этой команды" });
       return;
     }
 
@@ -3385,34 +3406,67 @@ io.on("connection", (socket) => {
     const players = await prisma.aliasPlayer.findMany({ where: { roomId } });
     const settings = normalizeAliasSettings(room.settings);
 
-    // Теперь проверяем победителя (после возможных корректировок в отчёте)
-    const winningTeam = teams.find(t => t.score >= settings.targetScore);
-    if (winningTeam) {
-      await prisma.aliasRoom.update({
-        where: { id: roomId },
-        data: { status: "finished" }
-      });
-      io.to(`alias:${roomId}`).emit("alias:game:finished", {
-        winnerId: winningTeam.id,
-        winnerName: winningTeam.name,
-        finalScores: teams.map(t => ({ id: t.id, name: t.name, score: t.score }))
-      });
-      const state = await buildAliasRoomState(prisma, roomId);
-      io.to(`alias:${roomId}`).emit("alias:state:sync", state);
-      // Очищаем историю раунда
-      clearRoundHistory(roomId);
-      return;
-    }
+    // Победитель определяется только после того, как все команды отыграют текущий круг.
+    // Поэтому здесь мы либо:
+    // 1) ставим "предварительного" победителя (pendingWinnerTeamId), если цель достигнута впервые,
+    // 2) либо, если круг завершён, выбираем команду с максимальным счётом и завершаем игру.
 
-    // Определяем следующую команду и объясняющего (только из команд с минимум 2 игроками)
     const teamsWithEnoughPlayers = teams.filter(t => {
       const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
       return teamPlayers.length >= 2;
     });
-    
+
+    const targetReachedTeams = teamsWithEnoughPlayers.filter(t => t.score >= settings.targetScore);
+    const pendingWinnerTeamId = settings.pendingWinnerTeamId || null;
+
+    // Если кто-то уже достиг цели, но pendingWinner ещё не установлен — фиксируем первого достигшего.
+    if (!pendingWinnerTeamId && targetReachedTeams.length > 0) {
+      // Выбираем "первого" детерминированно по turnOrder (стабильно).
+      const firstReached = [...targetReachedTeams].sort((a, b) => a.turnOrder - b.turnOrder)[0];
+      settings.pendingWinnerTeamId = firstReached.id;
+      await prisma.aliasRoom.update({
+        where: { id: roomId },
+        data: { settings: serializeAliasSettings(settings) }
+      });
+    }
+
+    // Если pendingWinner задан, то игра заканчивается только после того,
+    // как отыграет команда с максимальным turnOrder в текущем списке активных команд.
+    if (settings.pendingWinnerTeamId) {
+      const lastTurnOrder = Math.max(...teamsWithEnoughPlayers.map(t => t.turnOrder));
+      const currentTeam = teamsWithEnoughPlayers.find(t => t.id === room.currentTeamId);
+      const isEndOfCycle = currentTeam && currentTeam.turnOrder === lastTurnOrder;
+
+      if (isEndOfCycle) {
+        const winner = [...teamsWithEnoughPlayers].sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return a.turnOrder - b.turnOrder;
+        })[0];
+
+        await prisma.aliasRoom.update({
+          where: { id: roomId },
+          data: { status: "finished" }
+        });
+
+        io.to(`alias:${roomId}`).emit("alias:game:finished", {
+          winnerId: winner.id,
+          winnerName: winner.name,
+          finalScores: teams.map(t => ({ id: t.id, name: t.name, score: t.score }))
+        });
+
+        const state = await buildAliasRoomState(prisma, roomId);
+        io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+        // Очищаем историю раунда
+        clearRoundHistory(roomId);
+        return;
+      }
+    }
+
+    // Определяем следующую команду и объясняющего (только из команд с минимум 2 игроками)
     let teamId = null;
     let explainerId = null;
-    
+
     if (teamsWithEnoughPlayers.length > 0) {
       const result = await getNextFullTeamAndExplainer(prisma, roomId, room.currentTeamId, room.currentExplainerId);
       teamId = result.teamId;
@@ -3533,15 +3587,13 @@ io.on("connection", (socket) => {
       }
     }
     
-    // Apply skip penalty (but never below 0)
+    // Apply skip penalty
+    // В режиме "Пропуск -1" очки могут уходить в минус (это часть правил).
     if (settings.skipPenalty === -1) {
-      const team = await prisma.aliasTeam.findUnique({ where: { id: room.currentTeamId } });
-      if (team && team.score > 0) {
-        await prisma.aliasTeam.update({
-          where: { id: room.currentTeamId },
-          data: { score: { decrement: 1 } }
-        });
-      }
+      await prisma.aliasTeam.update({
+        where: { id: room.currentTeamId },
+        data: { score: { decrement: 1 } }
+      });
     }
 
     io.to(`alias:${roomId}`).emit("alias:word:result", { correct: false, skipped: true });
@@ -3679,6 +3731,9 @@ io.on("connection", (socket) => {
     });
 
     // Reset room
+    const currentSettings = normalizeAliasSettings(room.settings);
+    currentSettings.pendingWinnerTeamId = null;
+
     await prisma.aliasRoom.update({
       where: { id: roomId },
       data: {
@@ -3689,7 +3744,8 @@ io.on("connection", (socket) => {
         turnStartedAt: null,
         turnEndsAt: null,
         deck: "[]",
-        usedWordIds: "[]"
+        usedWordIds: "[]",
+        settings: serializeAliasSettings(currentSettings)
       }
     });
 
@@ -3698,6 +3754,10 @@ io.on("connection", (socket) => {
     
     // Очищаем историю раунда
     clearRoundHistory(roomId);
+
+    // Очищаем лидерборд CyberRunner для комнаты
+    clearCyberLeaderboard(roomId);
+    io.to(`alias:${roomId}`).emit("alias:cyber:leaderboard", { leaderboard: [] });
     
     const state = await buildAliasRoomState(prisma, roomId);
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
@@ -3757,8 +3817,20 @@ io.on("connection", (socket) => {
     const roundTeamId = getRoundTeamId(roomId) || room.currentTeamId;
     const team = await prisma.aliasTeam.findUnique({ where: { id: roundTeamId } });
     if (team) {
-      const scoreDelta = correct ? 1 : -1; // Если меняем false->true: +1, если true->false: -1
-      const newScore = Math.max(0, team.score + scoreDelta);
+      const settings = normalizeAliasSettings(room.settings);
+
+      // В зависимости от режима, "false" (пропуск) означает либо 0 очков, либо -1 очко.
+      const pointsForWord = (isCorrect) => {
+        if (isCorrect) return 1;
+        return settings.skipPenalty === -1 ? -1 : 0;
+      };
+
+      const scoreDelta = pointsForWord(correct) - pointsForWord(oldCorrect);
+      const nextScore = team.score + scoreDelta;
+
+      // В обычном режиме отрицательные очки не допускаем.
+      const newScore = settings.skipPenalty === -1 ? nextScore : Math.max(0, nextScore);
+
       await prisma.aliasTeam.update({
         where: { id: team.id },
         data: { score: newScore }
@@ -3772,6 +3844,45 @@ io.on("connection", (socket) => {
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
 
     if (ack) ack({ ok: true, history: updatedHistory });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CYBERRUNNER LEADERBOARD
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  socket.on("alias:cyber:score", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+    const { score } = payload || {};
+
+    if (!roomId || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    // На всякий случай защищаемся от NaN и отрицательных значений
+    if (typeof score !== "number" || !Number.isFinite(score) || score <= 0) {
+      if (ack) ack({ ok: false, error: "Неверный score" });
+      return;
+    }
+
+    try {
+      const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
+      if (!player) {
+        if (ack) ack({ ok: false, error: "Игрок не найден" });
+        return;
+      }
+
+      const updatedLeaderboard = updateCyberLeaderboard(roomId, player.name, score);
+      const leaderboard = updatedLeaderboard || getCyberLeaderboard(roomId);
+
+      io.to(`alias:${roomId}`).emit("alias:cyber:leaderboard", { leaderboard });
+
+      if (ack) ack({ ok: true, leaderboard });
+    } catch (error) {
+      console.error("alias:cyber:score error:", error);
+      if (ack) ack({ ok: false, error: "Не удалось обновить лидерборд" });
+    }
   });
 
   // Подтверждение отчёта (ручное)

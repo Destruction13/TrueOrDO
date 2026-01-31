@@ -10,8 +10,7 @@
   box-shadow: 
     0 4px 24px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(46, 230, 255, 0.1);
-  min-width: 180px;
-  max-width: 220px;
+  width: 100%;
 }
 
 /* Header */

@@ -93,11 +93,13 @@ export default function AliasPage() {
   const [currentWord, setCurrentWord] = useState(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
-  const [gameFinished, setGameFinished] = useState(null);
+  const [gameFinishedData, setGameFinishedData] = useState(null);
+  const [showGameFinishedModal, setShowGameFinishedModal] = useState(false);
   const [roundHistory, setRoundHistory] = useState([]);
   const [showHistoryAfterTurn, setShowHistoryAfterTurn] = useState(false);
   const [reviewTimeRemaining, setReviewTimeRemaining] = useState(null);
   const [pendingJoinCode, setPendingJoinCode] = useState(null);
+  const [cyberLeaderboard, setCyberLeaderboard] = useState([]);
 
   // Установка заголовка страницы
   useEffect(() => {
@@ -234,9 +236,22 @@ export default function AliasPage() {
         setShowHistoryAfterTurn(true);
       }
     };
-    const onGameFinished = (data) => setGameFinished(data);
+    const onGameFinished = (data) => {
+      // Игра завершилась: сохраняем данные результатов и открываем модалку.
+      setGameFinishedData(data);
+      setShowGameFinishedModal(true);
+
+      // Очищаем состояние отчёта/хода, чтобы не оставались "Закрыть отчёт", готовность и т.п.
+      setShowHistoryAfterTurn(false);
+      setRoundHistory([]);
+      setReviewTimeRemaining(null);
+      setCurrentWord(null);
+      setTimerRemaining(null);
+      setIsPaused(false);
+    };
     const onReset = () => {
-      setGameFinished(null);
+      setGameFinishedData(null);
+      setShowGameFinishedModal(false);
       setCurrentWord(null);
       setTimerRemaining(null);
       setIsPaused(false);
@@ -250,9 +265,14 @@ export default function AliasPage() {
       setRoundHistory([]);
       setReviewTimeRemaining(null);
     };
+    const onCyberLeaderboard = ({ leaderboard }) => {
+      // Обновляем лидерборд при получении обновлений от сервера
+      setCyberLeaderboard(leaderboard);
+    };
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    socket.on("alias:cyber:leaderboard", onCyberLeaderboard);
     socket.on("alias:state:sync", onStateSync);
     socket.on("alias:timer:tick", onTimerTick);
     socket.on("alias:word:current", onWordCurrent);
@@ -267,6 +287,7 @@ export default function AliasPage() {
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.off("alias:cyber:leaderboard", onCyberLeaderboard);
       socket.off("alias:state:sync", onStateSync);
       socket.off("alias:timer:tick", onTimerTick);
       socket.off("alias:word:current", onWordCurrent);
@@ -341,7 +362,8 @@ export default function AliasPage() {
       setAliasState(null);
       setMeId(null);
       setCurrentWord(null);
-      setGameFinished(null);
+      setGameFinishedData(null);
+      setShowGameFinishedModal(false);
       setRoundHistory([]);
       setTimerRemaining(null);
       setIsPaused(false);
@@ -369,6 +391,7 @@ export default function AliasPage() {
       return res?.history || [];
     },
     updateHistory: async (index, correct) => handleAck(await emitWithAck("alias:history:update", { index, correct })),
+    updateCyberScore: async (score) => handleAck(await emitWithAck("alias:cyber:score", { score })),
     confirmReport: async () => handleAck(await emitWithAck("alias:report:confirm", {})),
     navigateToGames: () => navigate("/games")
   }), [navigate]);
@@ -419,12 +442,17 @@ export default function AliasPage() {
         timerRemaining={timerRemaining}
         currentWord={currentWord}
         isPaused={isPaused}
-        gameFinished={gameFinished}
+        gameFinishedData={gameFinishedData}
+        showGameFinishedModal={showGameFinishedModal}
+        onCloseGameFinished={() => setShowGameFinishedModal(false)}
+        onOpenGameFinished={() => setShowGameFinishedModal(true)}
         roundHistory={roundHistory}
         showHistoryAfterTurn={showHistoryAfterTurn}
         onCloseHistoryAfterTurn={() => setShowHistoryAfterTurn(false)}
         reviewTimeRemaining={reviewTimeRemaining}
         actions={actions}
+        cyberLeaderboard={cyberLeaderboard}
+        setCyberLeaderboard={setCyberLeaderboard}
       />
     </div>
   );
