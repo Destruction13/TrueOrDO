@@ -354,7 +354,9 @@ export default function AliasPage() {
     joinTeam: async (teamId) => handleAck(await emitWithAck("alias:teams:join", { teamId })),
     leaveTeam: async () => handleAck(await emitWithAck("alias:teams:leave", {})),
     renameTeam: async (teamId, name) => handleAck(await emitWithAck("alias:teams:rename", { teamId, name })),
+    shuffleTeams: async () => handleAck(await emitWithAck("alias:teams:shuffle", {})),
     setReady: async (isReady) => handleAck(await emitWithAck("alias:ready:set", { isReady })),
+
     updateSettings: async (settings) => handleAck(await emitWithAck("alias:settings:update", settings)),
     startTurn: async () => handleAck(await emitWithAck("alias:turn:start", {})),
     nextWord: async () => handleAck(await emitWithAck("alias:turn:next", {})),

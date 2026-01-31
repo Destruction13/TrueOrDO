@@ -312,7 +312,88 @@ function updateWordInHistory(roomId, index, correct) {
 // ═══════════════════════════════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════
+async function shuffleAliasTeams(prisma, roomId, playerId) {
+  const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+  if (!room) return { error: "Комната не найдена" };
+  if (room.hostId !== playerId) return { error: "Только ведущий может перемешивать команды" };
+  if (room.status === "playing" || room.status === "paused" || room.status === "finished") {
+    return { error: "Перемешивание доступно только до начала игры" };
+  }
+
+  const teams = await prisma.aliasTeam.findMany({
+    where: { roomId },
+    orderBy: { turnOrder: "asc" }
+  });
+
+  if (teams.length < 2) {
+    return { error: "Для перемешивания нужно минимум 2 команды" };
+  }
+
+  const players = await prisma.aliasPlayer.findMany({
+    where: {
+      roomId,
+      connectionStatus: { not: "left" },
+      isSpectator: false
+    },
+    orderBy: { joinedAt: "asc" }
+  });
+
+  // Fisher-Yates shuffle
+  const shuffled = [...players];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  // Сопоставление playerId -> teamId для детерминированного explainOrder
+  const assignment = new Map();
+  for (let i = 0; i < shuffled.length; i++) {
+    assignment.set(shuffled[i].id, teams[i % teams.length].id);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Раздаем игроков по командам максимально равномерно
+    for (const p of shuffled) {
+      await tx.aliasPlayer.update({
+        where: { id: p.id },
+        data: {
+          teamId: assignment.get(p.id),
+          isReady: false,
+          isSpectator: false,
+        }
+      });
+    }
+
+    // Пересчитываем explainOrder внутри каждой команды
+    for (const team of teams) {
+      const teamMembers = await tx.aliasPlayer.findMany({
+        where: { roomId, teamId: team.id, connectionStatus: { not: "left" }, isSpectator: false },
+        orderBy: { joinedAt: "asc" }
+      });
+
+      for (let idx = 0; idx < teamMembers.length; idx++) {
+        await tx.aliasPlayer.update({
+          where: { id: teamMembers[idx].id },
+          data: { explainOrder: idx }
+        });
+      }
+    }
+
+    // Сбрасываем текущий ход на случай если он был подготовлен
+    await tx.aliasRoom.update({
+      where: { id: roomId },
+      data: { currentTeamId: null, currentExplainerId: null, turnStartedAt: null, turnEndsAt: null }
+    });
+  });
+
+  // Сбрасываем in-memory индексы объясняющих
+  resetExplainerIndexes(teams.map(t => t.id));
+
+  return { ok: true };
+}
+
 module.exports = {
+  shuffleAliasTeams,
   getDefaultAliasSettings,
   normalizeAliasSettings,
   serializeSettings,

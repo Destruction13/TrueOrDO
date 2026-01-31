@@ -31,6 +31,12 @@ function parseHintInput(input) {
   return { word: trimmed, count: null };
 }
 
+function formatHintInput(word, count) {
+  const w = (word || "").trim();
+  const c = count == null ? "" : String(count).trim();
+  return `${w} ${c}`.trim();
+}
+
 export default function CodenamesRoomScreen({
   connected,
   error,
@@ -50,7 +56,13 @@ export default function CodenamesRoomScreen({
   const [isOvertime, setIsOvertime] = useState(false);
   const [pendingProgress, setPendingProgress] = useState(0);
   const [captainHighlightActive, setCaptainHighlightActive] = useState(false);
+
+  // Редактирование текущей подсказки (только для капитана текущей команды)
+  const [isEditingCurrentHint, setIsEditingCurrentHint] = useState(false);
+  const [editingHintText, setEditingHintText] = useState("");
   const timerIntervalRef = useRef(null);
+  // Компенсация разницы часов между устройствами (serverNow - clientNow)
+  const timeOffsetMsRef = useRef(0);
   const pendingIntervalRef = useRef(null);
   const captainHighlightTimeoutRef = useRef(null);
   const hintInputRef = useRef(null);
@@ -73,6 +85,39 @@ export default function CodenamesRoomScreen({
   const isPlaying = room?.status === "playing";
   const isFinished = room?.status === "finished";
   const canSelectCard = isPlaying && isOperative && isMyTeamTurn && room?.currentHint;
+  const canEditCurrentHint = isPlaying && isCaptain && isMyTeamTurn && !!room?.currentHint;
+
+  const startEditCurrentHint = useCallback(() => {
+    if (!canEditCurrentHint) return;
+    setIsEditingCurrentHint(true);
+    setEditingHintText(formatHintInput(room?.currentHint?.word, room?.currentHint?.count));
+  }, [canEditCurrentHint, room?.currentHint?.word, room?.currentHint?.count]);
+
+  const cancelEditCurrentHint = useCallback(() => {
+    setIsEditingCurrentHint(false);
+    setEditingHintText("");
+  }, []);
+
+  const saveEditCurrentHint = useCallback(async () => {
+    if (!canEditCurrentHint) return;
+
+    const parsed = parseHintInput(editingHintText || "");
+    if (!parsed.word || parsed.count === null) return;
+
+    const res = await actions.editHint?.(parsed.word, parsed.count);
+    if (res?.ok) {
+      cancelEditCurrentHint();
+    }
+  }, [actions, canEditCurrentHint, editingHintText, cancelEditCurrentHint]);
+
+  const onEditCurrentHintBlur = useCallback(() => {
+    const parsed = parseHintInput(editingHintText || "");
+    if (!parsed.word || parsed.count === null) {
+      cancelEditCurrentHint();
+      return;
+    }
+    saveEditCurrentHint();
+  }, [editingHintText, cancelEditCurrentHint, saveEditCurrentHint]);
 
   const redTeam = useMemo(() => {
     const team = players?.filter(p => p.team === "red") || [];
@@ -118,7 +163,14 @@ export default function CodenamesRoomScreen({
     return history;
   }, [hintHistory, currentHintForHistory, room?.currentTeam]);
 
-  const canStartGame = useMemo(() => {
+  // Обновляем offset времени при каждом state sync (чтобы таймеры были одинаковыми у всех)
+  useEffect(() => {
+    if (typeof gameState?.serverNow === "number") {
+      timeOffsetMsRef.current = gameState.serverNow - Date.now();
+    }
+  }, [gameState?.serverNow]);
+
+  const canStartGame = useMemo(() => { 
     if (!isHost || !isLobby) return false;
     const redCaptain = redTeam.find(p => p.role === "captain");
     const blueCaptain = blueTeam.find(p => p.role === "captain");
@@ -139,7 +191,7 @@ export default function CodenamesRoomScreen({
     
     if (isPlaying && (room?.hintTimerEndsAt || room?.guessTimerEndsAt)) {
       const updateTimer = () => {
-        const now = Date.now();
+        const now = Date.now() + (timeOffsetMsRef.current || 0);
         
         // Определяем какой таймер показывать
         if (room.timerPhase === "hint" && room.hintTimerEndsAt && now < room.hintTimerEndsAt) {
@@ -257,7 +309,7 @@ export default function CodenamesRoomScreen({
     const pendingCard = room?.pendingCard;
     if (pendingCard && pendingCard.startedAt && pendingCard.endsAt) {
       const updateProgress = () => {
-        const now = Date.now();
+        const now = Date.now() + (timeOffsetMsRef.current || 0);
         const total = pendingCard.endsAt - pendingCard.startedAt;
         const elapsed = now - pendingCard.startedAt;
         const progress = Math.min(100, Math.max(0, (elapsed / total) * 100));
@@ -593,12 +645,50 @@ export default function CodenamesRoomScreen({
               <div className="codenames-hint-history">
                 <div className="codenames-hint-history__title">Подсказки</div>
                 <div className="codenames-hint-history__list">
-                  {redHints.map((hint, idx) => (
-                    <div key={idx} className={`codenames-hint-history__item ${hint.current ? "codenames-hint-history__item--current" : ""}`}>
-                      <span className="codenames-hint-history__word">{hint.word}</span>
-                      <span className="codenames-hint-history__count">{hint.count}</span>
-                    </div>
-                  ))}
+                  {redHints.map((hint, idx) => {
+                    const isCurrent = !!hint.current;
+                    const showEdit = isCurrent && canEditCurrentHint;
+                    const isEditingThis = isCurrent && isEditingCurrentHint;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`codenames-hint-history__item ${isCurrent ? "codenames-hint-history__item--current" : ""} ${showEdit ? "codenames-hint-history__item--editable" : ""} ${isEditingThis ? "codenames-hint-history__item--editing" : ""}`}
+                      >
+                        {isEditingThis ? (
+                          <input
+                            className="codenames-hint-history__edit-field"
+                            value={editingHintText}
+                            onChange={(e) => setEditingHintText(e.target.value)}
+                            placeholder="Подсказка"
+                            maxLength={60}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveEditCurrentHint();
+                              if (e.key === "Escape") cancelEditCurrentHint();
+                            }}
+                            onBlur={onEditCurrentHintBlur}
+                          />
+                        ) : (
+                          <>
+                            <span className="codenames-hint-history__word">{hint.word}</span>
+                            <span className="codenames-hint-history__right">
+                              {showEdit && (
+                                <button
+                                  className="codenames-hint-history__edit-icon"
+                                  onClick={startEditCurrentHint}
+                                  title="Редактировать подсказку"
+                                >
+                                  ✎
+                                </button>
+                              )}
+                              <span className="codenames-hint-history__count">{hint.count}</span>
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -670,12 +760,36 @@ export default function CodenamesRoomScreen({
                   const shouldHighlight = captainHighlightActive && isCaptain && !card.revealed && card.type === me?.team;
                   const allVoted = hasVotes && voters.length >= (room?.teamOperativesCount || 1);
                   
+                  const pendingTeamClass = isCaptain ? "yellow" : room?.currentTeam;
+                  const cardClassName = [
+                    "codenames-card",
+                    card.revealed && "codenames-card--revealed",
+                    // Открытые карты видят все, а типы (цвета) во время игры видит только капитан
+                    card.type && (card.revealed || isCaptain) && `codenames-card--${card.type}`,
+                    isClickable && "codenames-card--clickable",
+
+                    // Маркер для CSS: смотрит капитан
+                    isCaptain && "codenames-card--viewer-captain",
+
+                    // Вид капитана: показываем реальный тип карточки (до reveal)
+                    isCaptain && !card.revealed && `codenames-card--captain-${card.type}`,
+
+                    // Pending: цвет полосы зависит от роли смотрящего
+                    isPending && `codenames-card--pending codenames-card--pending--${pendingTeamClass}`,
+
+                    hasVotes && !card.revealed && !isPending && `codenames-card--has-votes codenames-card--has-votes--${room?.currentTeam}`,
+                    allVoted && !card.revealed && !isPending && `codenames-card--all-voted codenames-card--all-voted--${room?.currentTeam}`,
+                    card.revealed && isCaptain && "codenames-card--captain-revealed",
+                    shouldHighlight && `codenames-card--captain-highlight-${me?.team}`,
+                    isMyVote && !card.revealed && "codenames-card--my-vote",
+                  ].filter(Boolean).join(" ");
+
                   return (
-                    <motion.div 
-                      key={card.id} 
-                      className={`codenames-card ${card.revealed ? "codenames-card--revealed" : ""} ${card.type && (card.revealed || isCaptain) ? `codenames-card--${card.type}` : ""} ${isClickable ? "codenames-card--clickable" : ""} ${isCaptain && !card.revealed ? `codenames-card--captain-${card.type}` : ""} ${isPending ? `codenames-card--pending codenames-card--pending--${room?.currentTeam}` : ""} ${hasVotes && !card.revealed && !isPending ? `codenames-card--has-votes codenames-card--has-votes--${room?.currentTeam}` : ""} ${allVoted && !card.revealed && !isPending ? `codenames-card--all-voted codenames-card--all-voted--${room?.currentTeam}` : ""} ${card.revealed && isCaptain ? "codenames-card--captain-revealed" : ""} ${shouldHighlight ? `codenames-card--captain-highlight-${me?.team}` : ""} ${isMyVote && !card.revealed ? "codenames-card--my-vote" : ""}`}
-                      onClick={() => isClickable && handleCardClick(card.id)} 
-                      whileHover={isClickable ? { scale: 1.02 } : {}} 
+                    <motion.div
+                      key={card.id}
+                      className={cardClassName}
+                      onClick={() => isClickable && handleCardClick(card.id)}
+                      whileHover={isClickable ? { scale: 1.02 } : {}}
                       whileTap={isClickable ? { scale: 0.98 } : {}}
                     >
                       <span className="codenames-card__word">{card.word}</span>
@@ -819,12 +933,50 @@ export default function CodenamesRoomScreen({
               <div className="codenames-hint-history">
                 <div className="codenames-hint-history__title">Подсказки</div>
                 <div className="codenames-hint-history__list">
-                  {blueHints.map((hint, idx) => (
-                    <div key={idx} className={`codenames-hint-history__item ${hint.current ? "codenames-hint-history__item--current" : ""}`}>
-                      <span className="codenames-hint-history__word">{hint.word}</span>
-                      <span className="codenames-hint-history__count">{hint.count}</span>
-                    </div>
-                  ))}
+                  {blueHints.map((hint, idx) => {
+                    const isCurrent = !!hint.current;
+                    const showEdit = isCurrent && canEditCurrentHint;
+                    const isEditingThis = isCurrent && isEditingCurrentHint;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`codenames-hint-history__item ${isCurrent ? "codenames-hint-history__item--current" : ""} ${showEdit ? "codenames-hint-history__item--editable" : ""} ${isEditingThis ? "codenames-hint-history__item--editing" : ""}`}
+                      >
+                        {isEditingThis ? (
+                          <input
+                            className="codenames-hint-history__edit-field"
+                            value={editingHintText}
+                            onChange={(e) => setEditingHintText(e.target.value)}
+                            placeholder="Подсказка"
+                            maxLength={60}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveEditCurrentHint();
+                              if (e.key === "Escape") cancelEditCurrentHint();
+                            }}
+                            onBlur={onEditCurrentHintBlur}
+                          />
+                        ) : (
+                          <>
+                            <span className="codenames-hint-history__word">{hint.word}</span>
+                            <span className="codenames-hint-history__right">
+                              {showEdit && (
+                                <button
+                                  className="codenames-hint-history__edit-icon"
+                                  onClick={startEditCurrentHint}
+                                  title="Редактировать подсказку"
+                                >
+                                  ✎
+                                </button>
+                              )}
+                              <span className="codenames-hint-history__count">{hint.count}</span>
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -926,6 +1078,38 @@ export default function CodenamesRoomScreen({
                     {room?.isRoomOpen ? "Запретить смену команд" : "Разрешить смену команд и ролей"}
                   </span>
                 </button>
+
+                {/* Перемешать команды/роли (Shuffle)
+                    - в лобби: всегда
+                    - во время игры: только если комната открыта (и безопасно: до выдачи подсказки)
+                */}
+                {(isLobby || room?.isRoomOpen) && (
+                  <button
+                    className="codenames-settings-modal__btn"
+                    disabled={!(
+                      isLobby ||
+                      (isPlaying && room?.isRoomOpen && room?.timerPhase === "hint" && !room?.currentHint)
+                    )}
+                    onClick={() => {
+                      actions.shuffleTeams();
+                    }}
+                  >
+                    {/* Иконка шестигранного кубика */}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="4" y="4" width="16" height="16" rx="3" />
+                      <circle cx="9" cy="9" r="0.8" fill="currentColor" stroke="none" />
+                      <circle cx="15" cy="15" r="0.8" fill="currentColor" stroke="none" />
+                      <circle cx="15" cy="9" r="0.8" fill="currentColor" stroke="none" />
+                      <circle cx="9" cy="15" r="0.8" fill="currentColor" stroke="none" />
+                    </svg>
+                    <span>Перемешать</span>
+                    <span className="codenames-settings-modal__hint">
+                      {isLobby
+                        ? "Случайно распределить игроков по командам и ролям"
+                        : "Доступно до подсказки и только при открытой комнате"}
+                    </span>
+                  </button>
+                )}
 
                 {/* Пропуск хода - только во время игры */}
                 {isPlaying && (

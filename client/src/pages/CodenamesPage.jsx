@@ -312,7 +312,9 @@ export default function CodenamesPage() {
     setRole: async (role) => handleAck(await emitWithAck("codenames:role:set", { role })),
     startGame: async () => handleAck(await emitWithAck("codenames:game:start", {})),
     giveHint: async (word, count) => handleAck(await emitWithAck("codenames:hint:give", { word, count })),
+    editHint: async (word, count) => handleAck(await emitWithAck("codenames:hint:edit", { word, count })),
     voteForCard: async (cardId) => handleAck(await emitWithAck("codenames:card:vote", { cardId })),
+
     cancelVote: async () => handleAck(await emitWithAck("codenames:card:cancelVote", {})),
     selectCard: async (cardId) => handleAck(await emitWithAck("codenames:card:select", { cardId })),
     cancelSelectCard: async () => handleAck(await emitWithAck("codenames:card:cancel", {})),
@@ -321,6 +323,7 @@ export default function CodenamesPage() {
     voteEndTurn: async () => handleAck(await emitWithAck("codenames:turn:voteEnd", {})),
     resetGame: async () => handleAck(await emitWithAck("codenames:game:reset", {})),
     toggleRoomOpen: async () => handleAck(await emitWithAck("codenames:room:toggle", {})),
+    shuffleTeams: async () => handleAck(await emitWithAck("codenames:room:shuffle", {})),
     skipTurn: async () => handleAck(await emitWithAck("codenames:turn:skip", {})),
     kickPlayer: async (targetPlayerId) => handleAck(await emitWithAck("codenames:player:kick", { targetPlayerId })),
     updateSettings: async (settings) => handleAck(await emitWithAck("codenames:settings:update", { settings })),

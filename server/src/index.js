@@ -36,7 +36,8 @@ const {
   aliasTimers,
   aliasPausedRooms,
   aliasPlayerSockets,
-  aliasReviewTimers
+  aliasReviewTimers,
+  shuffleAliasTeams
 } = require("./game/alias");
 
 const {
@@ -52,6 +53,7 @@ const {
   renameTeam: renameCodenamesTeam,
   startGame: startCodenamesGame,
   giveHint: giveCodenamesHint,
+  editHint: editCodenamesHint,
   voteForCard: voteCodenamesCard,
   cancelVote: cancelCodenamesVote,
   revealCard: revealCodenamesCard,
@@ -63,6 +65,7 @@ const {
   switchToOvertime: switchCodenamesOvertime,
   resetGame: resetCodenamesGame,
   toggleRoomOpen: toggleCodenamesRoomOpen,
+  shuffleTeams: shuffleCodenamesTeams,
   skipTurn: skipCodenamesTurn,
   kickPlayer: kickCodenamesPlayer,
   updateSettings: updateCodenamesSettings,
@@ -1281,6 +1284,19 @@ io.on("connection", (socket) => {
       const state = await buildRoomState(room.id);
       io.to(room.id).emit("player:list", state.players);
       io.to(room.id).emit("room:state", state);
+
+      // Форсируем актуальные значения таймеров только для переподключившегося клиента
+      const activeRound = state?.round;
+      if (activeRound?.id) {
+        const timer = roomTimers.get(room.id);
+        if (timer && timer.roundId === activeRound.id) {
+          socket.emit("round:timer_tick", { roundId: timer.roundId, remaining: timer.remaining });
+        }
+        const votingTimer = votingTimers.get(room.id);
+        if (votingTimer && votingTimer.roundId === activeRound.id) {
+          socket.emit("voting:timer_tick", { roundId: votingTimer.roundId, remaining: votingTimer.remaining });
+        }
+      }
       
       if (ack) {
         ack({ ok: true, state, playerId: player.id, reconnected: true });
@@ -1432,6 +1448,19 @@ io.on("connection", (socket) => {
       const state = await buildRoomState(room.id);
       io.to(room.id).emit("player:list", state.players);
       io.to(room.id).emit("room:state", state);
+
+      // Форсируем актуальные значения таймеров для этого переподключившегося клиента
+      const activeRound = state?.round;
+      if (activeRound?.id) {
+        const timer = roomTimers.get(room.id);
+        if (timer && timer.roundId === activeRound.id) {
+          socket.emit("round:timer_tick", { roundId: timer.roundId, remaining: timer.remaining });
+        }
+        const votingTimer = votingTimers.get(room.id);
+        if (votingTimer && votingTimer.roundId === activeRound.id) {
+          socket.emit("voting:timer_tick", { roundId: votingTimer.roundId, remaining: votingTimer.remaining });
+        }
+      }
 
       if (ack) {
         ack({ ok: true, state, playerId: player.id, playerName: player.name });
@@ -2681,6 +2710,17 @@ io.on("connection", (socket) => {
       
       const state = await buildAliasRoomState(prisma, room.id);
       io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+
+      // Форсируем актуальные значения таймеров только для переподключившегося клиента
+      const timer = aliasTimers.get(room.id);
+      if (timer) {
+        socket.emit("alias:timer:tick", { remaining: timer.remaining });
+      }
+      const review = aliasReviewTimers.get(room.id);
+      if (review?.endsAt) {
+        const remaining = Math.max(0, Math.ceil((review.endsAt - Date.now()) / 1000));
+        socket.emit("alias:review:tick", { remaining });
+      }
       
       if (ack) ack({ ok: true, state, playerId: player.id, reconnected: true });
       return;
@@ -2777,6 +2817,17 @@ io.on("connection", (socket) => {
 
     const state = await buildAliasRoomState(prisma, room.id);
     io.to(`alias:${room.id}`).emit("alias:state:sync", state);
+
+    // Форсируем актуальные значения таймеров только для переподключившегося клиента
+    const timer = aliasTimers.get(room.id);
+    if (timer) {
+      socket.emit("alias:timer:tick", { remaining: timer.remaining });
+    }
+    const review = aliasReviewTimers.get(room.id);
+    if (review?.endsAt) {
+      const remaining = Math.max(0, Math.ceil((review.endsAt - Date.now()) / 1000));
+      socket.emit("alias:review:tick", { remaining });
+    }
 
     if (ack) ack({ ok: true, state, playerId: player.id });
   });
@@ -2944,6 +2995,27 @@ io.on("connection", (socket) => {
       if (remaining === 0) {
         await prisma.aliasTeam.delete({ where: { id: oldTeamId } });
       }
+    }
+
+    const state = await buildAliasRoomState(prisma, roomId);
+    io.to(`alias:${roomId}`).emit("alias:state:sync", state);
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("alias:teams:shuffle", async (payload, ack) => {
+    const roomId = socket.data.aliasRoomId;
+    const playerId = socket.data.aliasPlayerId;
+
+    if (!roomId || !playerId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const result = await shuffleAliasTeams(prisma, roomId, playerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
     }
 
     const state = await buildAliasRoomState(prisma, roomId);
@@ -4102,6 +4174,32 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
+  socket.on("codenames:hint:edit", async (payload, ack) => {
+    const roomCode = socket.data.codenamesRoomCode;
+    const playerId = socket.data.codenamesPlayerId;
+    const { word, count } = payload || {};
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = editCodenamesHint(roomCode, playerId, word, count);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    result.room.players.forEach(p => {
+      const socketId = codenamesPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("codenames:state:sync", buildCodenamesRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
+  });
+
   // Голосование за карточку
   socket.on("codenames:card:vote", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
@@ -4497,6 +4595,32 @@ io.on("connection", (socket) => {
     io.to(`codenames:${roomCode}`).emit("codenames:room:toggled", { isRoomOpen: result.isRoomOpen });
 
     if (ack) ack({ ok: true, isRoomOpen: result.isRoomOpen });
+  });
+
+  socket.on("codenames:room:shuffle", async (payload, ack) => {
+    const roomCode = socket.data.codenamesRoomCode;
+    const playerId = socket.data.codenamesPlayerId;
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = shuffleCodenamesTeams(roomCode, playerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    result.room.players.forEach(p => {
+      if (p.connectionStatus === "kicked" || p.connectionStatus === "left") return;
+      const socketId = codenamesPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("codenames:state:sync", buildCodenamesRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
   });
 
   // Пропуск хода

@@ -476,9 +476,6 @@ export default function AliasRoomScreen({
                               {m.name}
                               {m.id === meId && <span className="alias-member__you">(вы)</span>}
                             </span>
-                            {isDisconnected && (
-                              <span className="alias-member__status-tag">Нет связи</span>
-                            )}
                           </div>
                           <div className="alias-member__badges">
                             {m.id === room.currentExplainerId && isPlaying && (
@@ -1220,6 +1217,7 @@ export default function AliasRoomScreen({
         settings={room.settings}
         onSave={actions.updateSettings}
         isHost={isHost}
+        onShuffleTeams={actions.shuffleTeams}
       />
 
       {/* Rules Modal */}

@@ -5,7 +5,7 @@
 На своём ПК открой PowerShell или терминал и подключись к VPS:
 
 ```bash
-ssh root@<72.56.84.248>
+ssh root@72.56.84.248
 ```
 
 (если спросит пароль — вводи свой root-пароль, ничего не будет видно, это норм)
@@ -250,7 +250,7 @@ location /api/ {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_cache_bypass $http_upgrade;
-    
+  
     # Важно для загрузки файлов
     client_max_body_size 15M;
     proxy_read_timeout 60s;

@@ -76,7 +76,6 @@ export default function PlayerCard({
           {isMe && <span className="player-card-v2__me-tag">Вы</span>}
           {isChaos && <span className="player-card-v2__chaos-tag">🔥 ХАОС</span>}
           {isShamed && <span className="player-card-v2__shamed-tag">⏱️ -25%</span>}
-          {isDisconnected && <span className="player-card-v2__disconnected-tag">📡 Нет связи</span>}
           {isLeft && <span className="player-card-v2__left-tag">🚪 Покинул</span>}
         </div>
         

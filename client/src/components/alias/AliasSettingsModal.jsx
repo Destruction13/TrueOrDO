@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Button from "../ui/Button";
 import "./AliasSettingsModal.css";
 
-export default function AliasSettingsModal({ isOpen, onClose, settings, onSave, isHost }) {
+export default function AliasSettingsModal({ isOpen, onClose, settings, onSave, isHost, onShuffleTeams }) {
   const [localSettings, setLocalSettings] = useState(settings);
 
   useEffect(() => {
@@ -123,6 +123,21 @@ export default function AliasSettingsModal({ isOpen, onClose, settings, onSave, 
                 </button>
               </div>
             </div>
+
+            {/* Shuffle teams */}
+            {isHost && (
+              <div className="alias-setting">
+                <button
+                  className="alias-setting__shuffle"
+                  type="button"
+                  onClick={async () => {
+                    await onShuffleTeams?.();
+                  }}
+                >
+                  Перемешать команды
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="alias-modal__footer">

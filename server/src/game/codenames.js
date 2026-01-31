@@ -598,6 +598,46 @@ function giveHint(code, playerId, word, count) {
   return { room, startTimer: true, timerDuration: guessTime };
 }
 
+function editHint(code, playerId, word, count) {
+  const room = getRoom(code);
+  if (!room) return { error: "Комната не найдена" };
+  if (room.status !== "playing") return { error: "Игра не активна" };
+
+  const player = room.players.find(p => p.id === playerId);
+  if (!player) return { error: "Игрок не найден" };
+  if (player.team !== room.currentTeam) return { error: "Сейчас не ход вашей команды" };
+  if (player.role !== ROLES.CAPTAIN) return { error: "Только капитан может редактировать подсказку" };
+  if (!room.currentHint) return { error: "Сначала должна быть дана подсказка" };
+
+  if (!word || String(word).trim().length === 0) {
+    return { error: "Введите слово-подсказку" };
+  }
+
+  const numCount = parseInt(count, 10);
+  if (isNaN(numCount) || numCount < 0 || numCount > 9) {
+    return { error: "Число должно быть от 0 до 9" };
+  }
+
+  const prev = { word: room.currentHint.word, count: room.currentHint.count };
+
+  room.currentHint.word = String(word).trim();
+  room.currentHint.count = numCount;
+
+  room.log.push({
+    type: "hint_edit",
+    team: room.currentTeam,
+    playerId,
+    playerName: player.name,
+    prevWord: prev.word,
+    prevCount: prev.count,
+    word: room.currentHint.word,
+    count: numCount,
+    timestamp: new Date()
+  });
+
+  return { room };
+}
+
 // Голосование за карточку
 function voteForCard(code, playerId, cardId) {
   const room = getRoom(code);
@@ -1240,6 +1280,80 @@ function toggleRoomOpen(code, playerId) {
   return { room, isRoomOpen: room.isRoomOpen };
 }
 
+function shuffleTeams(code, playerId) {
+  const room = getRoom(code);
+  if (!room) return { error: "Комната не найдена" };
+  if (room.hostId !== playerId) return { error: "Только хост может перемешивать команды" };
+
+  // В лобби перемешивание доступно всегда.
+  // Во время игры - только если хост вручную открыл комнату, и только до выдачи подсказки
+  // (чтобы не ломать текущую подсказку/голосования).
+  if (room.status === "playing") {
+    if (!room.isRoomOpen) return { error: "Откройте комнату, чтобы перемешивать команды во время игры" };
+    if (room.timerPhase !== "hint" || room.currentHint) {
+      return { error: "Перемешивание доступно только до выдачи подсказки" };
+    }
+  } else if (room.status !== "lobby") {
+    return { error: "Перемешивание доступно только в лобби или при открытой комнате во время игры" };
+  }
+
+  const activePlayers = room.players.filter(
+    p => p.connectionStatus !== "left" && p.connectionStatus !== "kicked"
+  );
+
+  // Shuffle (Fisher-Yates)
+  const shuffled = [...activePlayers];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  const n = shuffled.length;
+  if (n === 0) return { room };
+
+  let redCount = Math.ceil(n / 2);
+  let blueCount = n - redCount;
+  // При нечётном количестве случайно выбираем, кто получает "лишнего"
+  if (n % 2 === 1 && Math.random() < 0.5) {
+    [redCount, blueCount] = [blueCount, redCount];
+  }
+
+  const redPlayers = shuffled.slice(0, redCount);
+  const bluePlayers = shuffled.slice(redCount);
+
+  // Сбрасываем капитанов
+  room.redTeamCaptainId = null;
+  room.blueTeamCaptainId = null;
+
+  // Назначаем роли/команды
+  redPlayers.forEach((p, idx) => {
+    p.team = TEAMS.RED;
+    p.role = idx === 0 ? ROLES.CAPTAIN : ROLES.OPERATIVE;
+    if (idx === 0) room.redTeamCaptainId = p.id;
+  });
+
+  bluePlayers.forEach((p, idx) => {
+    p.team = TEAMS.BLUE;
+    p.role = idx === 0 ? ROLES.CAPTAIN : ROLES.OPERATIVE;
+    if (idx === 0) room.blueTeamCaptainId = p.id;
+  });
+
+  // Голоса/выборы из лобби не актуальны, но на всякий случай чистим
+  room.endTurnVotes = [];
+  room.cardVotes = {};
+  room.pendingCard = null;
+
+  room.log.push({
+    type: "teams_shuffled",
+    byHostId: playerId,
+    redCount: redPlayers.length,
+    blueCount: bluePlayers.length,
+    timestamp: new Date()
+  });
+
+  return { room };
+}
+
 /**
  * Пропуск хода - хост передаёт ход другой команде
  */
@@ -1404,6 +1518,8 @@ function buildRoomState(room, forPlayerId = null) {
   } : null;
 
   return {
+    // Серверное время, чтобы клиент мог компенсировать разницу часов между устройствами
+    serverNow: Date.now(),
     room: {
       id: room.id,
       code: room.code,
@@ -1566,6 +1682,7 @@ module.exports = {
   renameTeam,
   startGame,
   giveHint,
+  editHint,
   voteForCard,
   cancelVote,
   revealCard,
@@ -1577,6 +1694,7 @@ module.exports = {
   switchToOvertime,
   resetGame,
   toggleRoomOpen,
+  shuffleTeams,
   skipTurn,
   kickPlayer,
   updateSettings,

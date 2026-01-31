@@ -480,24 +480,6 @@
   filter: grayscale(70%);
   border-color: rgba(128, 128, 128, 0.4);
 }
-
-.player-card-v2__disconnected-tag {
-  padding: 2px 8px;
-  background: rgba(128, 128, 128, 0.2);
-  border: 1px solid rgba(128, 128, 128, 0.4);
-  border-radius: 999px;
-  font-size: 0.6rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #999;
-  animation: disconnected-blink 2s ease-in-out infinite;
-}
-
-@keyframes disconnected-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
 /* --------------------------------------------------------------------------
    Connection Status: Left (покинул комнату)
    -------------------------------------------------------------------------- */
