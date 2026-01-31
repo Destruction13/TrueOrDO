@@ -440,8 +440,9 @@ export default function AliasRoomScreen({
                     </div>
                     <div className="alias-team__score-wrapper">
                       {isIncomplete && !isGameActive && (
-                        <span className="alias-team__badge alias-team__badge--incomplete" title="Нужно минимум 2 игрока">
-                          ⚠️ Нужен напарник
+                        <span className="alias-team__badge alias-team__badge--incomplete alias-team__badge--tooltip">
+                          <span className="alias-team__badge-emoji">⚠️</span>
+                          <span className="alias-team__badge-text">Нужен напарник</span>
                         </span>
                       )}
                       <span className="alias-team__score">{team.score}</span>

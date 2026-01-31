@@ -468,6 +468,39 @@
   border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
+/* Tooltip для "Нужен напарник" - плавная анимация раскрытия */
+.alias-team__badge--tooltip {
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+
+.alias-team__badge--tooltip .alias-team__badge-emoji {
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.alias-team__badge--tooltip .alias-team__badge-text {
+  display: inline-block;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.3s ease, opacity 0.3s ease, margin-left 0.3s ease;
+  margin-left: 0;
+  vertical-align: middle;
+}
+
+.alias-team__badge--tooltip:hover .alias-team__badge-emoji {
+  transform: scale(1.05);
+}
+
+.alias-team__badge--tooltip:hover .alias-team__badge-text {
+  max-width: 150px;
+  opacity: 1;
+  margin-left: 0.3rem;
+}
+
 .alias-team__header {
   display: flex;
   justify-content: space-between;
