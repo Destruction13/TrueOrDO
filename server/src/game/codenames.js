@@ -1343,6 +1343,36 @@ function shuffleTeams(code, playerId) {
   room.cardVotes = {};
   room.pendingCard = null;
 
+  // Если перемешивание происходит уже во время игры (и комната открыта),
+  // важно обновить поле со словами: иначе бывшие капитаны могут помнить расклад.
+  if (room.status === "playing") {
+    // Пересоздаём поле (новые слова + новый расклад типов),
+    // а прогресс по карточкам/очкам сбрасываем, т.к. старая партия больше невалидна.
+    room.board = generateBoard(room.startingTeam);
+    room.redTotal = room.board.filter(c => c.type === TEAMS.RED).length;
+    room.blueTotal = room.board.filter(c => c.type === TEAMS.BLUE).length;
+    room.redScore = 0;
+    room.blueScore = 0;
+    room.winner = null;
+    room.currentHint = null;
+    room.guessesRemaining = 0;
+    room.hintHistory = [];
+
+    // Очищаем голосование/подтверждение карточки
+    room.cardVotes = {};
+    room.pendingCard = null;
+
+    room.log.push({
+      type: "teams_shuffled_board_regenerated",
+      byHostId: playerId,
+      redCount: redPlayers.length,
+      blueCount: bluePlayers.length,
+      timestamp: new Date()
+    });
+
+    return { room };
+  }
+
   room.log.push({
     type: "teams_shuffled",
     byHostId: playerId,

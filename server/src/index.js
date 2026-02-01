@@ -3895,13 +3895,17 @@ io.on("connection", (socket) => {
     }
     
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
+
+    // Делаем операцию идемпотентной: если отчёт уже не в reviewing,
+    // значит он уже подтверждён (вручную или автотаймером).
+    // Не возвращаем ошибку, чтобы избежать "ложных" ошибок при гонках/двойном клике.
     if (!room || room.status !== "reviewing") {
-      if (ack) ack({ ok: false, error: "Комната не в режиме просмотра отчёта" });
+      if (ack) ack({ ok: true, alreadyConfirmed: true });
       return;
     }
-    
+
     await confirmReportInternal(roomId);
-    if (ack) ack({ ok: true });
+    if (ack) ack({ ok: true, alreadyConfirmed: false });
   });
 
   socket.on("alias:room:leave", async (payload, ack) => {
@@ -4542,6 +4546,70 @@ io.on("connection", (socket) => {
     io.to(`codenames:${roomCode}`).emit("codenames:card:pending:cancel", { cardId: result.cardId });
 
     if (ack) ack({ ok: true, cancelled: true });
+  });
+
+  // "Поклик" по карточке без игрового эффекта (только оперативы; либо до подсказки, либо в чужой ход)
+  socket.on("codenames:card:poke", async (payload, ack) => {
+    const roomCode = socket.data.codenamesRoomCode;
+    const playerId = socket.data.codenamesPlayerId;
+    const { cardId } = payload || {};
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const room = getCodenamesRoom(roomCode);
+    if (!room) {
+      if (ack) ack({ ok: false, error: "Комната не найдена" });
+      return;
+    }
+
+    const player = room.players?.find(p => p.id === playerId);
+    if (!player) {
+      if (ack) ack({ ok: false, error: "Игрок не найден" });
+      return;
+    }
+
+    // Запрещаем капитанам и наблюдателям (и игрокам без команды)
+    const isCaptain = player.role === "captain";
+    const isSpectator = player.role === "spectator" || !player.team;
+    if (isCaptain || isSpectator) {
+      if (ack) ack({ ok: false, error: "Недоступно" });
+      return;
+    }
+
+    if (room.status !== "playing") {
+      if (ack) ack({ ok: false, error: "Игра не активна" });
+      return;
+    }
+
+    const card = room.board?.find(c => c.id === cardId);
+    if (!card || card.revealed) {
+      if (ack) ack({ ok: false, error: "Нельзя выбрать эту карточку" });
+      return;
+    }
+
+    const isMyTurn = player.team === room.currentTeam;
+    const canPoke = !room.currentHint || !isMyTurn;
+    if (!canPoke) {
+      if (ack) ack({ ok: false, error: "Недоступно" });
+      return;
+    }
+
+    // Рассылаем всем событие для анимации (без изменений состояния игры)
+    io.to(`codenames:${roomCode}`).emit("codenames:card:poked", {
+      cardId,
+      player: {
+        id: player.id,
+        name: player.name,
+        avatarUrl: player.avatarUrl || null,
+        team: player.team
+      },
+      ts: Date.now()
+    });
+
+    if (ack) ack({ ok: true });
   });
 
   // Прямое открытие карточки (для обратной совместимости или мгновенного reveal)

@@ -58,6 +58,8 @@ export default function AliasRoomScreen({
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showIncompleteTeamsModal, setShowIncompleteTeamsModal] = useState(false);
+  const [isConfirmingReport, setIsConfirmingReport] = useState(false);
+
   const [mobileSettingsExpanded, setMobileSettingsExpanded] = useState(false);
   
   const [newTeamName, setNewTeamName] = useState("");
@@ -124,6 +126,16 @@ export default function AliasRoomScreen({
   const { room, teams, players } = aliasState;
   const isHost = room.hostId === meId;
   const me = players.find(p => p.id === meId);
+
+  const handleConfirmReport = useCallback(async () => {
+    if (isConfirmingReport) return;
+    setIsConfirmingReport(true);
+    try {
+      await actions.confirmReport();
+    } finally {
+      setIsConfirmingReport(false);
+    }
+  }, [actions, isConfirmingReport]);
   const myTeam = teams.find(t => t.id === me?.teamId);
   const isPlaying = room.status === "playing";
   const isGameActive = room.status === "playing" || room.status === "reviewing";
@@ -1259,7 +1271,12 @@ export default function AliasRoomScreen({
                 </span>
               </div>
               {room.status === "reviewing" ? (
-                <Button variant="primary" size="sm" onClick={actions.confirmReport}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleConfirmReport}
+                  disabled={isConfirmingReport}
+                >
                   Подтвердить
                 </Button>
               ) : (

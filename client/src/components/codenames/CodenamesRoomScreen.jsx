@@ -43,7 +43,8 @@ export default function CodenamesRoomScreen({
   meId,
   gameState,
   actions,
-  isPaused
+  isPaused,
+  cardPokes
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,6 +57,14 @@ export default function CodenamesRoomScreen({
   const [isOvertime, setIsOvertime] = useState(false);
   const [pendingProgress, setPendingProgress] = useState(0);
   const [captainHighlightActive, setCaptainHighlightActive] = useState(false);
+
+  // SFX: последние 5 секунд таймера
+  const countdownSfxRef = useRef({
+    audio: null,
+    stopTimeoutId: null,
+    lastKey: null,
+    prevLocalTimer: null
+  });
 
   // Редактирование текущей подсказки (только для капитана текущей команды)
   const [isEditingCurrentHint, setIsEditingCurrentHint] = useState(false);
@@ -85,6 +94,8 @@ export default function CodenamesRoomScreen({
   const isPlaying = room?.status === "playing";
   const isFinished = room?.status === "finished";
   const canSelectCard = isPlaying && isOperative && isMyTeamTurn && room?.currentHint;
+  // "Поклик" без эффекта: только оперативы, либо до подсказки, либо в чужой ход
+  const canPokeCards = isPlaying && isOperative && (!room?.currentHint || !isMyTeamTurn);
   const canEditCurrentHint = isPlaying && isCaptain && isMyTeamTurn && !!room?.currentHint;
 
   const startEditCurrentHint = useCallback(() => {
@@ -169,6 +180,87 @@ export default function CodenamesRoomScreen({
       timeOffsetMsRef.current = gameState.serverNow - Date.now();
     }
   }, [gameState?.serverNow]);
+
+  // Инициализация/очистка аудио
+  useEffect(() => {
+    const audio = new Audio("/sfx/kitchen-timer-click_z1uo99n_.mp3");
+    audio.preload = "auto";
+    audio.loop = true;
+    countdownSfxRef.current.audio = audio;
+
+    return () => {
+      try {
+        if (countdownSfxRef.current.stopTimeoutId) {
+          clearTimeout(countdownSfxRef.current.stopTimeoutId);
+          countdownSfxRef.current.stopTimeoutId = null;
+        }
+        audio.pause();
+        audio.currentTime = 0;
+      } catch {}
+      countdownSfxRef.current.audio = null;
+      countdownSfxRef.current.lastKey = null;
+      countdownSfxRef.current.prevLocalTimer = null;
+    };
+  }, []);
+
+  // Запуск звука на последних 5 сек (работает от локального таймера, не зависит от частоты state:sync)
+  useEffect(() => {
+    const audio = countdownSfxRef.current.audio;
+    if (!audio) return;
+
+    const key = `${room?.turnNumber || 0}:${room?.timerPhase || ""}:${room?.currentTeam || ""}:${isPlaying ? "playing" : ""}`;
+
+    // Если сменился ход/фаза/игра закончилась — сбрасываем локальные маркеры и стопаем звук
+    if (countdownSfxRef.current.lastKey !== key) {
+      countdownSfxRef.current.lastKey = key;
+      countdownSfxRef.current.prevLocalTimer = null;
+      try {
+        if (countdownSfxRef.current.stopTimeoutId) {
+          clearTimeout(countdownSfxRef.current.stopTimeoutId);
+          countdownSfxRef.current.stopTimeoutId = null;
+        }
+        audio.pause();
+        audio.currentTime = 0;
+      } catch {}
+    }
+
+    if (!isPlaying || typeof localTimer !== "number") {
+      countdownSfxRef.current.prevLocalTimer = localTimer;
+      return;
+    }
+
+    const prev = countdownSfxRef.current.prevLocalTimer;
+    countdownSfxRef.current.prevLocalTimer = localTimer;
+
+    const crossedToLastFive =
+      typeof prev === "number" &&
+      prev > 5 &&
+      localTimer <= 5 &&
+      localTimer > 0;
+
+    if (!crossedToLastFive) return;
+
+    // Стартуем звук и стопаем через 5 секунд
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+      const p = audio.play();
+      if (p?.catch) p.catch(() => {});
+
+      if (countdownSfxRef.current.stopTimeoutId) {
+        clearTimeout(countdownSfxRef.current.stopTimeoutId);
+      }
+      countdownSfxRef.current.stopTimeoutId = setTimeout(() => {
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+        } catch {}
+      }, 5000);
+    } catch {
+      // ignore
+    }
+  }, [localTimer, isPlaying, room?.turnNumber, room?.timerPhase, room?.currentTeam]);
+
 
   const canStartGame = useMemo(() => { 
     if (!isHost || !isLobby) return false;
@@ -708,8 +800,24 @@ export default function CodenamesRoomScreen({
                   className="codenames-sidebar-hint-input__btn"
                   onClick={handleGiveHint} 
                   disabled={!parseHintInput(hintInput).word || parseHintInput(hintInput).count === null}
+                  aria-label="Отправить подсказку"
+                  title="Отправить"
                 >
-                  +
+                  <svg
+                    className="codenames-sidebar-hint-input__icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
+                    />
+                    <path
+                      fill="currentColor"
+                      opacity="0.35"
+                      d="M2 10l15 2-15 2 4.5-2.5z"
+                    />
+                  </svg>
                 </button>
               </div>
             )}
@@ -753,6 +861,9 @@ export default function CodenamesRoomScreen({
               <div className="codenames-board">
                 {board.map((card) => {
                   const isClickable = canSelectCard && !card.revealed;
+                  const isPokeable = canPokeCards && !card.revealed;
+                  const poke = cardPokes?.[card.id];
+                  const showPoke = !!poke;
                   const isPending = room?.pendingCard?.cardId === card.id;
                   const voters = cardVotes?.[card.id] || [];
                   const hasVotes = voters.length > 0;
@@ -782,17 +893,42 @@ export default function CodenamesRoomScreen({
                     card.revealed && isCaptain && "codenames-card--captain-revealed",
                     shouldHighlight && `codenames-card--captain-highlight-${me?.team}`,
                     isMyVote && !card.revealed && "codenames-card--my-vote",
+                    showPoke && "codenames-card--poked",
                   ].filter(Boolean).join(" ");
 
                   return (
                     <motion.div
                       key={card.id}
                       className={cardClassName}
-                      onClick={() => isClickable && handleCardClick(card.id)}
-                      whileHover={isClickable ? { scale: 1.02 } : {}}
-                      whileTap={isClickable ? { scale: 0.98 } : {}}
+                      onClick={() => {
+                        if (isClickable) {
+                          handleCardClick(card.id);
+                          return;
+                        }
+                        if (isPokeable) {
+                          actions?.pokeCard?.(card.id);
+                        }
+                      }}
+                      whileHover={isClickable || isPokeable ? { scale: 1.02 } : {}}
+                      whileTap={isClickable || isPokeable ? { scale: 0.98 } : {}}
                     >
                       <span className="codenames-card__word">{card.word}</span>
+                      {/* Эфемерный "поклик": показываем, кто нажал, на ~1 секунду */}
+                      {showPoke && (
+                        <div className="codenames-card__poke" title={poke?.player?.name || ""}>
+                          {poke?.player?.avatarUrl ? (
+                            <img
+                              src={poke.player.avatarUrl}
+                              alt=""
+                              className="codenames-card__poke-avatar"
+                            />
+                          ) : (
+                            <span className="codenames-card__poke-placeholder">
+                              {(poke?.player?.name || "?")[0]?.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {/* Аватары игроков, проголосовавших за карточку */}
                       {hasVotes && !card.revealed && !isPending && (
                         <div className="codenames-card__voters">
@@ -996,8 +1132,24 @@ export default function CodenamesRoomScreen({
                   className="codenames-sidebar-hint-input__btn"
                   onClick={handleGiveHint} 
                   disabled={!parseHintInput(hintInput).word || parseHintInput(hintInput).count === null}
+                  aria-label="Отправить подсказку"
+                  title="Отправить"
                 >
-                  +
+                  <svg
+                    className="codenames-sidebar-hint-input__icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fill="currentColor"
+                      d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
+                    />
+                    <path
+                      fill="currentColor"
+                      opacity="0.35"
+                      d="M2 10l15 2-15 2 4.5-2.5z"
+                    />
+                  </svg>
                 </button>
               </div>
             )}

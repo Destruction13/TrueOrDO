@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import CodenamesShaderBackground from "../components/codenames/CodenamesShaderBackground";
@@ -85,6 +85,20 @@ export default function CodenamesPage() {
   
   const [connected, setConnected] = useState(false);
   const [gameState, setGameState] = useState(null);
+  // Эфемерные "поклики" по карточкам (не влияют на механику игры)
+  const [cardPokes, setCardPokes] = useState({}); // { [cardId]: { player, ts, nonce } }
+  const pokeTimersRef = useRef(new Map());
+  const pokeNonceRef = useRef(0);
+
+  // SFX
+  const sfxRef = useRef({
+    hintBell: null,
+    countdownStopTimeoutId: null
+  });
+  const lastHintKeyRef = useRef(null);
+  const lastCountdownKeyRef = useRef(null);
+  const lastStateRef = useRef(null);
+
   const [meId, setMeId] = useState(null);
   const [error, setError] = useState("");
   const [isRestoring, setIsRestoring] = useState(true);
@@ -95,6 +109,22 @@ export default function CodenamesPage() {
   // Установка заголовка страницы
   useEffect(() => {
     document.title = "Codenames";
+
+    // Предзагрузка SFX
+    const hintBell = new Audio("/sfx/timer-bell_m1tycbno.mp3");
+    hintBell.preload = "auto";
+
+    sfxRef.current.hintBell = hintBell;
+
+    return () => {
+      try {
+        hintBell.pause();
+      } catch {}
+      sfxRef.current = {
+        hintBell: null,
+        countdownStopTimeoutId: null
+      };
+    };
   }, []);
 
   // Синхронизация профиля при изменении user
@@ -114,6 +144,30 @@ export default function CodenamesPage() {
     socket.connect();
     return () => socket.disconnect();
   }, []);
+
+  const playSfx = (audio, { durationMs } = {}) => {
+    if (!audio) return;
+    try {
+      // Останавливаем предыдущее проигрывание
+      audio.pause();
+      audio.currentTime = 0;
+
+      const p = audio.play();
+      if (p?.catch) p.catch(() => {});
+
+      if (durationMs) {
+        setTimeout(() => {
+          try {
+            audio.pause();
+            audio.currentTime = 0;
+          } catch {}
+        }, durationMs);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
 
   // Restore session или вход по URL
   useEffect(() => {
@@ -219,12 +273,41 @@ export default function CodenamesPage() {
     const onDisconnect = () => setConnected(false);
     
     const onStateSync = (state) => {
+      // SFX: подсказка дана
+      try {
+        const prev = lastStateRef.current;
+        const prevHint = prev?.room?.currentHint;
+        const nextHint = state?.room?.currentHint;
+
+        const hintJustAppeared = !prevHint && !!nextHint;
+        if (hintJustAppeared) {
+          const hintKey = `${state?.room?.turnNumber || 0}:${state?.room?.currentTeam || ""}:${nextHint?.word || ""}:${nextHint?.count || ""}`;
+          if (lastHintKeyRef.current !== hintKey) {
+            lastHintKeyRef.current = hintKey;
+            playSfx(sfxRef.current.hintBell);
+          }
+        }
+
+      } catch {
+        // ignore
+      }
+
+      lastStateRef.current = state;
       setGameState(state);
     };
     const onGameFinished = (data) => setGameFinished(data);
     const onGameReset = () => {
       setGameFinished(null);
       setIsPaused(false);
+
+      // очищаем эфемерные "поклики" и таймеры
+      setCardPokes({});
+      pokeTimersRef.current.forEach(t => clearTimeout(t));
+      pokeTimersRef.current.clear();
+
+      // SFX
+      lastHintKeyRef.current = null;
+      lastCountdownKeyRef.current = null;
     };
     const onGamePaused = (data) => {
       setIsPaused(data.isPaused);
@@ -243,11 +326,37 @@ export default function CodenamesPage() {
 
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
+    const onCardPoked = ({ cardId, player, ts }) => {
+      const nonce = ++pokeNonceRef.current;
+
+      // Ставим/обновляем поклик
+      setCardPokes(prev => ({
+        ...prev,
+        [cardId]: { player, ts: ts || Date.now(), nonce }
+      }));
+
+      // Перезапускаем таймер очистки на карточке
+      const existing = pokeTimersRef.current.get(cardId);
+      if (existing) clearTimeout(existing);
+      const timeoutId = setTimeout(() => {
+        setCardPokes(prev => {
+          const current = prev[cardId];
+          if (!current || current.nonce !== nonce) return prev;
+          const next = { ...prev };
+          delete next[cardId];
+          return next;
+        });
+        pokeTimersRef.current.delete(cardId);
+      }, 1000);
+      pokeTimersRef.current.set(cardId, timeoutId);
+    };
+
     socket.on("codenames:state:sync", onStateSync);
     socket.on("codenames:game:finished", onGameFinished);
     socket.on("codenames:game:reset", onGameReset);
     socket.on("codenames:game:paused", onGamePaused);
     socket.on("codenames:player:kicked", onPlayerKicked);
+    socket.on("codenames:card:poked", onCardPoked);
 
     return () => {
       socket.off("connect", onConnect);
@@ -257,6 +366,11 @@ export default function CodenamesPage() {
       socket.off("codenames:game:reset", onGameReset);
       socket.off("codenames:game:paused", onGamePaused);
       socket.off("codenames:player:kicked", onPlayerKicked);
+      socket.off("codenames:card:poked", onCardPoked);
+
+      pokeTimersRef.current.forEach(t => clearTimeout(t));
+      pokeTimersRef.current.clear();
+
     };
   }, [meId, navigate]);
 
@@ -314,6 +428,7 @@ export default function CodenamesPage() {
     giveHint: async (word, count) => handleAck(await emitWithAck("codenames:hint:give", { word, count })),
     editHint: async (word, count) => handleAck(await emitWithAck("codenames:hint:edit", { word, count })),
     voteForCard: async (cardId) => handleAck(await emitWithAck("codenames:card:vote", { cardId })),
+    pokeCard: async (cardId) => handleAck(await emitWithAck("codenames:card:poke", { cardId })),
 
     cancelVote: async () => handleAck(await emitWithAck("codenames:card:cancelVote", {})),
     selectCard: async (cardId) => handleAck(await emitWithAck("codenames:card:select", { cardId })),
@@ -392,6 +507,7 @@ export default function CodenamesPage() {
         gameState={gameState}
         actions={actions}
         isPaused={isPaused}
+        cardPokes={cardPokes}
       />
     </div>
   );

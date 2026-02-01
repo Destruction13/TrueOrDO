@@ -105,10 +105,6 @@ export default function CodenamesRulesModal({ isOpen, onClose }) {
                         <span className="rules-list__icon">✓</span>
                         <span>Число — сколько карточек связано с подсказкой</span>
                       </li>
-                      <li className="rules-list__item rules-list__item--accept">
-                        <span className="rules-list__icon">✓</span>
-                        <span>Команда может угадать на <strong>1 больше</strong> числа</span>
-                      </li>
                     </ul>
                   </div>
                 </section>
