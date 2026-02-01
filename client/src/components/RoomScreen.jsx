@@ -16,6 +16,7 @@ import WaitingAcceptOverlay from "./ui/WaitingAcceptOverlay";
 import ActiveTaskCard from "./ui/ActiveTaskCard";
 import TaskReport from "./ui/TaskReport";
 import RulesModal from "./ui/RulesModal";
+import CustomDecisionModal from "./ui/CustomDecisionModal";
 import { useAuth } from "../context/AuthContext";
 
 function formatTimer(seconds) {
@@ -34,6 +35,7 @@ function RoomScreen({
   roomState,
   timerRemaining,
   votingTimerRemaining,
+  taskAcceptRemaining,
   voteCounts,
   myVote,
   wheel1Spin,
@@ -49,8 +51,31 @@ function RoomScreen({
   const { room, players, round, content } = roomState;
   const [categoryReady, setCategoryReady] = useState(false);
   const [showEndGameModal, setShowEndGameModal] = useState(false);
+  const [customModeEnabled, setCustomModeEnabled] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
+  const [roundInlineNotice, setRoundInlineNotice] = useState(null);
+  const roundInlineNoticeTimeoutRef = useRef(null);
+
   const pendingCategoryIdRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (roundInlineNoticeTimeoutRef.current) {
+        clearTimeout(roundInlineNoticeTimeoutRef.current);
+        roundInlineNoticeTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const showRoundInlineNotice = useCallback((message) => {
+    setRoundInlineNotice(message);
+    if (roundInlineNoticeTimeoutRef.current) {
+      clearTimeout(roundInlineNoticeTimeoutRef.current);
+    }
+    roundInlineNoticeTimeoutRef.current = setTimeout(() => {
+      setRoundInlineNotice(null);
+    }, 2800);
+  }, []);
 
   const isHost = room.hostId === meId;
   const disqualifiedCanPlay = room.settings?.disqualifiedCanPlay;
@@ -69,6 +94,10 @@ function RoomScreen({
   const isTruth = round?.mode === "truth";
   const isDare = round?.mode === "dare";
   const taskStatus = round?.taskStatus || "pending";
+  const isCustom = Boolean(round?.customMode);
+  const customAuthor = isCustom
+    ? players.find((p) => p.id === round?.customAuthorPlayerId)
+    : null;
   const isTaskPending = Boolean(round && phase === "task" && taskStatus === "pending");
   const isTaskAccepted = Boolean(round && taskStatus !== "pending");
   
@@ -82,6 +111,7 @@ function RoomScreen({
   const [chaosDeciding, setChaosDeciding] = useState(false);
   const [chaosRevealedMode, setChaosRevealedMode] = useState(null);
   const chaosTimerRef = useRef(null);
+
   
   useEffect(() => {
     console.log("[Chaos Debug] Effect triggered:", {
@@ -155,6 +185,7 @@ function RoomScreen({
       }
     };
   }, [round?.id]);
+
   
   // Reset on new round start - but DON'T clear if we're starting chaos selection for new round
   const prevRoundIdRef = useRef(round?.id);
@@ -225,8 +256,63 @@ function RoomScreen({
   const hasScenarioItems = wheel2Items.length > 0;
   const showScenarioReel = showDareFlow && round?.wheel1Id && categoryReady && hasScenarioItems;
 
+  // Для Dare: UI принятия/ожидания показываем только после того, как лента докрутилась.
+  // Важно: лента анимируется локально и может быть пропущена (вкладка была скрыта/игрок переподключился).
+  // Поэтому используем server-state fallback: если wheel2Id уже выбран и раунд в task/pending — считаем, что лента уже завершилась.
+  const [reelStopped, setReelStopped] = useState(false);
+
+  useEffect(() => {
+    if (!isDare) {
+      setReelStopped(true);
+      return;
+    }
+
+    // Если результата ещё нет — точно не остановились
+    if (!isTaskPending || !round?.wheel2Id) {
+      setReelStopped(false);
+      return;
+    }
+
+    const startedAtMs = round?.wheel2SpinStartedAtMs || wheel2Spin.startedAtMs;
+    const durationMs = round?.wheel2SpinDurationMs || wheel2Spin.durationMs;
+
+    // Если нет меты (старый клиент/сервер) — показываем сразу, как раньше
+    if (typeof startedAtMs !== "number" || typeof durationMs !== "number") {
+      setReelStopped(true);
+      return;
+    }
+
+    // Ждём окончания анимации ленты + небольшие "фазы" внутри ScenarioReel
+    const finishAt = startedAtMs + durationMs + 1200;
+
+    const update = () => {
+      setReelStopped(Date.now() >= finishAt);
+    };
+
+    update();
+    const id = window.setInterval(update, 150);
+    return () => window.clearInterval(id);
+  }, [
+    isDare,
+    isTaskPending,
+    round?.wheel2Id,
+    round?.wheel2SpinStartedAtMs,
+    round?.wheel2SpinDurationMs,
+    wheel2Spin.startedAtMs,
+    wheel2Spin.durationMs,
+  ]);
+
   // Раунд можно начать только если: нет активного раунда И это мой ход
   const canStartRound = (!round || round.phase === "complete") && isMyTurn;
+
+  // Показываем UI принятия задания (и ожидание для остальных) только когда лента сценариев уже остановилась.
+  // Иначе оверлей перекрывает прокрутку и выглядит так, будто ожидание началось слишком рано.
+  const canShowAcceptUi =
+    !!round &&
+    !chaosDeciding &&
+    isTaskPending &&
+    (!isDare || reelStopped);
+
   // Только текущий игрок может выполнять действия (хост НЕ может делать это за него)
   const canPickMode = round && phase === "mode" && isMeCurrent;
   const canSpinWheel1 = round && phase === "wheel1" && isMeCurrent;
@@ -384,6 +470,11 @@ function RoomScreen({
                     : round?.mode === "dare"
                     ? "Действие"
                     : "—"}
+                 {isCustom && customAuthor ? (
+                   <div style={{ marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
+                     Задание от игрока {customAuthor.name}
+                   </div>
+                 ) : null}
                 </div>
               </div>
             )}
@@ -399,7 +490,12 @@ function RoomScreen({
                   meId={meId}
                   disabled={false}
                   allowSelfSelect={false}
-                  onSelectPlayer={(targetPlayerId) => actions.startRound(targetPlayerId)}
+                  customEnabled={customModeEnabled}
+                  onToggleCustom={setCustomModeEnabled}
+                  onChaosBlocked={showRoundInlineNotice}
+                  onSelectPlayer={(targetPlayerId) =>
+                    actions.startRound(targetPlayerId, { customMode: customModeEnabled })
+                  }
                 />
               </div>
             ) : (
@@ -465,15 +561,38 @@ function RoomScreen({
             </div>
           ) : null}
 
+          {/* Авторское решение (после выбора Правда/Действие в кастомном режиме) */}
+          {round && phase === "custom_confirm" && isCustom ? (
+            <div className="round-stage">
+              <div className="stage-title">Своё задание</div>
+              <div className="round-hint">
+                {round.turnPlayerId === meId
+                  ? "Выбери: задаёшь сам(а) или берём из базы"
+                  : `Ждём решения от ${customAuthor?.name || "автора"}...`}
+              </div>
+
+              <CustomDecisionModal
+                isOpen={round.turnPlayerId === meId}
+                modeLabel={round.mode === "truth" ? "Правда" : "Действие"}
+                authorName={customAuthor?.name}
+                executorName={players.find((p) => p.id === round.currentPlayerId)?.name}
+                onUseCustom={() => actions.customDecision("custom")}
+                onUseBase={() => actions.customDecision("base")}
+              />
+            </div>
+          ) : null}
+
           {showDareFlow && !chaosDeciding ? (
             <div className="dare-stage">
               <div className="dare-block">
                 <CategorySelector
                   categories={categories}
                   activeId={categoryReady ? round?.wheel1Id : null}
-                  targetId={round?.wheel1Id}
+                  targetId={wheel1Spin.targetId || round?.wheel1Id}
                   spinning={wheel1Spin.spinning}
                   spinTick={wheel1Spin.tick}
+                  spinStartedAtMs={wheel1Spin.startedAtMs}
+                  spinDurationMs={wheel1Spin.durationMs}
                   onReveal={handleCategoryReveal}
                 />
                 {phase === "wheel1" ? (
@@ -505,12 +624,17 @@ function RoomScreen({
                       targetIndex={wheel2Spin.index}
                       spinTick={wheel2Spin.tick}
                       spinning={wheel2Spin.spinning}
+                      spinStartedAtMs={round?.wheel2SpinStartedAtMs || wheel2Spin.startedAtMs}
+                      spinDurationMs={round?.wheel2SpinDurationMs || wheel2Spin.durationMs}
                       disabled={wheel1Spin.spinning || !categoryReady}
-                      canAcceptTask={isMeCurrent && isTaskPending}
+                      canAcceptTask={isMeCurrent && isTaskPending && (!isDare || !wheel2Spin.spinning)}
                       taskStatus={taskStatus}
+                      onStart={() => setReelStopped(false)}
+                      onStop={() => setReelStopped(true)}
                       onStartTask={handleStartTask}
                       onRefuseTask={actions.refuseTruth}
                       categoryName={selectedCategory?.title}
+                      acceptSecondsLeft={taskAcceptRemaining}
                     />
                   ) : (
                     <div className="round-hint">Готовим ленту сценариев...</div>
@@ -536,11 +660,12 @@ function RoomScreen({
             </div>
           ) : null}
 
-          {round && !chaosDeciding && isTaskPending && isTruth && isMeCurrent ? (
+          {canShowAcceptUi && isTruth && isMeCurrent ? (
             <TaskAcceptOverlay
               isOpen
               title="Принять задание"
-              subtitle="Только вы видите текст до старта"
+              subtitle="Нажми «Начать», чтобы запустить раунд."
+              secondsLeft={taskAcceptRemaining ?? 30}
               description={round.finalText || ""}
               onAccept={actions.acceptTask}
               onSecondary={actions.refuseTruth}
@@ -549,10 +674,12 @@ function RoomScreen({
             />
           ) : null}
 
-          {round && !chaosDeciding && isTaskPending && !isMeCurrent ? (
+          {canShowAcceptUi && !isMeCurrent ? (
             <WaitingAcceptOverlay
               isOpen
               targetName={currentPlayer?.name || "игрока"}
+              taskText={round.finalText}
+              secondsLeft={taskAcceptRemaining}
             />
           ) : null}
 
@@ -665,7 +792,12 @@ function RoomScreen({
                   meId={meId}
                   disabled={false}
                   allowSelfSelect={false}
-                  onSelectPlayer={(targetPlayerId) => actions.startRound(targetPlayerId)}
+                  customEnabled={customModeEnabled}
+                  onToggleCustom={setCustomModeEnabled}
+                  onChaosBlocked={showRoundInlineNotice}
+                  onSelectPlayer={(targetPlayerId) =>
+                    actions.startRound(targetPlayerId, { customMode: customModeEnabled })
+                  }
                 />
               ) : (
                 <CurrentTurnBanner player={currentTurnPlayer} />
@@ -706,6 +838,11 @@ function RoomScreen({
             </div>
           ) : null}
 
+          {roundInlineNotice ? (
+            <div className="round-inline-notice" role="status" aria-live="polite">
+              {roundInlineNotice}
+            </div>
+          ) : null}
           {error ? <div className="status-error">{error}</div> : null}
         </section>
       </main>

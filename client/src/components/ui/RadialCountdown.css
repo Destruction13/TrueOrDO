@@ -1,0 +1,108 @@
+.radial-countdown {
+  --rc-accent: rgba(46, 230, 255, 0.95);
+  position: relative;
+  width: max-content;
+  display: grid;
+  place-items: center;
+
+  /* разрешаем glow выходить за границы svg */
+  overflow: visible;
+}
+
+.radial-countdown__svg {
+  display: block;
+  overflow: visible;
+}
+
+.radial-countdown__track {
+  fill: none;
+  stroke: rgba(120, 180, 255, 0.12);
+}
+
+.radial-countdown__progress {
+  fill: none;
+  stroke: var(--rc-accent);
+  stroke-linecap: round;
+  transition: stroke 220ms linear, stroke-dashoffset 180ms linear;
+}
+
+.radial-countdown__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.radial-countdown__value {
+  font-family: "Orbitron", sans-serif;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  text-shadow: 0 0 24px rgba(0, 0, 0, 0.35);
+}
+
+.radial-countdown__label {
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.radial-countdown__rings {
+  position: absolute;
+  inset: -20px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.radial-countdown__ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--rc-accent) 65%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--rc-accent) 35%, transparent);
+  animation: rcPulse 1.8s ease-in-out infinite;
+  opacity: 0.65;
+}
+
+.radial-countdown__ring--2 {
+  width: 82%;
+  height: 82%;
+  animation-duration: 2.3s;
+  opacity: 0.4;
+}
+
+.radial-countdown__ring--3 {
+  width: 64%;
+  height: 64%;
+  animation-duration: 2.8s;
+  opacity: 0.25;
+}
+
+@keyframes rcPulse {
+  0%,
+  100% {
+    transform: scale(0.98);
+    filter: blur(0px);
+  }
+  50% {
+    transform: scale(1.06);
+    filter: blur(0.2px);
+  }
+}
+
+@media (max-width: 520px) {
+  .radial-countdown__value {
+    font-size: 38px;
+  }
+}

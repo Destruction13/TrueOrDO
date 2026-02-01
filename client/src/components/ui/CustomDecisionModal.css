@@ -1,0 +1,140 @@
+.custom-decision-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 4vw, 40px);
+  z-index: 1100;
+}
+
+.custom-decision-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 8, 16, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.custom-decision-modal__card {
+  position: relative;
+  z-index: 1;
+  width: min(640px, 92vw);
+  padding: 18px 18px;
+  border-radius: 24px;
+  background: var(--glass);
+  border: 1px solid rgba(120, 180, 255, 0.16);
+  box-shadow: 0 24px 50px rgba(4, 10, 24, 0.55);
+  overflow: hidden;
+}
+
+.custom-decision-modal__glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 20% 20%,
+    rgba(46, 230, 255, 0.14),
+    transparent 55%
+  );
+  pointer-events: none;
+}
+
+.custom-decision-modal__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.custom-decision-modal__badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 170, 51, 0.1);
+  border: 1px solid rgba(255, 170, 51, 0.25);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 200, 120, 0.9);
+  font-family: "Orbitron", sans-serif;
+}
+
+.custom-decision-modal__pick {
+  position: relative;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(6, 12, 26, 0.62);
+  border: 1px solid rgba(120, 180, 255, 0.16);
+  min-height: 78px;
+  display: grid;
+  place-items: center;
+}
+
+.custom-decision-modal__pick-text {
+  font-family: "Orbitron", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+  text-align: center;
+  color: rgba(235, 245, 255, 0.92);
+}
+
+.custom-decision-modal__pick-mode {
+  color: rgba(255, 170, 51, 0.96);
+  text-shadow: 0 0 16px rgba(255, 170, 51, 0.25);
+  animation: customPickPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes customPickPulse {
+  0%,
+  100% {
+    filter: brightness(1);
+    text-shadow: 0 0 14px rgba(255, 170, 51, 0.18);
+  }
+  50% {
+    filter: brightness(1.15);
+    text-shadow: 0 0 22px rgba(255, 170, 51, 0.32);
+  }
+}
+
+.custom-decision-modal__text {
+  position: relative;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(6, 12, 26, 0.45);
+  border: 1px solid rgba(120, 180, 255, 0.12);
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(235, 245, 255, 0.92);
+}
+
+.custom-decision-modal__hint {
+  position: relative;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(46, 230, 255, 0.06);
+  border: 1px solid rgba(46, 230, 255, 0.14);
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(210, 225, 245, 0.78);
+}
+
+.custom-decision-modal__actions {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .custom-decision-modal__actions {
+    justify-content: stretch;
+  }
+
+  .custom-decision-modal__actions .btn-ds {
+    flex: 1;
+  }
+}

@@ -36,6 +36,17 @@
   gap: 6px;
 }
 
+.task-accept-overlay__header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-accept-overlay__timer {
+  flex-shrink: 0;
+}
+
 .task-accept-overlay__title {
   margin: 0;
   font-family: "Orbitron", sans-serif;

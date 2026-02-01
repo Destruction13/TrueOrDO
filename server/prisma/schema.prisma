@@ -122,6 +122,10 @@ model Round {
   taskAcceptedAt  DateTime?
   result          String?
 
+  // Кастомный режим: "задание от игрока" (текст не хранится, только автор)
+  customMode           Boolean @default(false)
+  customAuthorPlayerId String?
+
   room           Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
   currentPlayer  Player? @relation("RoundCurrentPlayer", fields: [currentPlayerId], references: [id], onDelete: SetNull)
   spins          Spin[]

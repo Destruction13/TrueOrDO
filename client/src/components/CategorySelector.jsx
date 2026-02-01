@@ -47,12 +47,23 @@ function casinoEase(t) {
   return 0.5 + easeOutExpo(slowT) * 0.5;
 }
 
-function randomBetween(min, max) {
-  return min + Math.random() * (max - min);
+function createSeededRng(seed) {
+  let value = seed % 2147483647;
+  if (value <= 0) {
+    value += 2147483646;
+  }
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return value / 2147483647;
+  };
 }
 
-function randomInt(min, max) {
-  return Math.floor(randomBetween(min, max + 1));
+function randomBetween(min, max, rng = Math.random) {
+  return min + rng() * (max - min);
+}
+
+function randomInt(min, max, rng = Math.random) {
+  return Math.floor(randomBetween(min, max + 1, rng));
 }
 
 function CategorySelector({
@@ -61,6 +72,8 @@ function CategorySelector({
   targetId,
   spinning,
   spinTick,
+  spinStartedAtMs = null,
+  spinDurationMs = null,
   onReveal
 }) {
   const [rouletteId, setRouletteId] = useState(null);
@@ -69,6 +82,7 @@ function CategorySelector({
   const [justFinished, setJustFinished] = useState(false);
   const [isTensionPhase, setIsTensionPhase] = useState(false);
   const rouletteTimeoutRef = useRef(null);
+  const rouletteRafRef = useRef(null);
   const rouletteSessionRef = useRef(0);
   const currentIndexRef = useRef(0);
   const lastSpinTickRef = useRef(spinTick);
@@ -100,6 +114,10 @@ function CategorySelector({
       if (rouletteTimeoutRef.current) {
         window.clearTimeout(rouletteTimeoutRef.current);
         rouletteTimeoutRef.current = null;
+      }
+      if (rouletteRafRef.current) {
+        cancelAnimationFrame(rouletteRafRef.current);
+        rouletteRafRef.current = null;
       }
     };
   }, []);
@@ -137,16 +155,21 @@ function CategorySelector({
       return;
     }
 
+    const rng =
+      typeof spinStartedAtMs === "number"
+        ? createSeededRng(spinStartedAtMs + targetIndex * 97 + ids.length * 13)
+        : Math.random;
+
     const currentIndex = ids.indexOf(displayActiveId);
     const startIndex =
-      currentIndex >= 0 ? currentIndex : Math.floor(Math.random() * ids.length);
+      currentIndex >= 0 ? currentIndex : Math.floor(rng() * ids.length);
 
     currentIndexRef.current = startIndex;
     setRouletteId(ids[startIndex]);
     setIsRouletteRunning(true);
 
-    // Эффект казино: больше циклов для драматизма
-    const loops = randomInt(CASINO_CONFIG.minLoops, CASINO_CONFIG.maxLoops);
+    // Эффект казино: больше циклов для драматизма (детерминированно)
+    const loops = randomInt(CASINO_CONFIG.minLoops, CASINO_CONFIG.maxLoops, rng);
     const offset =
       ((targetIndex - startIndex) % ids.length + ids.length) % ids.length;
     let totalSteps = loops * ids.length + offset;
@@ -154,9 +177,10 @@ function CategorySelector({
       totalSteps += ids.length;
     }
 
-    const duration = Math.round(
-      randomBetween(CASINO_CONFIG.minDuration, CASINO_CONFIG.maxDuration)
-    );
+    const duration =
+      typeof spinDurationMs === "number" && spinDurationMs > 0
+        ? Math.round(spinDurationMs)
+        : Math.round(randomBetween(CASINO_CONFIG.minDuration, CASINO_CONFIG.maxDuration, rng));
     
     // Создаём задержки с эффектом казино (без последних 2 шагов — они особенные)
     const mainSteps = totalSteps - 2;
@@ -172,7 +196,7 @@ function CategorySelector({
     // Драматичный финал: 
     // 1. Предпоследний шаг — длинная "напряжённая" пауза (кажется, что остановилось)
     // 2. Последний шаг — неожиданный финальный рывок
-    const tensionPause = randomBetween(CASINO_CONFIG.tensionPauseMin, CASINO_CONFIG.tensionPauseMax);
+    const tensionPause = randomBetween(CASINO_CONFIG.tensionPauseMin, CASINO_CONFIG.tensionPauseMax, rng);
     rawDelays[totalSteps - 2] = tensionPause; // Длинная пауза — "неужели это?"
     rawDelays[totalSteps - 1] = CASINO_CONFIG.finalJumpDelay; // Последний рывок!
     
@@ -190,36 +214,56 @@ function CategorySelector({
     rouletteSessionRef.current = sessionId;
     let step = 0;
 
-    const stepForward = () => {
+    const cumulativeMs = [];
+    let acc = 0;
+    for (let i = 0; i < totalSteps; i += 1) {
+      acc += delays[i] ?? 0;
+      cumulativeMs.push(acc);
+    }
+
+    const startedAt = typeof spinStartedAtMs === "number" ? spinStartedAtMs : Date.now();
+
+    const tickAnimation = () => {
       if (rouletteSessionRef.current !== sessionId) {
         return;
       }
-      currentIndexRef.current = (currentIndexRef.current + 1) % ids.length;
+
+      const elapsed = Date.now() - startedAt;
+
+      // определяем текущий шаг по времени
+      while (step < totalSteps && elapsed >= cumulativeMs[step]) {
+        currentIndexRef.current = (currentIndexRef.current + 1) % ids.length;
+        step += 1;
+      }
+
+      // обновляем отображение
       setRouletteId(ids[currentIndexRef.current]);
-      step += 1;
-      
-      // Предпоследний шаг — включаем фазу напряжения (мигание "неужели это?")
-      if (step === totalSteps - 1) {
+
+      if (step >= totalSteps - 1) {
         setIsTensionPhase(true);
       }
-      
+
       if (step >= totalSteps) {
         setIsRouletteRunning(false);
         setIsTensionPhase(false);
-        // Запускаем финальную анимацию "победы"
         setJustFinished(true);
         window.setTimeout(() => setJustFinished(false), 800);
         if (typeof onRevealRef.current === "function") {
           onRevealRef.current(ids[targetIndex]);
         }
+        rouletteRafRef.current = null;
         return;
       }
-      const delay = delays[step] ?? 0;
-      rouletteTimeoutRef.current = window.setTimeout(stepForward, delay);
+
+      rouletteRafRef.current = requestAnimationFrame(tickAnimation);
     };
 
-    rouletteTimeoutRef.current = window.setTimeout(stepForward, delays[0] ?? 0);
-  }, [categories, displayActiveId, spinTick, targetId]);
+    if (rouletteRafRef.current) {
+      cancelAnimationFrame(rouletteRafRef.current);
+      rouletteRafRef.current = null;
+    }
+    rouletteRafRef.current = requestAnimationFrame(tickAnimation);
+  }, [categories, displayActiveId, spinTick, targetId, spinStartedAtMs, spinDurationMs]);
 
   useEffect(() => {
     if (activeId && rouletteId === activeId) {

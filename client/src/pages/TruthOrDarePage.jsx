@@ -115,8 +115,9 @@ export default function TruthOrDarePage() {
   const [error, setError] = useState("");
   const [timerRemaining, setTimerRemaining] = useState(null);
   const [votingTimerRemaining, setVotingTimerRemaining] = useState(null);
-  const [wheel1Spin, setWheel1Spin] = useState({ index: null, spinning: false, tick: 0 });
-  const [wheel2Spin, setWheel2Spin] = useState({ index: null, spinning: false, tick: 0 });
+  const [taskAcceptRemaining, setTaskAcceptRemaining] = useState(null);
+  const [wheel1Spin, setWheel1Spin] = useState({ index: null, spinning: false, tick: 0, startedAtMs: null, durationMs: null, targetId: null });
+  const [wheel2Spin, setWheel2Spin] = useState({ index: null, spinning: false, tick: 0, startedAtMs: null, durationMs: null });
   const [voteCounts, setVoteCounts] = useState({ approve: 0, report: 0, total: 0, eligibleCount: 0 });
   const [myVote, setMyVote] = useState(null);
   const [forcedMode, setForcedMode] = useState(null);
@@ -313,6 +314,14 @@ export default function TruthOrDarePage() {
       setVotingTimerRemaining(payload.remaining);
     });
 
+    socket.on("round:task_accept_tick", (payload) => {
+      setTaskAcceptRemaining(payload.remaining);
+    });
+
+    socket.on("round:task_accept_end", () => {
+      setTaskAcceptRemaining(null);
+    });
+
     socket.on("round:timer_end", () => {
       setRoomState((prev) =>
         prev && prev.round
@@ -322,6 +331,7 @@ export default function TruthOrDarePage() {
     });
 
     socket.on("round:task_accepted", (payload) => {
+      setTaskAcceptRemaining(null);
       setRoomState((prev) =>
         prev && prev.round && (!payload?.roundId || prev.round.id === payload.roundId)
           ? {
@@ -336,15 +346,31 @@ export default function TruthOrDarePage() {
       );
     });
 
-    socket.on("spin:wheel1_start", () => {
-      setWheel1Spin((prev) => ({ ...prev, spinning: true }));
+    socket.on("spin:wheel1_start", (payload) => {
+      setWheel1Spin((prev) => ({
+        index: payload?.index ?? prev.index,
+        spinning: true,
+        tick: prev.tick + 1,
+        startedAtMs: payload?.startedAtMs ?? prev.startedAtMs,
+        durationMs: payload?.durationMs ?? prev.durationMs,
+        targetId: payload?.categoryId ?? prev.targetId,
+      }));
+
+      if (payload?.categoryId) {
+        setRoomState((prev) =>
+          prev && prev.round
+            ? { ...prev, round: { ...prev.round, wheel1Id: payload.categoryId } }
+            : prev
+        );
+      }
     });
 
     socket.on("spin:wheel1_result", (payload) => {
       setWheel1Spin((prev) => ({
         index: payload.index,
         spinning: false,
-        tick: prev.tick + 1
+        tick: prev.tick,
+        targetId: payload.categoryId ?? prev.targetId,
       }));
       setRoomState((prev) =>
         prev && prev.round
@@ -361,15 +387,38 @@ export default function TruthOrDarePage() {
       );
     });
 
-    socket.on("spin:wheel2_start", () => {
-      setWheel2Spin((prev) => ({ ...prev, spinning: true }));
+    socket.on("spin:wheel2_start", (payload) => {
+      // Запускаем локальную анимацию у всех (tick++)
+      setWheel2Spin((prev) => ({
+        index: payload?.index ?? prev.index,
+        spinning: true,
+        tick: prev.tick + 1,
+        startedAtMs: payload?.startedAtMs ?? prev.startedAtMs,
+        durationMs: payload?.durationMs ?? prev.durationMs,
+      }));
+
+      // Важно: wheel2Id может прийти в room:state чуть позже, но на старте анимации
+      // уже полезно иметь targetId/index для ScenarioReel.
+      if (payload?.itemId) {
+        setRoomState((prev) =>
+          prev && prev.round
+            ? { ...prev, round: { ...prev.round, wheel2Id: payload.itemId } }
+            : prev
+        );
+      }
+
+      if (payload?.reelItems) {
+        setReelItems(payload.reelItems);
+      }
     });
 
     socket.on("spin:wheel2_result", (payload) => {
       setWheel2Spin((prev) => ({
         index: payload.index,
         spinning: false,
-        tick: prev.tick + 1
+        tick: prev.tick,
+        startedAtMs: payload?.startedAtMs ?? prev.startedAtMs,
+        durationMs: payload?.durationMs ?? prev.durationMs,
       }));
       if (payload.reelItems) {
         setReelItems(payload.reelItems);
@@ -498,6 +547,8 @@ export default function TruthOrDarePage() {
       socket.off("player:list");
       socket.off("round:timer_tick");
       socket.off("voting:timer_tick");
+      socket.off("round:task_accept_tick");
+      socket.off("round:task_accept_end");
       socket.off("round:timer_end");
       socket.off("round:task_accepted");
       socket.off("spin:wheel1_start");
@@ -520,10 +571,11 @@ export default function TruthOrDarePage() {
   useEffect(() => {
     setTimerRemaining(null);
     setVotingTimerRemaining(null);
+    setTaskAcceptRemaining(null);
     setMyVote(null);
     setVoteCounts({ approve: 0, report: 0, total: 0, eligibleCount: 0 });
-    setWheel1Spin({ index: null, spinning: false, tick: 0 });
-    setWheel2Spin({ index: null, spinning: false, tick: 0 });
+    setWheel1Spin({ index: null, spinning: false, tick: 0, startedAtMs: null, durationMs: null, targetId: null });
+    setWheel2Spin({ index: null, spinning: false, tick: 0, startedAtMs: null, durationMs: null });
     setForcedMode(null);
     setReelItems(null);
   }, [roomState?.round?.id]);
@@ -574,8 +626,11 @@ export default function TruthOrDarePage() {
         }
         return result;
       },
-      startRound: async (targetPlayerId) => {
-        const response = await emitWithAck("round:start", { targetPlayerId });
+      startRound: async (targetPlayerId, options = {}) => {
+        const response = await emitWithAck("round:start", {
+          targetPlayerId,
+          customMode: Boolean(options?.customMode)
+        });
         return handleAck(response);
       },
       setMode: async (mode) => {
@@ -628,6 +683,10 @@ export default function TruthOrDarePage() {
       },
       acceptTask: async () => {
         const response = await emitWithAck("round:task_accept", {});
+        return handleAck(response);
+      },
+      customDecision: async (decision) => {
+        const response = await emitWithAck("round:custom_decision", { decision });
         return handleAck(response);
       },
       leaveRoom: async () => {
@@ -734,6 +793,7 @@ export default function TruthOrDarePage() {
         roomState={roomState}
         timerRemaining={timerRemaining}
         votingTimerRemaining={votingTimerRemaining}
+        taskAcceptRemaining={taskAcceptRemaining}
         voteCounts={voteCounts}
         myVote={myVote}
         wheel1Spin={wheel1Spin}

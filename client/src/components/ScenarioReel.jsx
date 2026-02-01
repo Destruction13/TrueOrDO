@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import Spline from "@splinetool/react-spline";
 import useIsMobile from "../hooks/useIsMobile";
 import MobileTaskOverlay from "./ui/MobileTaskOverlay";
+import TimerBadge from "./ui/TimerBadge";
 const VISIBLE_COUNT = 7;
 const MIN_TRACK_ITEMS = 42;
 const SPIN_MIN_DURATION = 4000;
@@ -71,6 +72,8 @@ function ScenarioReel({
   targetId,
   targetIndex,
   spinTick = 0,
+  spinStartedAtMs = null,
+  spinDurationMs = null,
   spinning,
   disabled = false,
   canAcceptTask,
@@ -81,6 +84,7 @@ function ScenarioReel({
   onStartTask,
   onRefuseTask,
   categoryName = null,
+  acceptSecondsLeft = null,
 }) {
   const isMobile = useIsMobile();
   // If server provides reelItems (for chaos mode), use those instead
@@ -667,7 +671,10 @@ function ScenarioReel({
     
     const finalX = Math.round(metrics.viewport / 2 - targetCenter) + offsetPx;
     
-    const duration = Math.round(lerp(SPIN_MIN_DURATION, SPIN_MAX_DURATION, rng()));
+    const duration =
+      typeof spinDurationMs === "number" && spinDurationMs > 0
+        ? Math.round(spinDurationMs)
+        : Math.round(lerp(SPIN_MIN_DURATION, SPIN_MAX_DURATION, rng()));
     let accelMs = lerp(SPIN_ACCEL_MIN, SPIN_ACCEL_MAX, rng());
     let cruiseMs = lerp(SPIN_CRUISE_MIN, SPIN_CRUISE_MAX, rng());
     let decelMs = duration - accelMs - cruiseMs;
@@ -778,13 +785,44 @@ function ScenarioReel({
       }, 800); // Даём время на победную анимацию
     };
     
+    const clientNowMs = () => Date.now();
+    const startedAt = typeof spinStartedAtMs === "number" ? spinStartedAtMs : null;
+
+    // Если пришли поздно (или вкладка была скрыта) и анимация уже должна быть закончена — сразу фиксируем финал.
+    if (startedAt != null) {
+      const alreadyElapsed = clientNowMs() - startedAt;
+      if (alreadyElapsed >= duration + TENSION_PAUSE_MAX + 900) {
+        setTranslateX(finalX, true);
+        setTrackWillChange("auto");
+        setCenterCardIndex(targetTrackIndex);
+        setIsAnimating(false);
+        isSpinningRef.current = false;
+        setSpinPhase("idle");
+        const item = selectedItemRef.current;
+        if (typeof onStop === "function") {
+          onStop(item);
+        }
+        if (typeof onReveal === "function") {
+          onReveal(item);
+        }
+        return;
+      }
+    }
+
     const startTime = performance.now();
     const tick = (now) => {
       if (spinIdRef.current !== spinId) {
         return;
       }
-      const elapsed = now - startTime;
-      const t = clamp(elapsed / duration, 0, 1);
+
+      const t = (() => {
+        if (startedAt != null) {
+          const elapsedMs = clientNowMs() - startedAt;
+          return clamp(elapsedMs / duration, 0, 1);
+        }
+        const elapsed = now - startTime;
+        return clamp(elapsed / duration, 0, 1);
+      })();
       
       // Обновляем фазу при замедлении
       if (t > tSlow) {
@@ -821,6 +859,8 @@ function ScenarioReel({
     setTrackWillChange,
     setTranslateX,
     spinTick,
+    spinStartedAtMs,
+    spinDurationMs,
     targetTrackIndex,
     trackItems.length
   ]);
@@ -971,6 +1011,12 @@ function ScenarioReel({
           ) : createPortal(
             <div className={`reel-overlay${splineLoaded ? " is-loaded" : ""}`}>
               <div className="reel-overlay__backdrop" aria-hidden="true" />
+
+              {typeof acceptSecondsLeft === "number" ? (
+                <div className="reel-overlay__timer" aria-hidden="true">
+                  <TimerBadge seconds={acceptSecondsLeft} warningAt={10} criticalAt={5} />
+                </div>
+              ) : null}
               
               <div
                 className={`reel-overlay__stage${splineLoaded ? " is-visible" : ""}`}

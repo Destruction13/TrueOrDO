@@ -277,9 +277,14 @@ io.use((socket, next) => {
 const makeRoomCode = customAlphabet(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
 const roomTimers = new Map();
 const votingTimers = new Map(); // Отдельные таймеры для голосования
+const taskAcceptTimers = new Map(); // Таймеры на принятие задания (pending)
+const taskAcceptStartTimeouts = new Map(); // roomId -> timeoutId (отложенный старт таймера принятия)
+const wheel2SpinMeta = new Map(); // roundId -> { startedAtMs, durationMs }
+const wheel1SpinMeta = new Map(); // roundId -> { startedAtMs, durationMs }
 const pausedRooms = new Map(); // Состояние паузы для комнат: { isPaused, remainingWhenPaused, roundId }
 const playerSockets = new Map();
 const VOTING_TIME_SECONDS = 30; // Время на голосование
+const TASK_ACCEPT_TIME_SECONDS = 30; // Время на принятие задания
 
 function getDefaultSettings() {
   return {
@@ -355,7 +360,7 @@ function getWheelLookup() {
   return { data, byId };
 }
 
-function serializeRound(round, spin, voteCounts) {
+function serializeRound(round, spin, voteCounts, wheel2Meta) {
   if (!round) {
     return null;
   }
@@ -369,6 +374,10 @@ function serializeRound(round, spin, voteCounts) {
 
   return {
     id: round.id,
+    wheel2SpinStartedAtMs: wheel2Meta?.startedAtMs ?? null,
+    wheel2SpinDurationMs: wheel2Meta?.durationMs ?? null,
+    customMode: round.customMode || false,
+    customAuthorPlayerId: round.customAuthorPlayerId || null,
     roomId: round.roomId,
     startedAt: round.startedAt,
     endedAt: round.endedAt,
@@ -402,10 +411,12 @@ async function buildRoomState(roomId) {
   const round = await prisma.round.findFirst({
     where: { roomId },
     orderBy: { startedAt: "desc" },
-    include: { spins: true, votes: true }
+    include: { votes: true }
   });
 
-  const spin = round && round.spins.length ? round.spins[0] : null;
+  const spin = round
+    ? await prisma.spin.findUnique({ where: { roundId: round.id } })
+    : null;
   const voteCounts = round
     ? round.votes.reduce(
         (acc, vote) => {
@@ -439,7 +450,7 @@ async function buildRoomState(roomId) {
       turnIndex
     },
     players,
-    round: serializeRound(round, spin, voteCounts),
+    round: serializeRound(round, spin, voteCounts, round ? wheel2SpinMeta.get(round.id) : null),
     content: getWheelData()
   };
 }
@@ -600,6 +611,105 @@ async function endTimer(roomId, roundId, reason) {
   await startVotingTimer(roomId, roundId);
   
   await maybeFinalizeVote(roomId, roundId);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Таймер принятия задания (30 секунд) — чтобы игра не зависала на pending
+// ═════════════════════════════════════════════════════════════════════════════
+
+function stopTaskAcceptTimer(roomId) {
+  const entry = taskAcceptTimers.get(roomId);
+  if (entry) {
+    clearInterval(entry.intervalId);
+    taskAcceptTimers.delete(roomId);
+  }
+}
+
+async function startTaskAcceptTimer(roomId, roundId, seconds = TASK_ACCEPT_TIME_SECONDS) {
+  // если был запланирован отложенный старт — очищаем
+  const pendingStart = taskAcceptStartTimeouts.get(roomId);
+  if (pendingStart) {
+    clearTimeout(pendingStart);
+    taskAcceptStartTimeouts.delete(roomId);
+  }
+
+  stopTaskAcceptTimer(roomId);
+
+  const timerState = { intervalId: null, roundId, remaining: seconds };
+
+  io.to(roomId).emit("round:task_accept_tick", {
+    roundId,
+    remaining: timerState.remaining
+  });
+
+  timerState.intervalId = setInterval(async () => {
+    timerState.remaining -= 1;
+    io.to(roomId).emit("round:task_accept_tick", {
+      roundId,
+      remaining: timerState.remaining
+    });
+
+    if (timerState.remaining <= 0) {
+      await endTaskAcceptTimer(roomId, roundId, "timeout");
+    }
+  }, 1000);
+
+  taskAcceptTimers.set(roomId, timerState);
+}
+
+function scheduleTaskAcceptTimer(roomId, roundId, delayMs, seconds = TASK_ACCEPT_TIME_SECONDS) {
+  const existing = taskAcceptStartTimeouts.get(roomId);
+  if (existing) {
+    clearTimeout(existing);
+    taskAcceptStartTimeouts.delete(roomId);
+  }
+
+  const timeoutId = setTimeout(async () => {
+    try {
+      await startTaskAcceptTimer(roomId, roundId, seconds);
+      await emitRoomState(roomId);
+    } catch (e) {
+      console.error("[TaskAcceptTimer] Delayed start error:", e);
+    }
+  }, Math.max(0, delayMs));
+
+  taskAcceptStartTimeouts.set(roomId, timeoutId);
+}
+
+async function endTaskAcceptTimer(roomId, roundId, reason) {
+  const timer = taskAcceptTimers.get(roomId);
+  if (timer && timer.roundId !== roundId) {
+    return;
+  }
+
+  stopTaskAcceptTimer(roomId);
+
+  const round = await prisma.round.findUnique({ where: { id: roundId } });
+  if (!round || round.phase !== "task" || round.taskStatus !== "pending") {
+    return;
+  }
+
+  // По истечении времени автоматически считаем, что игрок отказался.
+  // Это предотвращает зависание всей комнаты.
+  if (round.currentPlayerId) {
+    await applyStrike(round.currentPlayerId, roomId);
+  }
+
+  await prisma.round.update({
+    where: { id: roundId },
+    data: {
+      phase: "complete",
+      result: "report",
+      endedAt: new Date(),
+      taskStatus: "refused"
+    }
+  });
+
+  // Advance turn to next player
+  await advanceTurnIndex(roomId);
+
+  io.to(roomId).emit("round:task_accept_end", { roundId, reason });
+  await emitRoomState(roomId);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1307,6 +1417,10 @@ io.on("connection", (socket) => {
         if (votingTimer && votingTimer.roundId === activeRound.id) {
           socket.emit("voting:timer_tick", { roundId: votingTimer.roundId, remaining: votingTimer.remaining });
         }
+        const acceptTimer = taskAcceptTimers.get(room.id);
+        if (acceptTimer && acceptTimer.roundId === activeRound.id) {
+          socket.emit("round:task_accept_tick", { roundId: acceptTimer.roundId, remaining: acceptTimer.remaining });
+        }
       }
       
       if (ack) {
@@ -1471,6 +1585,10 @@ io.on("connection", (socket) => {
         if (votingTimer && votingTimer.roundId === activeRound.id) {
           socket.emit("voting:timer_tick", { roundId: votingTimer.roundId, remaining: votingTimer.remaining });
         }
+        const acceptTimer = taskAcceptTimers.get(room.id);
+        if (acceptTimer && acceptTimer.roundId === activeRound.id) {
+          socket.emit("round:task_accept_tick", { roundId: acceptTimer.roundId, remaining: acceptTimer.remaining });
+        }
       }
 
       if (ack) {
@@ -1568,6 +1686,16 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const wantsCustom = Boolean(payload?.customMode);
+
+    // В кастомном режиме нельзя выбирать игрока в ХАОС
+    if (wantsCustom && targetPlayer.status === "chaos") {
+      if (ack) {
+        ack({ ok: false, error: "Нельзя выбрать ХАОС в режиме своего задания" });
+      }
+      return;
+    }
+
     const round = await prisma.round.create({
       data: {
         roomId: room.id,
@@ -1576,7 +1704,9 @@ io.on("connection", (socket) => {
         timerSeconds: settings.timerSeconds || 120,
         phase: "mode",
         taskStatus: "pending",
-        taskAcceptedAt: null
+        taskAcceptedAt: null,
+        customMode: wantsCustom,
+        customAuthorPlayerId: wantsCustom ? currentTurnPlayerId : null
       }
     });
 
@@ -1587,6 +1717,9 @@ io.on("connection", (socket) => {
       timerSeconds: round.timerSeconds
     });
     await emitRoomState(room.id);
+
+    // На всякий случай сбрасываем старый таймер принятия (раунд только создан)
+    stopTaskAcceptTimer(room.id);
 
     if (ack) {
       ack({ ok: true });
@@ -1676,6 +1809,25 @@ io.on("connection", (socket) => {
       }
     }
     
+    // Кастомный режим: после выбора Правда/Действие не выдаём задание из базы, а ждём решения автора (взять из базы / задать самому)
+    if (round.customMode) {
+      await prisma.round.update({
+        where: { id: round.id },
+        data: {
+          mode,
+          phase: "custom_confirm",
+          taskStatus: "pending",
+          taskAcceptedAt: null
+        }
+      });
+
+      await emitRoomState(room.id);
+      if (ack) {
+        ack({ ok: true, customConfirm: true });
+      }
+      return;
+    }
+
     if (mode === "truth") {
       // For chaos players, use chaos truth questions
       const selection = isChaosModePlayer ? pickChaosTruthQuestion() : pickTruthQuestion();
@@ -1709,6 +1861,9 @@ io.on("connection", (socket) => {
           taskAcceptedAt: null
         }
       });
+
+      // Запускаем таймер ожидания принятия задания
+      await startTaskAcceptTimer(room.id, round.id);
 
       io.to(room.id).emit("spin:final", {
         roundId: round.id,
@@ -1771,8 +1926,18 @@ io.on("connection", (socket) => {
       return;
     }
 
-    io.to(room.id).emit("spin:wheel1_start", { roundId: round.id });
     const { category, index } = pickWheel1();
+    const startedAtMs = Date.now();
+    const durationMs = 4200;
+    wheel1SpinMeta.set(round.id, { startedAtMs, durationMs });
+
+    io.to(room.id).emit("spin:wheel1_start", {
+      roundId: round.id,
+      startedAtMs,
+      durationMs,
+      categoryId: category.id,
+      index
+    });
 
     await prisma.spin.upsert({
       where: { roundId: round.id },
@@ -1850,9 +2015,8 @@ io.on("connection", (socket) => {
       : null;
     const isChaosModePlayer = currentPlayer?.status === "chaos";
 
-    io.to(room.id).emit("spin:wheel2_start", { roundId: round.id });
-
     // Use chaos wheel selection for chaos players
+
     let selection;
     let reelItems = null;
     
@@ -1872,6 +2036,19 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const startedAtMs = Date.now();
+    const durationMs = 5200;
+    wheel2SpinMeta.set(round.id, { startedAtMs, durationMs });
+
+    io.to(room.id).emit("spin:wheel2_start", {
+      roundId: round.id,
+      startedAtMs,
+      durationMs,
+      itemId: selection.item.id,
+      index: selection.index,
+      reelItems: reelItems || undefined
+    });
+
     const finalText = `${selection.category.title}: ${selection.item.text}`;
     await prisma.spin.update({
       where: { roundId: round.id },
@@ -1890,6 +2067,11 @@ io.on("connection", (socket) => {
       }
     });
 
+    // Запускаем таймер принятия задания НЕ сразу, а после остановки ленты сценариев,
+    // чтобы у всех было ~30 секунд именно с момента появления окна принятия.
+    const acceptDelayMs = durationMs + 1200;
+    scheduleTaskAcceptTimer(room.id, round.id, acceptDelayMs);
+
     // Build wheel2_result with reelItems for chaos players
     const wheel2ResultPayload = {
       roundId: round.id,
@@ -1902,6 +2084,13 @@ io.on("connection", (socket) => {
     // Include reelItems for chaos players so client can render the correct reel
     if (reelItems) {
       wheel2ResultPayload.reelItems = reelItems;
+    }
+
+    // (meta) дублируем параметры анимации, чтобы клиенты могли синхронизироваться даже при пропущенных событиях
+    const meta = wheel2SpinMeta.get(round.id);
+    if (meta) {
+      wheel2ResultPayload.startedAtMs = meta.startedAtMs;
+      wheel2ResultPayload.durationMs = meta.durationMs;
     }
     
     io.to(room.id).emit("spin:wheel2_result", wheel2ResultPayload);
@@ -1919,6 +2108,137 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("round:custom_decision", async (payload, ack) => {
+    await touchPlayer(socket);
+    if (!socket.data.roomId) {
+      if (ack) ack({ ok: false, error: "Not in room" });
+      return;
+    }
+
+    const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
+    const round = await prisma.round.findFirst({
+      where: { roomId: room?.id, endedAt: null },
+      orderBy: { startedAt: "desc" }
+    });
+
+    if (!room || !round || !round.customMode || round.phase !== "custom_confirm") {
+      if (ack) ack({ ok: false, error: "Custom confirm not active" });
+      return;
+    }
+
+    // Решение принимает только автор (turnPlayerId)
+    if (!socket.data.playerId || socket.data.playerId !== round.turnPlayerId) {
+      if (ack) ack({ ok: false, error: "Not allowed" });
+      return;
+    }
+
+    const decision = payload?.decision; // "custom" | "base"
+    if (decision !== "custom" && decision !== "base") {
+      if (ack) ack({ ok: false, error: "Invalid decision" });
+      return;
+    }
+
+    // на всякий случай останавливаем/отменяем таймер принятия
+    stopTaskAcceptTimer(room.id);
+    const pendingStart = taskAcceptStartTimeouts.get(room.id);
+    if (pendingStart) {
+      clearTimeout(pendingStart);
+      taskAcceptStartTimeouts.delete(room.id);
+    }
+
+    if (decision === "base") {
+      // Возврат к стандартному режиму (в базе)
+      await prisma.round.update({
+        where: { id: round.id },
+        data: {
+          customMode: false,
+          customAuthorPlayerId: null,
+          phase: round.mode === "dare" ? "wheel1" : "task",
+          taskStatus: "pending",
+          taskAcceptedAt: null
+        }
+      });
+
+      if (round.mode === "truth") {
+        const selection = pickTruthQuestion();
+        if (!selection) {
+          if (ack) ack({ ok: false, error: "Truth questions missing" });
+          return;
+        }
+        const finalText = selection.question;
+        await prisma.spin.upsert({
+          where: { roundId: round.id },
+          create: { roundId: round.id, wheel1Result: "", wheel2Result: "", finalText },
+          update: { wheel1Result: "", wheel2Result: "", finalText }
+        });
+        await prisma.round.update({
+          where: { id: round.id },
+          data: { phase: "task", taskStatus: "pending", taskAcceptedAt: null }
+        });
+        await startTaskAcceptTimer(room.id, round.id);
+        io.to(room.id).emit("spin:final", { roundId: round.id, finalText, mode: "truth" });
+        await emitRoomState(room.id);
+        if (ack) ack({ ok: true, switchedToBase: true });
+        return;
+      }
+
+      // Dare: остаёмся в wheel1, дальше всё как обычно (крутит выполняющий)
+      await emitRoomState(room.id);
+      if (ack) ack({ ok: true, switchedToBase: true });
+      return;
+    }
+
+    // decision === "custom": запускаем выполнение сразу (без принятия)
+    const author = round.customAuthorPlayerId
+      ? await prisma.player.findUnique({ where: { id: round.customAuthorPlayerId } })
+      : null;
+    const authorName = author?.name || "игрок";
+    const finalText = `Задание от игрока ${authorName}.`;
+
+    await prisma.spin.upsert({
+      where: { roundId: round.id },
+      create: {
+        roundId: round.id,
+        wheel1Result: "",
+        wheel2Result: "",
+        finalText
+      },
+      update: {
+        wheel1Result: "",
+        wheel2Result: "",
+        finalText
+      }
+    });
+
+    const acceptedAt = new Date();
+    await prisma.round.update({
+      where: { id: round.id },
+      data: {
+        phase: "task",
+        taskStatus: "accepted",
+        taskAcceptedAt: acceptedAt
+      }
+    });
+
+    await startTimer(room.id, round.id, round.timerSeconds || 120);
+
+    io.to(room.id).emit("spin:final", {
+      roundId: round.id,
+      finalText,
+      mode: round.mode
+    });
+
+    io.to(room.id).emit("round:task_accepted", {
+      roomId: room.id,
+      roundId: round.id,
+      currentPlayerId: round.currentPlayerId,
+      taskAcceptedAt: acceptedAt
+    });
+
+    await emitRoomState(room.id);
+    if (ack) ack({ ok: true });
+  });
+
   socket.on("round:task_accept", async (payload, ack) => {
     await touchPlayer(socket);
     if (!socket.data.roomId) {
@@ -1928,6 +2248,14 @@ io.on("connection", (socket) => {
       return;
     }
     const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
+
+    // если таймер принятия был запланирован на будущее (Dare + лента), а игрок успел принять раньше старта — отменяем план
+    const pendingStart = taskAcceptStartTimeouts.get(room?.id);
+    if (pendingStart) {
+      clearTimeout(pendingStart);
+      taskAcceptStartTimeouts.delete(room.id);
+    }
+
     const round = await prisma.round.findFirst({
       where: { roomId: room?.id, endedAt: null },
       orderBy: { startedAt: "desc" }
@@ -1952,6 +2280,10 @@ io.on("connection", (socket) => {
     }
 
     const acceptedAt = new Date();
+
+    // Останавливаем таймер принятия (если был)
+    stopTaskAcceptTimer(room.id);
+
     await prisma.round.update({
       where: { id: round.id },
       data: {
@@ -2043,6 +2375,7 @@ io.on("connection", (socket) => {
       return;
     }
     stopTimer(room.id);
+    stopTaskAcceptTimer(room.id);
     if (round.currentPlayerId) {
       await applyStrike(round.currentPlayerId, room.id);
     }

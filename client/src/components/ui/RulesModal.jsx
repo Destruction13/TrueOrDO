@@ -107,6 +107,9 @@ export default function RulesModal({ isOpen, onClose }) {
                       <span><strong>Отклонить</strong> — автоматический репорт</span>
                     </li>
                   </ul>
+                  <p className="rules-warning">
+                    ⚠️ На принятие даётся 30 секунд. Если не успеть — будет автоматический репорт.
+                  </p>
                 </div>
               </section>
 

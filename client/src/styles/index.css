@@ -475,17 +475,20 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .room-header__right {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .room-code-block {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .room-code-label {
@@ -498,6 +501,10 @@ select:focus {
   font-size: 28px;
   font-family: "Orbitron", sans-serif;
   color: var(--accent);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Кнопки в хедере */
@@ -532,12 +539,11 @@ select:focus {
   border-color: rgba(99, 102, 241, 0.5);
 }
 
-/* LeaveButton в хэдере */
-.room-header-leave-btn {
-  font-size: 0.8rem !important;
-  padding: 0.4rem 0.7rem !important;
-  min-width: auto !important;
-}
+/* LeaveButton в хэдере
+   Важно: className прокидывается на wrapper `.leave-btn-wrapper`, а не на сам `.leave-btn`.
+   Десктоп-вид НЕ меняем (оставляем как в компоненте).
+   Адаптивные ограничения/масштабирование добавляем ниже в media queries.
+*/
 
 /* Profile in header */
 .room-header-profile {
@@ -1498,6 +1504,21 @@ select:focus {
   background: rgba(5, 8, 16, 0.85);
 }
 
+.reel-overlay__timer {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+@media (max-width: 520px) {
+  .reel-overlay__timer {
+    top: 14px;
+    right: 14px;
+  }
+}
+
 .reel-overlay__stage {
   position: absolute;
   inset: 0;
@@ -2091,6 +2112,20 @@ select:focus {
   50% { opacity: 0.5; }
 }
 
+.round-inline-notice {
+  margin-top: 12px;
+  padding: 12px 14px;
+  text-align: center;
+  background: rgba(20, 6, 12, 0.78);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  border-radius: 14px;
+  color: rgba(255, 220, 220, 0.96);
+  font-size: 14px;
+  line-height: 1.35;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+}
+
 .status-error {
   color: var(--danger);
   font-size: 14px;
@@ -2121,10 +2156,50 @@ select:focus {
   .room-header {
     padding: 10px 12px;
     gap: 8px;
+    flex-wrap: nowrap;
   }
   
   .room-header__left {
     gap: 0.5rem;
+    flex: 1 1 auto;
+  }
+
+  /* LeaveButton: на узких экранах ограничиваем ширину и масштабируем текст,
+     но НЕ обрезаем — все тролль-сообщения должны быть видны. */
+  .room-header-leave-btn {
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
+  .room-header-leave-btn .leave-btn {
+    /* Держим кнопку компактной, но допускаем рост по высоте под 2 строки текста */
+    max-width: clamp(140px, 34vw, 260px);
+    min-width: 0;
+    width: auto;
+
+    height: auto;
+    min-height: 32px;
+
+    /*
+      Внизу у кнопки есть прогресс-точки (.leave-btn__progress) с absolute-position.
+      На узких экранах текст может переноситься на 2 строки, поэтому даём
+      дополнительный нижний отступ, чтобы точки не перекрывали текст.
+    */
+    padding: 0.4em 0.75em 0.95em;
+
+    /* Шрифт плавно уменьшается на узких экранах */
+    font-size: clamp(9px, 2.6vw, 11px);
+    line-height: 1.15;
+  }
+
+  .room-header-leave-btn .leave-btn__text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .room-header-leave-btn .leave-btn__spinner {
+    right: 8px;
   }
   
   .room-header-btn {
@@ -2264,6 +2339,14 @@ select:focus {
   .room-header-btn svg {
     width: 18px;
     height: 18px;
+  }
+
+  /* Ещё сильнее ужимаем "Выйти" на экстремально узких экранах,
+     но текст всё равно должен помещаться (уменьшаем шрифт и паддинги). */
+  .room-header-leave-btn .leave-btn {
+    max-width: clamp(120px, 44vw, 220px);
+    padding: 0.35em 0.6em 0.9em;
+    font-size: clamp(8px, 3.2vw, 10px);
   }
   
   .room-header-profile__btn {

@@ -218,15 +218,20 @@ const containerStyle = {
   overflow: 'hidden',
 };
 
+// Overscan нужен, чтобы не было видно границ шейдера при экстремальных aspect-ratio
+// (например очень низкая высота экрана / landscape).
 const canvasContainerStyle = {
-  width: '100%',
-  height: '100%',
+  position: 'absolute',
+  top: '-35%',
+  left: '-35%',
+  width: '170%',
+  height: '170%',
   background: '#000',
 };
 
 const overlayStyle = {
   position: 'absolute',
-  inset: 0,
+  inset: '-35%',
   pointerEvents: 'none',
   background: 'linear-gradient(to top, rgba(0,0,0,0.3), transparent, rgba(0,0,0,0.2))',
 };

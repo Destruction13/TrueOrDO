@@ -21,8 +21,16 @@
    Header — "Кто отвечает?"
    -------------------------------------------------------------------------- */
 .target-player-selector__header {
+  position: relative;
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  /*
+    Важно для мобильных: когда custom toggle переносится на следующую строку,
+    `space-between` раздвигает оставшиеся элементы и текст "уезжает" вправо.
+    Держим контент слева, а правый блок выталкиваем через `margin-left: auto`.
+  */
+  justify-content: flex-start;
   gap: 14px;
   padding: 18px 20px;
   background: linear-gradient(
@@ -67,6 +75,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
 }
 
 .target-player-selector__title {
@@ -90,6 +101,112 @@
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.5);
   letter-spacing: 0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   Custom toggle ("Задать свой вопрос / действие")
+   -------------------------------------------------------------------------- */
+.target-player-selector__custom {
+  margin-left: auto;
+  padding-top: 2px;
+  flex: 1 1 260px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.target-player-selector__custom-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(6, 12, 26, 0.55);
+  border: 1px solid rgba(120, 180, 255, 0.18);
+  color: rgba(235, 245, 255, 0.85);
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.target-player-selector__custom-toggle:hover {
+  background: rgba(6, 12, 26, 0.7);
+  border-color: rgba(46, 230, 255, 0.28);
+}
+
+.target-player-selector__custom-toggle.is-on {
+  border-color: rgba(255, 170, 51, 0.35);
+  background: rgba(255, 170, 51, 0.08);
+}
+
+.target-player-selector__custom-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.target-player-selector__custom-label {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .target-player-selector__custom {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+
+  .target-player-selector__custom-toggle {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .target-player-selector__custom-label {
+    white-space: normal;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+}
+
+.target-player-selector__custom-knob {
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  position: relative;
+}
+
+.target-player-selector__custom-knob::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(46, 230, 255, 0.9);
+  box-shadow: 0 0 16px rgba(46, 230, 255, 0.35);
+  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.target-player-selector__custom-toggle.is-on .target-player-selector__custom-knob::after {
+  transform: translateX(16px);
+  background: rgba(255, 170, 51, 0.95);
+  box-shadow: 0 0 16px rgba(255, 170, 51, 0.35);
+}
+
+.target-player-btn--chaos-blocked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* чтобы было понятно, что элемент не интерактивный, но клики нужны для показа подсказки */
+.target-player-btn--chaos-blocked * {
+  pointer-events: none;
+}
+
+.target-player-btn__tag--chaos.is-blocked {
+  opacity: 0.85;
 }
 
 /* --------------------------------------------------------------------------

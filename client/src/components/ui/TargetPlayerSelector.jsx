@@ -11,11 +11,23 @@ export default function TargetPlayerSelector({
   meId,
   disabled = false,
   onSelectPlayer,
-  allowSelfSelect = true // Для теста можно выбрать себя, потом отключить
+  allowSelfSelect = true, // Для теста можно выбрать себя, потом отключить
+  customEnabled = false,
+  onToggleCustom,
+  onChaosBlocked
 }) {
-  const handleSelect = (playerId) => {
+  const handleSelect = (playerId, player) => {
     if (disabled) return;
     if (!allowSelfSelect && playerId === currentTurnPlayerId) return;
+
+    // В режиме "задать свой вопрос/действие" нельзя выбрать ХАОС
+    if (customEnabled && player?.status === "chaos") {
+      onChaosBlocked?.(
+        "Игрок в режиме ХАОС. Ты не можешь задать ему свой вопрос. Переключи режим на автоматический."
+      );
+      return;
+    }
+
     onSelectPlayer?.(playerId);
   };
 
@@ -38,6 +50,18 @@ export default function TargetPlayerSelector({
         <div className="target-player-selector__header-text">
           <span className="target-player-selector__title">Кто отвечает?</span>
           <span className="target-player-selector__subtitle">Выберите игрока для задания</span>
+        </div>
+
+        <div className="target-player-selector__custom">
+          <button
+            type="button"
+            className={`target-player-selector__custom-toggle ${customEnabled ? "is-on" : ""}`}
+            onClick={() => onToggleCustom?.(!customEnabled)}
+            disabled={disabled}
+          >
+            <span className="target-player-selector__custom-label">Задать свой вопрос / действие</span>
+            <span className="target-player-selector__custom-knob" aria-hidden="true" />
+          </button>
         </div>
       </div>
 
@@ -71,15 +95,17 @@ export default function TargetPlayerSelector({
                 isTurnPlayer && "target-player-btn--turn",
                 isChaos && "target-player-btn--chaos",
                 isShamed && "target-player-btn--shamed",
-                disabled && "target-player-btn--disabled"
+                disabled && "target-player-btn--disabled",
+                customEnabled && isChaos && "target-player-btn--chaos-blocked"
               ].filter(Boolean).join(" ")}
               disabled={disabled}
-              onClick={() => handleSelect(player.id)}
+              aria-disabled={customEnabled && isChaos ? "true" : "false"}
+              onClick={() => handleSelect(player.id, player)}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              whileHover={!disabled ? { scale: 1.02, y: -2 } : {}}
-              whileTap={!disabled ? { scale: 0.98 } : {}}
+              whileHover={!disabled && !(customEnabled && isChaos) ? { scale: 1.02, y: -2 } : {}}
+              whileTap={!disabled && !(customEnabled && isChaos) ? { scale: 0.98 } : {}}
             >
               <div className="target-player-btn__avatar-wrapper">
                 {player.avatarUrl ? (
@@ -102,7 +128,11 @@ export default function TargetPlayerSelector({
                 </span>
                 <div className="target-player-btn__tags">
                   {isMe && <span className="target-player-btn__tag target-player-btn__tag--me">Вы</span>}
-                  {isChaos && <span className="target-player-btn__tag target-player-btn__tag--chaos">🔥 ХАОС</span>}
+                  {isChaos && (
+                    <span className={`target-player-btn__tag target-player-btn__tag--chaos ${customEnabled ? "is-blocked" : ""}`}>
+                      🔥 ХАОС{customEnabled ? " (нельзя)" : ""}
+                    </span>
+                  )}
                   {isShamed && <span className="target-player-btn__tag target-player-btn__tag--shamed">⏱️ -25%</span>}
                 </div>
               </div>
@@ -116,6 +146,7 @@ export default function TargetPlayerSelector({
           );
         })}
       </div>
+
     </motion.div>
   );
 }

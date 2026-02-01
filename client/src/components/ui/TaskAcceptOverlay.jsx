@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import Button from "./Button";
+import TimerBadge from "./TimerBadge";
 import "./TaskAcceptOverlay.css";
 
 function TaskAcceptOverlay({
@@ -7,6 +8,7 @@ function TaskAcceptOverlay({
   title,
   subtitle,
   description,
+  secondsLeft,
   primaryLabel,
   secondaryLabel,
   onAccept,
@@ -27,7 +29,17 @@ function TaskAcceptOverlay({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="task-accept-overlay__header">
-          {title ? <h3 className="task-accept-overlay__title">{title}</h3> : null}
+          <div className="task-accept-overlay__header-top">
+            {title ? <h3 className="task-accept-overlay__title">{title}</h3> : null}
+            {typeof secondsLeft === "number" ? (
+              <TimerBadge
+                seconds={secondsLeft}
+                warningAt={10}
+                criticalAt={5}
+                className="task-accept-overlay__timer"
+              />
+            ) : null}
+          </div>
           {subtitle ? (
             <p className="task-accept-overlay__subtitle">{subtitle}</p>
           ) : null}
