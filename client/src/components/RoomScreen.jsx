@@ -432,7 +432,8 @@ function RoomScreen({
                   player={player}
                   isHost={player.id === room.hostId}
                   isMe={player.id === meId}
-                  isCurrent={round?.currentPlayerId === player.id}
+                  isTurnPlayer={(!round || phase === "complete") && currentTurnPlayerId === player.id}
+                  isExecuting={Boolean(round && phase !== "complete" && round.currentPlayerId === player.id)}
                   showKickButton={isHost && player.id !== meId}
                   onKick={actions.kickPlayer}
                 />

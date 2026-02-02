@@ -9,7 +9,8 @@ export default function PlayerCard({
   player,
   isHost,
   isMe,
-  isCurrent,
+  isTurnPlayer,
+  isExecuting,
   onKick,
   showKickButton = false
 }) {
@@ -26,7 +27,7 @@ export default function PlayerCard({
     "player-card-v2",
     isChaos && "player-card-v2--chaos",
     isShamed && "player-card-v2--shamed",
-    isCurrent && "player-card-v2--current",
+    (isTurnPlayer || isExecuting) && "player-card-v2--current",
     isMe && "player-card-v2--me",
     isDisconnected && "player-card-v2--disconnected",
     isLeft && "player-card-v2--left"
@@ -41,8 +42,8 @@ export default function PlayerCard({
       transition={{ duration: 0.3 }}
       layout
     >
-      {/* Glow effect для текущего игрока */}
-      {isCurrent && (
+      {/* Glow effect для игрока, который ходит или выполняет */}
+      {(isTurnPlayer || isExecuting) && (
         <div className="player-card-v2__glow" />
       )}
 
@@ -112,10 +113,10 @@ export default function PlayerCard({
         </motion.button>
       )}
 
-      {/* Текущий игрок индикатор */}
-      {isCurrent && (
+      {/* Индикатор статуса раунда (плашка сверху) */}
+      {(isTurnPlayer || isExecuting) && (
         <div className="player-card-v2__current-badge">
-          <span>Ходит</span>
+          <span>{isExecuting ? "Выполняет" : "Ходит"}</span>
         </div>
       )}
 
