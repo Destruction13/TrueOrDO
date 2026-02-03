@@ -1,0 +1,13 @@
+.emotional-title {
+  font-size: clamp(2rem, 8vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 0;
+  background: linear-gradient(135deg, #22c55e 0%, #14b8a6 45%, #3b82f6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 60px rgba(20, 184, 166, 0.35);
+}
+

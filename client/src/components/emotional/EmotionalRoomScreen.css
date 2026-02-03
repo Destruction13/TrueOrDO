@@ -1,0 +1,441 @@
+.emotional-room {
+  position: relative;
+  z-index: 2;
+  padding: 24px;
+  max-width: 100%;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.emotional-room__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+}
+
+.emotional-room__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.emotional-room__invite-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.emotional-room__localhost-warning {
+  width: 100%;
+  font-size: 12px;
+  opacity: 0.85;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.emotional-room__localhost-warning code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  opacity: 0.9;
+}
+.emotional-room__title {
+  font-size: 12px;
+  opacity: 0.75;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.emotional-room__code {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.emotional-room__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.emotional-room__gear {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+}
+
+.emotional-room__gear:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.emotional-room__status {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.emotional-room__status.ok {
+  color: rgba(34, 197, 94, 0.95);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.emotional-room__status.bad {
+  color: rgba(239, 68, 68, 0.95);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.emotional-room__error {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  border-radius: 14px;
+}
+
+.emotional-room__panel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+}
+
+.emotional-room__game {
+  margin-bottom: 16px;
+}
+
+.emotional-room__game-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.emotional-room__phase-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.emotional-room__phase-tag {
+  font-size: 11px;
+  opacity: 0.65;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.emotional-room__phase-name {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.emotional-room__countdown {
+  /* Таймер уже в правильном месте благодаря phase-top */
+}
+
+.emotional-room__game-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.emotional-room__game-text {
+  margin: 0 0 12px;
+  opacity: 0.8;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.emotional-room__game-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.emotional-room__word {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.emotional-room__word-label {
+  font-size: 11px;
+  opacity: 0.65;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.emotional-room__word-value {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  text-align: center;
+}
+
+.emotional-room__secret {
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(20, 184, 166, 0.25);
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.emotional-room__secret-label {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+
+.emotional-room__secret-value {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.emotional-room__hand-title {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-bottom: 8px;
+}
+
+.emotional-room__hand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.emotional-room__emotion {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.emotional-room__emotion.selected {
+  border-color: rgba(20, 184, 166, 0.45);
+  background: rgba(20, 184, 166, 0.12);
+}
+
+.emotional-room__emotion:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.emotional-room__hand-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.emotional-room__table {
+  margin-top: 10px;
+}
+
+.emotional-room__table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.emotional-room__slot {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  padding: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.emotional-room__slot.chosen {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(99, 102, 241, 0.14);
+}
+
+.emotional-room__slot--facedown {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.emotional-room__slot-emotion {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.emotional-room__slot-votes {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.emotional-room__result-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0;
+}
+
+.emotional-room__result-line .label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.emotional-room__result-line .value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.emotional-room__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.emotional-room__summary-item {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.emotional-room__summary-item .label {
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+.emotional-room__summary-item .value {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.emotional-room__panel-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.emotional-room__players {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.emotional-room__player {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.emotional-room__player-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.emotional-room__kick {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.emotional-room__kick:active {
+  transform: translateY(1px);
+}
+
+.emotional-room__player.me {
+  border-color: rgba(20, 184, 166, 0.35);
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.emotional-room__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.emotional-room__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.emotional-room__avatar span {
+  font-weight: 800;
+}
+
+.emotional-room__player-name {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.emotional-room__tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.25);
+  opacity: 0.85;
+}
+
+.emotional-room__player-meta {
+  margin-top: 3px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.emotional-room__hint {
+  margin-top: 14px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.emotional-room__me {
+  margin-top: 10px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.emotional-room__empty {
+  font-size: 13px;
+  opacity: 0.75;
+}

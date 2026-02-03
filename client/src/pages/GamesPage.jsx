@@ -34,6 +34,14 @@ const games = [
     available: true,
     icon: "🕵️",
   },
+  {
+    id: "emotional",
+    title: "Эмоциональный интеллект",
+    description: "Сопоставляй слова с эмоциями, угадывай ведущего и набирай очки!",
+    path: "/emotional",
+    available: true,
+    icon: "🧠",
+  },
 ];
 
 function GameCard({ game, index, onClick }) {

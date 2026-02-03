@@ -1,5 +1,6 @@
 .radial-countdown {
   --rc-accent: rgba(46, 230, 255, 0.95);
+  --rc-size: 168px;
   position: relative;
   width: max-content;
   display: grid;
@@ -9,9 +10,104 @@
   overflow: visible;
 }
 
+/* Вариант полукругом: сохраняем компактный размер (как раньше), но рисуем только верхнюю половину */
+.radial-countdown--semi {
+  /* Компактный таймер: ширина как size, но с местом под число. */
+  width: var(--rc-size);
+  height: calc(var(--rc-size) / 2 + 44px);
+  overflow: visible;
+
+  /* Центрируем дугу строго по центру контейнера */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+
 .radial-countdown__svg {
   display: block;
   overflow: visible;
+}
+
+.radial-countdown__semi-wrap {
+  position: relative;
+  width: var(--rc-size);
+  height: calc(var(--rc-size) / 2);
+  display: block;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.radial-countdown__semi-rings {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.radial-countdown__semi-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.radial-countdown__semi-ring {
+  --semi-scale: 1;
+}
+
+.radial-countdown__semi-ring path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--rc-accent) 40%, transparent);
+  stroke-width: 6;
+  stroke-linecap: butt;
+  opacity: 0.55;
+
+  /* Разный диаметр: каждый слой масштабируем относительно основания дуги */
+  transform-origin: 50% 100%;
+  transform: scale(var(--semi-scale));
+
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--rc-accent) 30%, transparent));
+  animation: rcSemiPulse 1.8s ease-in-out infinite;
+}
+
+.radial-countdown__semi-ring--2 {
+  --semi-scale: 1.12;
+}
+
+.radial-countdown__semi-ring--2 path {
+  stroke-width: 5;
+  opacity: 0.38;
+  animation-duration: 2.3s;
+}
+
+.radial-countdown__semi-ring--3 {
+  --semi-scale: 1.26;
+}
+
+.radial-countdown__semi-ring--3 path {
+  stroke-width: 4;
+  opacity: 0.24;
+  animation-duration: 2.8s;
+}
+
+@keyframes rcSemiPulse {
+  0%,
+  100% {
+    transform: scale(calc(var(--semi-scale) * 0.98));
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--rc-accent) 22%, transparent));
+  }
+  50% {
+    transform: scale(calc(var(--semi-scale) * 1.06));
+    filter: drop-shadow(0 0 18px color-mix(in srgb, var(--rc-accent) 35%, transparent));
+  }
+}
+
+.radial-countdown__svg--semi {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .radial-countdown__track {
@@ -26,6 +122,12 @@
   transition: stroke 220ms linear, stroke-dashoffset 180ms linear;
 }
 
+/* В edge-режиме (дуга от края до края) не делаем скругление, чтобы не было "внутреннего" отступа */
+.radial-countdown__track--edge,
+.radial-countdown__progress--edge {
+  stroke-linecap: butt;
+}
+
 .radial-countdown__center {
   position: absolute;
   inset: 0;
@@ -36,6 +138,22 @@
   gap: 2px;
   text-align: center;
   pointer-events: none;
+}
+
+/* Для полукруга чуть смещаем значение вниз, чтобы оно было "под прыщиком" */
+.radial-countdown--semi .radial-countdown__center {
+  /* Число должно сидеть внутри дуги, ближе к её основанию.
+     Можно слегка залезать на блок со словами (оверлей выше по z-index). */
+  top: auto;
+  bottom: -6px;
+
+  /* Паддинг только для цифр (дугу не отступаем) */
+  padding: 0 6px 2px;
+}
+
+.radial-countdown--semi .radial-countdown__value {
+  font-size: 30px;
+  letter-spacing: 0.03em;
 }
 
 .radial-countdown__value {
@@ -62,6 +180,42 @@
   display: grid;
   place-items: center;
   pointer-events: none;
+}
+
+/* В semi режиме используем отдельные SVG-полуокружности, а не круговые кольца */
+.radial-countdown--semi .radial-countdown__rings {
+  display: none;
+}
+
+/* В semi-таймере кольца должны быть отцентрированы вместе с дугой и "стоять" на её основании */
+.radial-countdown--semi .radial-countdown__rings {
+  inset: auto;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: var(--rc-size);
+  height: var(--rc-size);
+}
+
+/* В semi режиме кольца тоже будут обрезаны общим clip-path у родителя */
+.radial-countdown--semi .radial-countdown__rings {
+  /* По умолчанию: мягко гасим вниз */
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,0) 78%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 48%, rgba(0,0,0,0) 78%);
+}
+
+/* В semi режиме кольца/пульсация должны идти только вверх и не уходить вниз.
+   Привязываем их к нижней границе таймера (чтобы вниз не залезали). */
+.radial-countdown--semi .radial-countdown__rings {
+  inset: auto;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: var(--rc-size);
+  height: var(--rc-size);
+
+  /* пульсация только вверх */
+  clip-path: inset(0 0 55% 0);
 }
 
 .radial-countdown__ring {

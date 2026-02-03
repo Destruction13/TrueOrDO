@@ -60,6 +60,8 @@ p {
   color: var(--muted);
 }
 .app-shell {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   padding: 48px clamp(24px, 6vw, 72px);
   display: flex;

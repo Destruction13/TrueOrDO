@@ -1,0 +1,120 @@
+.emotional-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  padding: 16px;
+}
+
+.emotional-modal {
+  width: min(560px, 100%);
+  border-radius: 18px;
+  background: rgba(10, 14, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.92);
+  overflow: hidden;
+}
+
+.emotional-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.emotional-modal__header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.emotional-modal__close {
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.emotional-modal__body {
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.emotional-setting__label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.emotional-setting__range {
+  width: 100%;
+}
+
+.emotional-setting__range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  opacity: 0.65;
+  margin-top: 6px;
+}
+
+.emotional-setting__toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.emotional-setting__toggle-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+}
+
+.emotional-setting__toggle-btn.active {
+  border-color: rgba(20, 184, 166, 0.45);
+  background: rgba(20, 184, 166, 0.12);
+}
+
+.emotional-setting__toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.emotional-setting__danger {
+  width: 100%;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+}
+
+.emotional-setting__danger:active {
+  transform: translateY(1px);
+}
+
+.emotional-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.emotional-modal__readonly {
+  padding: 10px 16px 14px;
+  font-size: 12px;
+  opacity: 0.7;
+}

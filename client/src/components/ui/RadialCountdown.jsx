@@ -29,6 +29,8 @@ export default function RadialCountdown({
   size = 168,
   strokeWidth = 10,
   className = "",
+  variant = "full", // "full" | "semi"
+  showLabel = true,
 }) {
   // remaining: 1 -> 0
   const remaining = useMemo(() => {
@@ -54,64 +56,122 @@ export default function RadialCountdown({
     return mixColor(orange, red, (dangerT - 0.65) / 0.35);
   }, [dangerT]);
 
+  const isCritical = typeof secondsLeft === "number" && secondsLeft <= Math.max(3, Math.ceil(totalSeconds * 0.15));
+
+  // Full circle geometry
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
-  // хотим, чтобы дуга шла 0 -> 360 градусов по мере истечения времени
-  const dashOffset = circumference * (1 - elapsed);
+  const dashOffsetFull = circumference * (1 - elapsed);
 
-  const isCritical = typeof secondsLeft === "number" && secondsLeft <= Math.max(3, Math.ceil(totalSeconds * 0.15));
+  const isSemi = variant === "semi";
 
   return (
-    <div className={`radial-countdown ${className}`} style={{ "--rc-accent": accent }}>
+    <div
+      className={`radial-countdown ${isSemi ? "radial-countdown--semi" : ""} ${className}`}
+      style={{ "--rc-accent": accent, "--rc-size": `${size}px` }}
+    >
       <div className="radial-countdown__rings" aria-hidden="true">
         <div className="radial-countdown__ring radial-countdown__ring--1" />
         <div className="radial-countdown__ring radial-countdown__ring--2" />
         <div className="radial-countdown__ring radial-countdown__ring--3" />
       </div>
 
-      <motion.svg
-        className="radial-countdown__svg"
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        style={{ rotate: -90, transformOrigin: "50% 50%" }}
-        animate={isCritical ? { scale: [1, 1.03, 1] } : { scale: 1 }}
-        transition={isCritical ? { repeat: Infinity, duration: 0.55 } : { duration: 0.2 }}
-      >
-        <defs>
-          <filter id="rcGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
+      {!isSemi ? (
+        <motion.svg
+          className="radial-countdown__svg"
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{ rotate: -90, transformOrigin: "50% 50%" }}
+          animate={isCritical ? { scale: [1, 1.03, 1] } : { scale: 1 }}
+          transition={isCritical ? { repeat: Infinity, duration: 0.55 } : { duration: 0.2 }}
+        >
+          <defs>
+            <filter id="rcGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
+              <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
 
-        <circle
-          className="radial-countdown__track"
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          strokeWidth={strokeWidth}
-        />
+          <circle
+            className="radial-countdown__track"
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            strokeWidth={strokeWidth}
+          />
 
-        <circle
-          className="radial-countdown__progress"
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-          filter="url(#rcGlow)"
-        />
-      </motion.svg>
+          <circle
+            className="radial-countdown__progress"
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            strokeWidth={strokeWidth}
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffsetFull}
+            filter="url(#rcGlow)"
+          />
+        </motion.svg>
+      ) : (
+        <div className="radial-countdown__semi-wrap">
+          <div className="radial-countdown__semi-rings" aria-hidden="true">
+            {[1, 2, 3].map((i) => (
+              <svg
+                key={i}
+                className={`radial-countdown__semi-ring radial-countdown__semi-ring--${i}`}
+                viewBox="0 0 100 50"
+                preserveAspectRatio="none"
+              >
+                <path d="M 0 50 A 50 50 0 0 1 100 50" pathLength="1" />
+              </svg>
+            ))}
+          </div>
+
+          <motion.svg
+            className="radial-countdown__svg radial-countdown__svg--semi"
+            viewBox="0 0 100 50"
+            preserveAspectRatio="none"
+            animate={isCritical ? { scale: [1, 1.03, 1] } : { scale: 1 }}
+            transition={isCritical ? { repeat: Infinity, duration: 0.55 } : { duration: 0.2 }}
+          >
+            <defs>
+              <filter id="rcGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            <path
+              className="radial-countdown__track radial-countdown__track--edge"
+              d="M 0 50 A 50 50 0 0 1 100 50"
+              strokeWidth={strokeWidth}
+              pathLength="1"
+            />
+
+            <motion.path
+              className="radial-countdown__progress radial-countdown__progress--edge"
+              d="M 0 50 A 50 50 0 0 1 100 50"
+              strokeWidth={strokeWidth}
+              pathLength="1"
+              strokeDasharray="1"
+              animate={{ strokeDashoffset: 1 - elapsed }}
+              transition={{ duration: 0.25, ease: "linear" }}
+              filter="url(#rcGlow)"
+            />
+          </motion.svg>
+        </div>
+      )}
 
       <div className="radial-countdown__center" role="timer" aria-live="polite">
         <div className="radial-countdown__value">{formatSeconds(secondsLeft)}</div>
-        <div className="radial-countdown__label">сек.</div>
+        {showLabel ? <div className="radial-countdown__label">сек.</div> : null}
       </div>
     </div>
   );

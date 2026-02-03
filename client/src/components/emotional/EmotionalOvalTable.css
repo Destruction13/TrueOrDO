@@ -1,0 +1,846 @@
+.oval-table {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.oval-table__surface {
+  position: relative !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  aspect-ratio: 16 / 10;
+  border-radius: 50% / 40%;
+  background: linear-gradient(135deg, rgba(10, 14, 20, 0.5) 0%, rgba(15, 20, 30, 0.6) 100%);
+  border: 2px solid rgba(20, 184, 166, 0.3);
+  box-shadow: 
+    0 0 40px rgba(20, 184, 166, 0.2),
+    inset 0 0 80px rgba(0, 0, 0, 0.3),
+    inset 0 0 150px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  overflow: visible;
+  margin: 0 0 160px 0; /* Отступ снизу */
+}
+
+/* Если у ведущего скрыта рука, большой отступ снизу не нужен */
+.oval-table--leader-secret .oval-table__surface {
+  margin-bottom: 0;
+}
+
+/* Плашка с секретной эмоцией (только для ведущего) */
+.oval-table__secret-emotion-plain {
+  width: 75%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.96);
+
+  background: rgba(10, 14, 20, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 520px) {
+  .oval-table__secret-emotion-plain {
+    width: 92%;
+    font-size: 16px;
+    padding: 9px 12px;
+  }
+}
+
+/* Игроки */
+.oval-table__player {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 5;
+}
+
+.oval-table__player-avatar-wrapper {
+  position: relative;
+}
+
+.oval-table__player--me .oval-table__player-avatar {
+  border-color: rgba(20, 184, 166, 0.8);
+  box-shadow: 0 0 16px rgba(20, 184, 166, 0.5);
+}
+
+.oval-table__player-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(10, 14, 20, 0.75);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 800;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.oval-table__player-avatar > span {
+  border-radius: 50%;
+}
+
+.oval-table__player-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.oval-table__player-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+
+/* Статус-точка онлайна - размещается поверх overflow:hidden за счёт z-index и немного выступает */
+.oval-table__player-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #0a0e14;
+  transition: background 0.3s ease;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.oval-table__player-status-dot.online {
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+}
+
+.oval-table__player-status-dot.offline {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+  animation: oval-table-dot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes oval-table-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Плавающая корона для хоста */
+.oval-table__player-crown {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 14px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  animation: oval-table-crown-float 2s ease-in-out infinite;
+  line-height: 1;
+  z-index: 10;
+}
+
+@keyframes oval-table-crown-float {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-2px) rotate(5deg); }
+}
+
+/* Disconnected player */
+.oval-table__player--disconnected {
+  opacity: 0.6;
+}
+
+.oval-table__player--disconnected .oval-table__player-avatar {
+  filter: grayscale(0.7);
+}
+
+.oval-table__player--disconnected .oval-table__player-avatar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(239, 68, 68, 0.2);
+  border-radius: 50%;
+}
+
+.oval-table__player--disconnected .oval-table__player-name {
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: line-through;
+  text-decoration-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Таймер сверху блока слова */
+/* Таймер теперь размещаем внутри блока слова (oval-table__word-display),
+   поэтому глобальная позиция больше не используется. */
+.oval-table__timer {
+  display: none;
+}
+
+/* Центр стола — карты или слово */
+.oval-table__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+}
+
+/* Таймер в центре стола (в submit/vote), не должен скрывать/заменять стол */
+.oval-table__center-timer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  pointer-events: none;
+}
+
+.oval-table__phrase-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.oval-table__word-display {
+  position: relative;
+  overflow: visible;
+  padding: 16px 24px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(10, 14, 20, 0.85);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  min-width: 220px;
+  max-width: min(92vw, 560px);
+  text-align: center;
+}
+
+.oval-table__word-label {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.oval-table__word-value {
+  font-size: 20px; /* базовый максимум, дальше подбирается JS */
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: rgba(255, 255, 255, 0.95);
+
+  /* Важно: текст НЕ обрезаем, он должен быть виден полностью.
+     Переносы разрешаем, а размер шрифта подбираем в FitTwoLineText. */
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.oval-table__phrase-timer {
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Таймер-дуга поверх блока слова: края совпадают с краями word-display */
+.oval-table__phrase-timer--overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 0;
+  z-index: 50;
+  pointer-events: none;
+
+  /* Центрируем сам таймер строго относительно блока со словом */
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.oval-table__phrase-timer--overlay > * {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 520px) {
+  .oval-table__phrase-timer--overlay {
+    top: -38px;
+  }
+}
+
+.oval-table__secret-emotion {
+  margin-top: 8px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  background: 
+    linear-gradient(rgba(10, 14, 20, 0.95), rgba(10, 14, 20, 0.95)) padding-box,
+    linear-gradient(135deg, 
+      rgba(6, 182, 212, 0.8), 
+      rgba(14, 165, 233, 0.8), 
+      rgba(59, 130, 246, 0.8),
+      rgba(6, 182, 212, 0.8)
+    ) border-box;
+  background-size: 100% 100%, 200% 200%;
+  animation: shimmer-border 3s ease-in-out infinite;
+  box-shadow: 
+    0 0 16px rgba(6, 182, 212, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@keyframes shimmer-border {
+  0%, 100% {
+    background-position: 0% 0%, 0% 50%;
+  }
+  50% {
+    background-position: 0% 0%, 100% 50%;
+  }
+}
+
+.oval-table__secret-emotion-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(6, 182, 212, 0.85);
+}
+
+.oval-table__secret-emotion-value {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  background: linear-gradient(135deg, 
+    rgba(6, 182, 212, 1), 
+    rgba(14, 165, 233, 1), 
+    rgba(59, 130, 246, 1)
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+}
+
+.oval-table__slots {
+  /* Сетка карт на столе (прямоугольники) */
+  --table-card-w: clamp(62px, 7.2vw, 78px);  /* ~75% от 104px */
+  --table-card-h: calc(var(--table-card-w) * 1.42); /* ~соотношение 104x148 */
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--table-card-w), 1fr));
+  gap: 10px;
+  place-items: center;
+
+  width: min(520px, 86vw);
+  margin: 0 auto;
+}
+
+.oval-table__card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  width: var(--table-card-w);
+  height: var(--table-card-h);
+  border-radius: 12px;
+  border: 2px solid rgba(var(--emotion-rgb, 255, 255, 255), 0.22);
+  background: linear-gradient(
+    145deg,
+    rgba(var(--emotion-rgb, 255, 255, 255), 0.12),
+    rgba(255, 255, 255, 0.06)
+  );
+  backdrop-filter: blur(10px);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.35),
+    0 0 60px rgba(var(--emotion-rgb, 99, 102, 241), 0.10),
+    0 0 22px rgba(var(--emotion-rgb, 99, 102, 241), 0.14);
+  cursor: pointer;
+
+  padding: 0; /* внутренности управляются card-inner */
+  transition: all 0.2s ease;
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 800;
+
+  /* 3D context */
+  perspective: 900px;
+}
+
+.oval-table__card-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.oval-table__card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  padding: 10px 8px;
+  backface-visibility: hidden;
+}
+
+.oval-table__card-face--back {
+  transform: rotateY(0deg);
+}
+
+.oval-table__card-face--front {
+  transform: rotateY(180deg);
+}
+
+.oval-table__card-backmark {
+  font-size: 22px;
+  opacity: 0.9;
+  text-align: center;
+}
+
+.oval-table__card::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: radial-gradient(
+      140% 120% at 50% 110%,
+      rgba(var(--emotion-rgb, 99, 102, 241), 0.22) 0%,
+      rgba(var(--emotion-rgb, 99, 102, 241), 0.10) 45%,
+      rgba(var(--emotion-rgb, 99, 102, 241), 0.00) 78%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(var(--emotion-rgb, 99, 102, 241), 0.10),
+      rgba(255, 255, 255, 0.02)
+    );
+  filter: blur(10px);
+  opacity: 0.95;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.oval-table__card:hover:not(:disabled) {
+  border-color: rgba(var(--emotion-rgb, 99, 102, 241), 0.55);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.35),
+    0 0 72px rgba(var(--emotion-rgb, 99, 102, 241), 0.14),
+    0 0 30px rgba(var(--emotion-rgb, 99, 102, 241), 0.18);
+}
+
+.oval-table__card--chosen {
+  border-color: rgba(34, 197, 94, 0.7);
+  background: linear-gradient(145deg, rgba(34, 197, 94, 0.18), rgba(34, 197, 94, 0.08));
+  box-shadow: 
+    0 8px 24px rgba(34, 197, 94, 0.35),
+    0 0 32px rgba(34, 197, 94, 0.45);
+}
+
+/* Рука под столом (дуга) */
+.oval-table__hand {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* "Телефонная" версия: рука отдельным блоком под столом (в потоке), со скроллом по X */
+.oval-table__hand-strip {
+  /* убираем любые возможные рамки/контуры (на некоторых панелях могут наследоваться стили) */
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+
+  /* параметры для расчёта размера карточек */
+  --hand-count: 8;
+  --hand-card-h: clamp(84px, 18vh, 128px);
+  --hand-arc-depth: clamp(8px, 2vh, 16px);
+  --hand-gap: clamp(4px, 1vw, 8px);
+  --hand-pad: clamp(12px, 3vw, 22px);
+
+  /* ширина карточки считается ОТ КОНТЕЙНЕРА (после padding) */
+  --hand-card-w: calc(
+    (100% - ((var(--hand-count) - 1) * var(--hand-gap))) / var(--hand-count)
+  );
+
+  width: 100%;
+  max-width: 900px;
+  margin: 6px auto 0; /* ближе к столу */
+  padding: 8px var(--hand-pad) calc(10px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: var(--hand-gap);
+
+  overflow-x: auto; /* fallback, на <1200 выключаем */
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.oval-table__hand-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.oval-table__hand-card {
+  position: absolute;
+  overflow: hidden;
+  isolation: isolate;
+  width: 104px;
+  height: 148px;
+  border-radius: 10px;
+  border: 3px solid rgba(var(--emotion-rgb, 255, 255, 255), 0.42);
+  background: linear-gradient(
+    145deg,
+    rgba(30, 35, 45, 0.95),
+    rgba(20, 25, 35, 0.95)
+  );
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.62),
+    0 0 90px rgba(var(--emotion-rgb, 99, 102, 241), 0.14),
+    0 0 34px rgba(var(--emotion-rgb, 99, 102, 241), 0.20);
+  cursor: pointer;
+  pointer-events: all;
+  transform-origin: center center; /* Центр карточки */
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px;
+}
+
+.oval-table__hand-card::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  background: radial-gradient(
+      150% 130% at 50% 115%,
+      rgba(var(--emotion-rgb, 99, 102, 241), 0.26) 0%,
+      rgba(var(--emotion-rgb, 99, 102, 241), 0.12) 50%,
+      rgba(var(--emotion-rgb, 99, 102, 241), 0.00) 82%
+    ),
+    linear-gradient(
+      160deg,
+      rgba(var(--emotion-rgb, 99, 102, 241), 0.10),
+      rgba(0, 0, 0, 0.00)
+    );
+  filter: blur(14px);
+  opacity: 0.95;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.oval-table__hand-card:hover {
+  border-color: rgba(var(--emotion-rgb, 99, 102, 241), 0.65);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.62),
+    0 0 110px rgba(var(--emotion-rgb, 99, 102, 241), 0.18),
+    0 0 44px rgba(var(--emotion-rgb, 99, 102, 241), 0.24);
+}
+
+.oval-table__hand-card--selected {
+  border-color: rgba(var(--emotion-rgb, 20, 184, 166), 0.82);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.62),
+    0 0 130px rgba(var(--emotion-rgb, 20, 184, 166), 0.22),
+    0 0 56px rgba(var(--emotion-rgb, 20, 184, 166), 0.28);
+}
+
+.oval-table__hand-card-text {
+  font-family: 'Roboto Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.98);
+  text-align: center;
+  line-height: 1.25;
+  overflow: visible;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* В телефонной версии карточки руки не absolute, чтобы не перекрывались */
+.oval-table__hand-card--phone {
+  position: relative;
+
+  /* Размеры карточки в телефонной версии вычисляются от контейнера */
+  width: clamp(30px, var(--hand-card-w), 88px);
+  height: var(--hand-card-h);
+
+  /* Чуть больше внутренних отступов, чтобы перенос начинался раньше и текст не "прилипал" к краям */
+  padding: clamp(9px, 1.8vw, 14px) clamp(8px, 1.5vw, 12px);
+}
+
+/* Телефонная версия с дугой: карточки позиционируются absolutely внутри hand-strip */
+.oval-table__hand-strip--arc {
+  position: relative;
+  display: block;
+  overflow: visible;
+  height: calc(var(--hand-card-h) + var(--hand-arc-depth) + 24px);
+}
+
+.oval-table__hand-card--phone-arc {
+  position: absolute;
+  pointer-events: all;
+  /* left/top приходят инлайном из JS, transform задаёт Framer Motion */
+}
+
+@media (max-width: 1200px) {
+  /* Узкий экран по ТЗ: всё что ниже 1200px */
+  .oval-table__surface {
+    margin-bottom: 0;
+  }
+
+  /* Фраза: базовый максимум меньше на узких, но финально размер подберёт FitTwoLineText */
+  .oval-table__word-value {
+    font-size: 20px;
+    letter-spacing: 0.15px;
+  }
+
+  .oval-table__word-display {
+    /* чуть меньше внутренние отступы, чтобы текст помещался без 3 строк */
+    padding: 14px 18px;
+    min-width: 200px;
+    max-width: min(92vw, 520px);
+  }
+
+  .oval-table__hand-card-text {
+    font-size: clamp(9px, 2.6vw, 12px);
+    letter-spacing: 0.03em;
+  }
+}
+
+/* Поднятая карточка всегда поверх */
+.oval-table__hand-card--raised {
+  z-index: 2000;
+}
+
+.oval-table__card--facedown {
+  cursor: default;
+  opacity: 0.88;
+  border-color: rgba(255, 255, 255, 0.18);
+  background:
+    radial-gradient(120% 160% at 50% 0%, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.0) 60%),
+    linear-gradient(145deg, rgba(70, 70, 90, 0.28), rgba(30, 30, 45, 0.18));
+}
+
+.oval-table__card:disabled {
+  cursor: not-allowed;
+}
+
+/* Контент поверх цветной подложки */
+.oval-table__card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Дополнительный контент/узор для рубашки */
+.oval-table__card--facedown::after {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 5;
+}
+
+@media (max-width: 1200px) {
+  .oval-table__slots {
+    width: min(92vw, 520px);
+    gap: 8px;
+    --table-card-w: clamp(56px, 10.5vw, 74px);
+  }
+}
+
+.oval-table__hand-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.oval-table__card-emotion {
+  /* Текст эмоции на карте стола: горизонтально, с переносами и без обрезки */
+  font-family: 'Roboto Condensed', sans-serif;
+  font-size: clamp(9px, 1.3vw, 13px);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  width: 100%;
+  text-align: center;
+  line-height: 1.15;
+
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+
+  /* даём тексту занимать всю высоту карты */
+  display: grid;
+  place-items: center;
+  padding: 4px 2px;
+}
+
+.oval-table__card-votes {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.oval-table__empty {
+  font-size: 13px;
+  opacity: 0.65;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.oval-table__center-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Адаптив */
+@media (max-width: 1200px) {
+  /* Телефонная версия по ТЗ: всё что ниже 1200 */
+  .oval-table__surface {
+    margin-bottom: 0;
+  }
+
+  /* Карточки должны помещаться без скролла.
+     ВАЖНО: overflow-x НЕ прячем, иначе режется свечение/тени карточек по границе блока. */
+  .oval-table__hand-strip {
+    overflow-x: visible;
+    overflow-y: visible;
+    justify-content: center;
+  }
+
+  /* На мобильной версии делаем свечение мягче, чтобы не выглядело как "рамка" */
+  .oval-table__hand-card--phone {
+    box-shadow:
+      0 8px 22px rgba(0, 0, 0, 0.55),
+      0 0 28px rgba(var(--emotion-rgb, 99, 102, 241), 0.10);
+  }
+
+  .oval-table__hand-card--phone::before {
+    opacity: 0.55;
+    filter: blur(10px);
+  }
+
+  /* Переносы чуть раньше: уменьшаем "рабочую" ширину текста внутри карточки */
+  .oval-table__hand-card--phone .oval-table__hand-card-text {
+    max-width: 88%;
+    margin: 0 auto;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Узкие панели (например room__panel ~640px): ужимаем отступы/размеры сильнее */
+@media (max-width: 700px) {
+  .oval-table__hand-strip {
+    --hand-gap: 4px;
+    --hand-pad: 14px;
+    padding-top: 6px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    overflow-x: visible;
+  }
+
+  .oval-table__hand-card--phone {
+    height: clamp(78px, 16vh, 112px);
+  }
+
+  .oval-table__hand-card-text {
+    font-size: clamp(8px, 2.4vw, 11px);
+    letter-spacing: 0.02em;
+  }
+}
+
+@media (max-width: 768px) {
+  .oval-table {
+    padding: 0;
+  }
+
+  .oval-table__surface {
+    margin-bottom: 0;
+  }
+
+  .oval-table__hand-card {
+    width: 72px;
+    height: 132px;
+  }
+
+  .oval-table__hand-card-text {
+    font-size: 9px;
+    max-height: 110px;
+  }
+
+  .oval-table__player-avatar {
+    width: 42px;
+    height: 42px;
+    font-size: 14px;
+  }
+
+  .oval-table__player-name {
+    font-size: 10px;
+  }
+
+  .oval-table__card {
+    width: 70px;
+    height: 95px;
+  }
+
+  .oval-table__card-emotion {
+    font-size: 16px;
+  }
+
+  .oval-table__slots {
+    max-width: 300px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .oval-table__surface {
+    aspect-ratio: 4 / 3;
+    margin-bottom: 0;
+  }
+
+  .oval-table__hand-card {
+    width: 62px;
+    height: 112px;
+  }
+
+  .oval-table__hand-card-text {
+    font-size: 8px;
+    max-height: 92px;
+  }
+
+  .oval-table__card {
+    width: 60px;
+    height: 80px;
+  }
+
+  .oval-table__card-emotion {
+    font-size: 14px;
+  }
+}

@@ -97,6 +97,30 @@ const {
   codenamesPausedRooms
 } = require("./game/codenames");
 
+const {
+  normalizeName: normalizeEmotionalName,
+  createRoom: createEmotionalRoom,
+  joinRoom: joinEmotionalRoom,
+  leaveRoom: leaveEmotionalRoom,
+  updateSettings: updateEmotionalSettings,
+  resetGame: resetEmotionalGame,
+  kickPlayer: kickEmotionalPlayer,
+
+  // Iteration 3
+  startGame: startEmotionalGame,
+  submitTurn: submitEmotionalTurn,
+  skipTurn: skipEmotionalTurn,
+  canAdvanceToVote: canAdvanceEmotionalToVote,
+  advanceToVote: advanceEmotionalToVote,
+  advanceRevealToVote: advanceEmotionalRevealToVote,
+  castVote: castEmotionalVote,
+  canFinalizeVote: canFinalizeEmotionalVote,
+  finalizeRound: finalizeEmotionalRound,
+  startNextRound: startEmotionalNextRound,
+
+  buildRoomState: buildEmotionalRoomState
+} = require("./game/emotional");
+
 // Codenames timer management - обрабатывает hint -> overtime -> guess -> end
 function startCodenamesTimer(roomCode, durationSeconds, io) {
   // Очищаем предыдущий таймер если есть
@@ -152,10 +176,107 @@ function startCodenamesTimer(roomCode, durationSeconds, io) {
 
 function stopCodenamesTimer(roomCode) {
   const entry = codenamesTimers.get(roomCode);
-  if (entry) {
+  if (entry?.intervalId) {
     clearInterval(entry.intervalId);
-    codenamesTimers.delete(roomCode);
   }
+  codenamesTimers.delete(roomCode);
+}
+
+// Emotional timer management - submit -> vote -> results
+function startEmotionalTimer(roomCode) {
+  stopEmotionalTimer(roomCode);
+
+  const intervalId = setInterval(() => {
+    const room = require("./game/emotional").getRoom(roomCode);
+    if (!room || room.status !== "playing") {
+      stopEmotionalTimer(roomCode);
+      return;
+    }
+
+    const nowMs = Date.now();
+
+    if (canAdvanceEmotionalToVote(room, nowMs)) {
+      advanceEmotionalToVote(room, nowMs);
+      room.players.forEach((p) => {
+        const socketId = emotionalPlayerSockets.get(p.id);
+        if (socketId) {
+          io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(room, p.id));
+        }
+      });
+      return;
+    }
+
+    // Reveal: 5 секунд лежат рубашкой вниз, затем раскрываем по одной слева направо каждые 0.5с.
+    if (room.phase === "reveal") {
+      const startedAt = room.revealStartedAt || nowMs;
+      const waitMs = 5000;
+      const stepMs = 500;
+
+      const elapsed = nowMs - startedAt;
+      const shouldRevealCount = elapsed < waitMs ? 0 : Math.floor((elapsed - waitMs) / stepMs) + 1;
+
+      const table = Array.isArray(room.table) ? room.table : [];
+      const targetCount = Math.max(0, Math.min(table.length, shouldRevealCount));
+
+      // Отмечаем раскрытые слоты (сохраняем уже раскрытые)
+      if (!room.revealedSlotIds) room.revealedSlotIds = {};
+      let changed = false;
+      for (let i = 0; i < targetCount; i++) {
+        const slotId = table[i]?.slotId;
+        if (!slotId) continue;
+        if (!room.revealedSlotIds[slotId]) {
+          room.revealedSlotIds[slotId] = true;
+          changed = true;
+        }
+      }
+
+      // Когда все раскрыты — переходим в vote
+      const allRevealed = table.length > 0 && Object.keys(room.revealedSlotIds).length >= table.length;
+      if (allRevealed) {
+        // Ставим метку времени один раз, чтобы не прерывать анимацию последнего переворота появлением таймера.
+        if (!room.allRevealedAt) {
+          room.allRevealedAt = nowMs;
+          changed = true;
+        }
+
+        // Переходим в vote только через 1 секунду после раскрытия всех карт.
+        if (room.allRevealedAt && nowMs - room.allRevealedAt >= 1000) {
+          advanceEmotionalRevealToVote(room, nowMs);
+          changed = true;
+        }
+      }
+
+      // Важно: state sync делаем только если что-то изменилось, чтобы не спамить 2 раза в секунду.
+      if (changed) {
+        room.players.forEach((p) => {
+          const socketId = emotionalPlayerSockets.get(p.id);
+          if (socketId) {
+            io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(room, p.id));
+          }
+        });
+      }
+      return;
+    }
+
+    if (canFinalizeEmotionalVote(room, nowMs)) {
+      finalizeEmotionalRound(room);
+      room.players.forEach((p) => {
+        const socketId = emotionalPlayerSockets.get(p.id);
+        if (socketId) {
+          io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(room, p.id));
+        }
+      });
+      return;
+    }
+  }, 500);
+
+  emotionalTimers.set(roomCode, intervalId);
+}
+
+function stopEmotionalTimer(roomCode) {
+  const intervalId = emotionalTimers.get(roomCode);
+  if (intervalId) clearInterval(intervalId);
+  emotionalTimers.delete(roomCode);
 }
 
 const prisma = new PrismaClient();
@@ -283,6 +404,20 @@ const wheel2SpinMeta = new Map(); // roundId -> { startedAtMs, durationMs }
 const wheel1SpinMeta = new Map(); // roundId -> { startedAtMs, durationMs }
 const pausedRooms = new Map(); // Состояние паузы для комнат: { isPaused, remainingWhenPaused, roundId }
 const playerSockets = new Map();
+
+// Emotional (in-memory)
+const emotionalPlayerSockets = new Map(); // playerId -> socketId
+const emotionalTimers = new Map(); // roomCode -> intervalId
+
+// Cleanup empty emotional rooms (grace period)
+setInterval(() => {
+  try {
+    require("./game/emotional").cleanupRooms(Date.now());
+  } catch (e) {
+    console.error("Emotional cleanup error:", e);
+  }
+}, 60_000);
+
 const VOTING_TIME_SECONDS = 30; // Время на голосование
 const TASK_ACCEPT_TIME_SECONDS = 30; // Время на принятие задания
 
@@ -1224,6 +1359,30 @@ async function leaveAllRooms(socket) {
     }
     socket.data.aliasRoomId = null;
     socket.data.aliasPlayerId = null;
+  }
+
+  // Выход из Emotional
+  if (socket.data.emotionalRoomCode && socket.data.emotionalPlayerId) {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+    try {
+      const result = leaveEmotionalRoom(roomCode, playerId);
+      socket.leave(`emotional:${roomCode}`);
+      emotionalPlayerSockets.delete(playerId);
+
+      if (!result.deleted && result.room) {
+        result.room.players.forEach(p => {
+          const socketId = emotionalPlayerSockets.get(p.id);
+          if (socketId) {
+            io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+          }
+        });
+      }
+    } catch (e) {
+      console.error("leaveAllRooms: Emotional error:", e);
+    }
+    socket.data.emotionalRoomCode = null;
+    socket.data.emotionalPlayerId = null;
   }
 
   // Выход из Codenames
@@ -4340,6 +4499,376 @@ io.on("connection", (socket) => {
       console.error("alias:player:update_profile error:", error);
       if (ack) ack({ ok: false, error: "Failed to update profile" });
     }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMOTIONAL GAME EVENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  socket.on("emotional:room:create", async (payload, ack) => {
+    const name = normalizeEmotionalName(payload?.name);
+    const visitorId = payload?.visitorId || null;
+
+    if (!name) {
+      if (ack) ack({ ok: false, error: "Имя обязательно" });
+      return;
+    }
+
+    await leaveAllRooms(socket);
+
+    let avatarUrl = payload?.avatarUrl || null;
+    if (!avatarUrl && socket.data.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: socket.data.userId },
+        select: { avatarUrl: true }
+      });
+      avatarUrl = user?.avatarUrl || null;
+    }
+
+    const { room, playerId } = createEmotionalRoom(name, avatarUrl, visitorId);
+
+    socket.data.emotionalRoomCode = room.code;
+    socket.data.emotionalPlayerId = playerId;
+    emotionalPlayerSockets.set(playerId, socket.id);
+    socket.join(`emotional:${room.code}`);
+    setAutoLeaveTimer(socket);
+
+    // Отправляем состояние всем (на будущее — персонализированное)
+    room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true, state: buildEmotionalRoomState(room, playerId), playerId });
+  });
+
+  socket.on("emotional:room:join", async (payload, ack) => {
+    const name = normalizeEmotionalName(payload?.name);
+    const code = normalizeEmotionalName(payload?.code).toUpperCase();
+    const visitorId = payload?.visitorId || null;
+
+    if (!name || !code) {
+      if (ack) ack({ ok: false, error: "Имя и код обязательны" });
+      return;
+    }
+
+    await leaveAllRooms(socket);
+
+    let avatarUrl = payload?.avatarUrl || null;
+    if (!avatarUrl && socket.data.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: socket.data.userId },
+        select: { avatarUrl: true }
+      });
+      avatarUrl = user?.avatarUrl || null;
+    }
+
+    const result = joinEmotionalRoom(code, name, avatarUrl, visitorId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    socket.data.emotionalRoomCode = result.room.code;
+    socket.data.emotionalPlayerId = result.playerId;
+    emotionalPlayerSockets.set(result.playerId, socket.id);
+    socket.join(`emotional:${result.room.code}`);
+    setAutoLeaveTimer(socket);
+
+    // Отправляем состояние всем
+    result.room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) {
+      ack({
+        ok: true,
+        state: buildEmotionalRoomState(result.room, result.playerId),
+        playerId: result.playerId,
+        reconnected: result.reconnected
+      });
+    }
+  });
+
+  socket.on("emotional:room:leave", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = leaveEmotionalRoom(roomCode, playerId);
+
+    // если вышел последний или игра завершилась/комната пустеет — останавливаем таймер
+    stopEmotionalTimer(roomCode);
+
+    socket.leave(`emotional:${roomCode}`);
+    emotionalPlayerSockets.delete(playerId);
+    socket.data.emotionalRoomCode = null;
+    socket.data.emotionalPlayerId = null;
+
+    if (!result.deleted && result.room) {
+      result.room.players.forEach(p => {
+        const socketId = emotionalPlayerSockets.get(p.id);
+        if (socketId) {
+          io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+        }
+      });
+    }
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("emotional:settings:update", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+    const { settings } = payload || {};
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = updateEmotionalSettings(roomCode, playerId, settings || {});
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    result.room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("emotional:game:start", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = startEmotionalGame(roomCode, playerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    startEmotionalTimer(roomCode);
+
+    result.room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("emotional:turn:submit", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+    const { emotion } = payload || {};
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = submitEmotionalTurn(roomCode, playerId, emotion);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    // Если все сдали — сразу двигаем фазу
+    if (canAdvanceEmotionalToVote(result.room, Date.now())) {
+      advanceEmotionalToVote(result.room, Date.now());
+    }
+
+    result.room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("emotional:turn:skip", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = skipEmotionalTurn(roomCode, playerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    if (canAdvanceEmotionalToVote(result.room, Date.now())) {
+      advanceEmotionalToVote(result.room, Date.now());
+    }
+
+    result.room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("emotional:vote:cast", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+    const { slotId } = payload || {};
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = castEmotionalVote(roomCode, playerId, slotId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    if (canFinalizeEmotionalVote(result.room, Date.now())) {
+      finalizeEmotionalRound(result.room);
+    }
+
+    result.room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("emotional:round:next", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = startEmotionalNextRound(roomCode, playerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    if (result.room.status === "playing") {
+      startEmotionalTimer(roomCode);
+    } else {
+      stopEmotionalTimer(roomCode);
+    }
+
+    result.room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true, winners: result.winners || [] });
+  });
+
+  socket.on("emotional:game:new", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = resetEmotionalGame(roomCode, playerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    stopEmotionalTimer(roomCode);
+
+    result.room.players.forEach(p => {
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
+  });
+
+  socket.on("emotional:room:kick", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+    const { targetPlayerId } = payload || {};
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = kickEmotionalPlayer(roomCode, playerId, targetPlayerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    const kickedSocketId = emotionalPlayerSockets.get(targetPlayerId);
+    if (kickedSocketId) {
+      io.to(kickedSocketId).emit("emotional:player:kicked", {
+        message: "Вы были удалены из комнаты хостом",
+      });
+
+      // принудительно выкидываем из комнаты
+      const kickedSocket = io.sockets.sockets.get(kickedSocketId);
+      if (kickedSocket) {
+        kickedSocket.leave(`emotional:${roomCode}`);
+        kickedSocket.data.emotionalRoomCode = null;
+        kickedSocket.data.emotionalPlayerId = null;
+      }
+      emotionalPlayerSockets.delete(targetPlayerId);
+    }
+
+    // sync всем оставшимся (кроме kicked)
+    result.room.players.forEach(p => {
+      if (p.connectionStatus === "kicked") return;
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true, kickedPlayerName: result.kickedPlayerName });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
