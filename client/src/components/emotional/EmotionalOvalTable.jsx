@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Button from "../ui/Button";
 import { getEmotionColor } from "./emotionColors";
 import FitTwoLineText from "./FitTwoLineText";
@@ -11,9 +11,11 @@ export default function EmotionalOvalTable({
   slots = [],
   onSlotClick,
   myVote,
+  canVote = true,
   votesCountBySlotId,
   showVotes = false,
   facedown = false,
+  revealStartedAt = null,
   myHand = [],
   onHandCardClick,
   selectedHandCard = null,
@@ -24,8 +26,20 @@ export default function EmotionalOvalTable({
   centerAction = null,
   onEmptyHostClick = null,
   emptyHostLabel = "Начать игру",
+  phase = null,
+  isHost = false,
+  tableCleared = false,
+  round = 0,
 }) {
+  // activeHandCard — карточка, которую пользователь "выбрал" (клик/тап) и которая должна подсветиться
   const [activeHandCard, setActiveHandCard] = useState(null);
+  // hoveredHandCard — карточка под курсором на desktop (поднимаем как при выборе, но без подсветки)
+  const [hoveredHandCard, setHoveredHandCard] = useState(null);
+
+  const isCoarsePointer =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches;
 
   const handStripRef = useRef(null);
   const [handStripLayout, setHandStripLayout] = useState({ width: 0, padLeft: 0, padRight: 0 });
@@ -43,6 +57,128 @@ export default function EmotionalOvalTable({
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  // Локальное управление reveal анимацией по таймеру
+  // Тайминги: 2 сек задержка после появления карт, затем по 0.5 сек на карту
+  const REVEAL_INITIAL_DELAY = 2000; // 2 секунды до начала переворота
+  const REVEAL_CARD_INTERVAL = 500; // 0.5 секунды между картами
+
+  // Храним Set раскрытых индексов карт, чтобы карта не "закрывалась" обратно
+  const [revealedIndices, setRevealedIndices] = useState(new Set());
+  // Локальное время начала анимации (после первого рендера)
+  const [localAnimationStart, setLocalAnimationStart] = useState(null);
+  // Флаг, что все карты перевернулись (для активации кликов)
+  const [allCardsRevealed, setAllCardsRevealed] = useState(false);
+  // Отслеживаем предыдущий раунд для сброса анимации
+  const [prevRound, setPrevRound] = useState(round);
+  // Флаг, что карты на столе уже появились (для анимации появления)
+  const [cardsAppeared, setCardsAppeared] = useState(false);
+
+  // Сброс состояния при смене раунда
+  useEffect(() => {
+    if (round !== prevRound) {
+      setPrevRound(round);
+      setRevealedIndices(new Set());
+      setLocalAnimationStart(null);
+      setAllCardsRevealed(false);
+      setCardsAppeared(false);
+    }
+  }, [round, prevRound]);
+
+  // При появлении карт на столе (переход submit → reveal) запускаем анимацию
+  useEffect(() => {
+    // Если карты появились на столе и ещё не начали анимацию
+    const isCardPhase = phase === "reveal" || phase === "vote" || phase === "results";
+    
+    if (slots.length > 0 && !cardsAppeared && isCardPhase) {
+      setCardsAppeared(true);
+      
+      // Если уже в фазе vote или results — карты должны быть сразу раскрыты (мы "опоздали" к анимации)
+      if (phase === "vote" || phase === "results") {
+        // Сразу раскрываем все карты
+        const allIndices = new Set();
+        for (let i = 0; i < slots.length; i++) {
+          allIndices.add(i);
+        }
+        setRevealedIndices(allIndices);
+        setAllCardsRevealed(true);
+        return;
+      }
+      
+      // Ждём 1 кадр, чтобы карточки отрендерились рубашкой вверх,
+      // затем запускаем локальный таймер анимации
+      const frameId = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setLocalAnimationStart(Date.now());
+        });
+      });
+
+      return () => cancelAnimationFrame(frameId);
+    }
+    
+    // Если карты уже появились, но localAnimationStart ещё не установлен — запускаем
+    if (slots.length > 0 && cardsAppeared && !localAnimationStart && isCardPhase && phase === "reveal") {
+      setLocalAnimationStart(Date.now());
+    }
+  }, [slots.length, cardsAppeared, phase, localAnimationStart]);
+
+  // Сброс при очистке стола (следующий раунд)
+  useEffect(() => {
+    if (slots.length === 0 && cardsAppeared) {
+      // Стол очистился — сбрасываем состояние для следующего раунда
+      setCardsAppeared(false);
+      setRevealedIndices(new Set());
+      setLocalAnimationStart(null);
+      setAllCardsRevealed(false);
+    }
+  }, [slots.length, cardsAppeared]);
+
+  useEffect(() => {
+    if (!localAnimationStart) return;
+
+    const totalCards = slots.length;
+    if (totalCards === 0) return;
+
+    // Вычисляем, какие карты должны быть раскрыты к текущему моменту
+    const updateRevealedIndices = () => {
+      const elapsed = Date.now() - localAnimationStart;
+      
+      // Задержка перед началом переворота
+      if (elapsed < REVEAL_INITIAL_DELAY) {
+        return;
+      }
+      
+      const timeSinceRevealStart = elapsed - REVEAL_INITIAL_DELAY;
+      
+      // Сколько карт должно быть раскрыто
+      const targetCount = Math.min(
+        totalCards,
+        Math.floor(timeSinceRevealStart / REVEAL_CARD_INTERVAL) + 1
+      );
+      
+      // Добавляем новые индексы в Set (карты не закрываются обратно)
+      setRevealedIndices((prev) => {
+        if (prev.size >= targetCount) return prev;
+        const next = new Set(prev);
+        for (let i = prev.size; i < targetCount; i++) {
+          next.add(i);
+        }
+        return next;
+      });
+      
+      // Проверяем, все ли карты перевернулись
+      if (targetCount >= totalCards) {
+        setAllCardsRevealed(true);
+      }
+    };
+
+    // Запускаем сразу
+    updateRevealedIndices();
+
+    // Обновляем каждые 100ms для плавности
+    const interval = setInterval(updateRevealedIndices, 100);
+    return () => clearInterval(interval);
+  }, [localAnimationStart, slots.length]);
 
   // Измеряем ширину контейнера руки на мобильных, чтобы считать дугу в px (и гарантировать, что всё влезает)
   useEffect(() => {
@@ -78,12 +214,19 @@ export default function EmotionalOvalTable({
   const playerPositions = useMemo(() => {
     if (!players || players.length === 0) return [];
 
-    const total = players.length;
+    // Фильтруем: исключаем left и kicked игроков
+    const visiblePlayers = players.filter(
+      (p) => p.connectionStatus !== "left" && p.connectionStatus !== "kicked"
+    );
+
+    if (visiblePlayers.length === 0) return [];
+
+    const total = visiblePlayers.length;
     
     // Найдем индекс текущего игрока
-    const meIndex = players.findIndex((p) => p.id === meId);
+    const meIndex = visiblePlayers.findIndex((p) => p.id === meId);
     
-    return players.map((player, i) => {
+    return visiblePlayers.map((player, i) => {
       const isMe = player.id === meId;
       
       if (isMe) {
@@ -137,7 +280,7 @@ export default function EmotionalOvalTable({
     // Мобильная версия: дуга, но в px и от реальной ширины контейнера.
     // Позиционируем так, чтобы крайние карточки гарантированно помещались (учитываем ширину карточки).
     if (isPhoneLayout) {
-      const gap = 4; // в px; визуально близко к тем значениям, что в CSS
+      const gap = 10; // в px; увеличиваем интервал, чтобы текст не залезал на соседнюю карточку
 
       // Формула ширины карточки должна совпадать по смыслу с CSS.
       // Здесь считаем "логическую" ширину, чтобы правильно ограничить крайние позиции.
@@ -190,7 +333,8 @@ export default function EmotionalOvalTable({
 
     // Позиция игрока снизу фиксирована формулой из playerPositions:
     // centerY=50 + radiusY=38 => 88
-    const baseGap = 22;
+    // Уменьшаем отступ, чтобы карточки были ближе к столу (допустимо касание)
+    const baseGap = 12;
     const baseY = 88 + baseGap;
 
     const centerIndex = (count - 1) / 2;
@@ -226,7 +370,7 @@ export default function EmotionalOvalTable({
   }, [myHand, isPhoneLayout, handStripLayout]);
 
   return (
-    <div className={`oval-table${secretEmotion ? " oval-table--leader-secret" : ""}`}>
+    <div className={`oval-table${secretEmotion ? " oval-table--leader-secret" : ""}${(!myHand || myHand.length === 0 || phase !== "submit") ? " oval-table--no-hand" : ""}`}>
       <div className="oval-table__surface">
         {/* Игроки по эллипсу */}
         {playerPositions.map(({ player, x, y, isMe }) => {
@@ -258,132 +402,200 @@ export default function EmotionalOvalTable({
 
         {/* Центр стола — слово или карты */}
         <div className="oval-table__center">
-          {/*
-            Таймер:
-            - когда показываем фразу (ход ведущего) — таймер должен быть привязан к блоку фразы сверху;
-            - когда фразы нет (голосование) — таймер в центре стола поверх карточек.
-          */}
-          {centerTimer && !centerWord ? (
-            <div className="oval-table__center-timer" aria-label="Таймер">
-              {centerTimer}
-            </div>
-          ) : null}
+          <AnimatePresence mode="wait">
+            {/* Фаза lobby: кнопка "Начать игру" или ожидание */}
+            {phase === "lobby" && (
+              <motion.div
+                key="center-lobby"
+                className="oval-table__center-content"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+              >
+                {centerAction ? (
+                  <div className="oval-table__center-action">
+                    {centerAction}
+                  </div>
+                ) : isHost && onEmptyHostClick ? (
+                  <Button onClick={onEmptyHostClick}>{emptyHostLabel}</Button>
+                ) : null}
+              </motion.div>
+            )}
 
-          {centerWord ? (
-            <div className="oval-table__phrase-stack">
-              <div className="oval-table__word-display">
-                {centerTimer ? (
-                  <div className="oval-table__phrase-timer--overlay" aria-label="Таймер">
-                    {centerTimer}
+            {/* Фаза submit: слово и таймер */}
+            {phase === "submit" && centerWord && (
+              <motion.div
+                key="center-submit"
+                className="oval-table__center-content"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="oval-table__phrase-stack">
+                  <div className="oval-table__word-display">
+                    {centerTimer ? (
+                      <div className="oval-table__phrase-timer--overlay" aria-label="Таймер">
+                        {centerTimer}
+                      </div>
+                    ) : null}
+                    <FitTwoLineText
+                      text={centerWord}
+                      className="oval-table__word-value"
+                      maxFontSize={20}
+                      minFontSize={6}
+                      lineHeight={1.15}
+                    />
+                  </div>
+
+                  {secretEmotion ? (
+                    <div className="oval-table__secret-emotion-plain" aria-label={`Ваша секретная эмоция: ${secretEmotion}`}>
+                      {secretEmotion}
+                    </div>
+                  ) : null}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Фазы reveal/vote/results: карты на столе */}
+            {(phase === "reveal" || phase === "vote" || phase === "results") && slots.length > 0 && (
+              <motion.div
+                key="center-cards"
+                className="oval-table__center-content"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="oval-table__slots">
+                  <AnimatePresence>
+                    {slots.map((slot, idx) => {
+                      const chosen = myVote === slot.slotId;
+                      const votes = votesCountBySlotId?.[slot.slotId] || 0;
+                      
+                      // Определяем, раскрыта ли карта на основе локальной анимации
+                      // Карта facedown пока не запущена анимация переворота
+                      const isRevealedByTimer = revealedIndices.has(idx);
+                      const isFaceDown = !isRevealedByTimer;
+                      
+                      // Цвет применяем ВСЕГДА (даже для facedown), чтобы стили были готовы к моменту переворота
+                      const slotColor = slot.emotion ? getEmotionColor(slot.emotion) : null;
+                      
+                      // Можно ли кликать: когда все карты перевернулись ИЛИ в фазе vote, 
+                      // и только если игрок может голосовать (сделал submission)
+                      const isClickable = (allCardsRevealed || phase === "vote") && onSlotClick && phase !== "results" && canVote;
+
+                      return (
+                        <motion.button
+                          key={slot.slotId}
+                          type="button"
+                          className={`oval-table__card ${chosen ? "oval-table__card--chosen" : ""} ${
+                            isFaceDown ? "oval-table__card--facedown" : ""
+                          }`}
+                          style={
+                            slotColor
+                              ? {
+                                  '--emotion-rgb': slotColor.rgb,
+                                  '--emotion-hex': slotColor.hex,
+                                }
+                              : undefined
+                          }
+                          onClick={() => onSlotClick?.(slot.slotId)}
+                          disabled={!isClickable}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.3, ease: "easeOut", delay: idx * 0.05 }}
+                          whileHover={isClickable ? { scale: 1.05 } : {}}
+                          whileTap={isClickable ? { scale: 0.98 } : {}}
+                        >
+                          <motion.div
+                            className="oval-table__card-inner"
+                            initial={{ rotateY: 0 }}
+                            animate={{
+                              rotateY: isFaceDown ? 0 : 180,
+                            }}
+                            transition={{
+                              duration: 0.6,
+                              ease: [0.4, 0, 0.2, 1],
+                            }}
+                          >
+                            <div className="oval-table__card-face oval-table__card-face--back" />
+
+                            <div className="oval-table__card-face oval-table__card-face--front">
+                              <div className="oval-table__card-emotion">{slot.emotion || ""}</div>
+                              {showVotes && !isFaceDown && (
+                                <div className="oval-table__card-votes">
+                                  {votes > 0 ? `${votes} 🗳` : ""}
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        </motion.button>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Фазы results/no_contest с очищенным столом: кнопка "Следующий раунд" */}
+            {((phase === "results" || phase === "no_contest") && tableCleared) && (
+              <motion.div
+                key="center-next-round"
+                className="oval-table__center-content"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+              >
+                {centerAction ? (
+                  <div className="oval-table__center-action">
+                    {centerAction}
                   </div>
                 ) : null}
-                <FitTwoLineText
-                  text={centerWord}
-                  className="oval-table__word-value"
-                  maxFontSize={20}
-                  minFontSize={12}
-                  lineHeight={1.15}
-                />
-              </div>
+              </motion.div>
+            )}
 
-              {secretEmotion ? (
-                <div className="oval-table__secret-emotion-plain" aria-label={`Ваша секретная эмоция: ${secretEmotion}`}>
-                  {secretEmotion}
-                </div>
-              ) : null}
-            </div>
-          ) : centerAction ? (
-            <div className="oval-table__center-action">
-              {centerAction}
-            </div>
-          ) : slots.length === 0 && meId === hostId ? (
-            onEmptyHostClick ? (
-              <Button onClick={onEmptyHostClick}>{emptyHostLabel}</Button>
-            ) : (
-              <div className="oval-table__empty">{emptyHostLabel}</div>
-            )
-          ) : slots.length === 0 ? null : (
-            <div className="oval-table__slots">
-              {slots.map((slot, idx) => {
-                const chosen = myVote === slot.slotId;
-                const votes = votesCountBySlotId?.[slot.slotId] || 0;
-                const slotColor = !facedown && slot.emotion ? getEmotionColor(slot.emotion) : null;
-
-                // В reveal фазе facedown=true, но карты должны открываться по мере прихода emotion.
-                // Поэтому "рубашка" определяется только наличием emotion.
-                const isFaceDown = !slot.emotion;
-
-                return (
-                  <motion.button
-                    key={slot.slotId}
-                    type="button"
-                    className={`oval-table__card ${chosen ? "oval-table__card--chosen" : ""} ${
-                      isFaceDown ? "oval-table__card--facedown" : ""
-                    }`}
-                    style={
-                      slotColor
-                        ? {
-                            '--emotion-rgb': slotColor.rgb,
-                            '--emotion-hex': slotColor.hex,
-                          }
-                        : undefined
-                    }
-                    onClick={() => onSlotClick?.(slot.slotId)}
-                    disabled={facedown || !onSlotClick}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.25, delay: idx * 0.03 }}
-                    whileHover={!facedown ? { scale: 1.05, y: -4 } : {}}
-                    whileTap={!facedown ? { scale: 0.97 } : {}}
-                  >
-                    <motion.div
-                      className="oval-table__card-inner"
-                      initial={false}
-                      animate={{ rotateY: isFaceDown ? 0 : 180 }}
-                      transition={{ type: "spring", stiffness: 260, damping: 22, mass: 0.9 }}
-                    >
-                      <div className="oval-table__card-face oval-table__card-face--back">
-                        <div className="oval-table__card-backmark">🂠</div>
-                      </div>
-
-                      <div className="oval-table__card-face oval-table__card-face--front">
-                        <div className="oval-table__card-emotion">{slot.emotion || ""}</div>
-                        {showVotes && !facedown && (
-                          <div className="oval-table__card-votes">
-                            {votes > 0 ? `${votes} 🗳` : ""}
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  </motion.button>
-                );
-              })}
-            </div>
-          )}
+            {/* Фаза ended: пустой стол */}
+            {phase === "ended" && (
+              <motion.div
+                key="center-ended"
+                className="oval-table__center-content"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              />
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Рука под столом (десктоп: дуга внутри стола) */}
-        {!isPhoneLayout && myHand && myHand.length > 0 && (
+        {/* Рука под столом (десктоп: дуга внутри стола) — только в фазе submit */}
+        {!isPhoneLayout && phase === "submit" && myHand && myHand.length > 0 && (
           <div className="oval-table__hand">
             {handPositions.map(({ emotion, rotation, x, y, index, zIndex }) => {
               const isSelected = selectedHandCard === emotion;
               const isActive = activeHandCard === emotion;
-              const isRaised = isSelected || isActive;
+              const isHovered = hoveredHandCard === emotion;
+              const isRaised = isSelected || isActive || isHovered;
               const color = emotion ? getEmotionColor(emotion) : null;
 
               const baseZ = isRaised ? 2000 : zIndex;
 
               return (
                 <motion.button
-                  key={index}
+                  key={`${emotion}:${index}`}
                   type="button"
                   className={`oval-table__hand-card ${isRaised ? "oval-table__hand-card--raised" : ""} ${
                     isSelected ? "oval-table__hand-card--selected" : ""
-                  }`}
+                  } ${isActive ? "oval-table__hand-card--active" : ""}`}
                   style={{
                     left: `${x}%`,
                     top: `${y}%`,
                     zIndex: baseZ,
+                    rotate: `${rotation}deg`,
                     ...(color
                       ? {
                           '--emotion-rgb': color.rgb,
@@ -391,20 +603,31 @@ export default function EmotionalOvalTable({
                         }
                       : {}),
                   }}
+                  onMouseEnter={() => {
+                    if (isCoarsePointer) return;
+                    setHoveredHandCard(emotion);
+                  }}
+                  onMouseLeave={() => {
+                    if (isCoarsePointer) return;
+                    setHoveredHandCard((prev) => (prev === emotion ? null : prev));
+                  }}
                   onClick={() => {
-                    setActiveHandCard((prev) => (prev === emotion ? null : emotion));
+                    if (isCoarsePointer) {
+                      // На реальном мобильном 1-й тап — только поднимает карту (аналог hover на desktop)
+                      setActiveHandCard((prev) => (prev === emotion ? prev : emotion));
+                      return;
+                    }
+
+                    // Desktop: клик = выбор (подсветка) + отправка
+                    setActiveHandCard(emotion);
                     onHandCardClick?.(emotion);
                   }}
-                  initial={{ opacity: 0, scale: 0.9, x: "-50%", y: "-50%", rotate: rotation }}
+                  initial={false}
                   animate={{
-                    opacity: 1,
+                    y: isRaised ? -30 : 0,
                     scale: isRaised ? 1.06 : 1,
-                    x: "-50%",
-                    y: isRaised ? "-72%" : "-50%",
-                    rotate: rotation,
                   }}
-                  transition={{ duration: 0.22, delay: index * 0.04 }}
-                  whileHover={{ scale: isRaised ? 1.06 : 1.05 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
                   whileTap={{ scale: isRaised ? 1.04 : 0.98 }}
                 >
                   <div className="oval-table__hand-card-text">{emotion}</div>
@@ -415,8 +638,8 @@ export default function EmotionalOvalTable({
         )}
       </div>
 
-      {/* Телефонная версия (<1200): рука отдельным блоком в потоке, адаптивная по размеру */}
-      {isPhoneLayout && myHand && myHand.length > 0 && (
+      {/* Телефонная версия (<1200): рука отдельным блоком в потоке — только в фазе submit */}
+      {isPhoneLayout && phase === "submit" && myHand && myHand.length > 0 && (
         <div
           ref={handStripRef}
           className="oval-table__hand-strip oval-table__hand-strip--arc"
@@ -424,45 +647,75 @@ export default function EmotionalOvalTable({
           aria-label="Ваша рука"
           style={{ "--hand-count": myHand.length }}
         >
-          {handPositions.map(({ emotion, rotation, left, top, index, zIndex }) => {
+          {myHand.map((emotion, index) => {
             const isSelected = selectedHandCard === emotion;
             const isActive = activeHandCard === emotion;
             const isRaised = isSelected || isActive;
             const color = emotion ? getEmotionColor(emotion) : null;
 
-            const baseZ = isRaised ? 2000 : zIndex;
+            // Вычисляем параметры веера
+            const count = myHand.length;
+            const centerIndex = (count - 1) / 2;
+            const offset = index - centerIndex;
+            
+            // Угол наклона: крайние карты наклонены больше
+            const maxAngle = Math.min(15, 8 + count); // больше карт = больше угол
+            const rotation = count > 1 ? (offset / centerIndex) * maxAngle : 0;
+            
+            // Вертикальное смещение для дуги: крайние карты ниже
+            const maxArcOffset = Math.min(20, 8 + count * 1.5);
+            const normalizedOffset = count > 1 ? Math.abs(offset) / centerIndex : 0;
+            const arcY = normalizedOffset * normalizedOffset * maxArcOffset;
+            
+            // z-index: центральные карты поверх крайних
+            const baseZ = isRaised ? 2000 : Math.round(count - Math.abs(offset));
 
             return (
               <motion.button
-                key={index}
+                key={`${emotion}:${index}`}
                 type="button"
-                className={`oval-table__hand-card oval-table__hand-card--phone oval-table__hand-card--phone-arc ${
+                className={`oval-table__hand-card oval-table__hand-card--phone ${
                   isRaised ? "oval-table__hand-card--raised" : ""
-                } ${isSelected ? "oval-table__hand-card--selected" : ""}`}
-                style={
-                  color
+                } ${isSelected ? "oval-table__hand-card--selected" : ""} ${isActive ? "oval-table__hand-card--active" : ""}`}
+                style={{
+                  zIndex: baseZ,
+                  transformOrigin: 'center bottom',
+                  ...(color
                     ? {
-                        left: `${left}px`,
-                        top: `${top}px`,
-                        zIndex: baseZ,
                         '--emotion-rgb': color.rgb,
                         '--emotion-hex': color.hex,
                       }
-                    : { left: `${left}px`, top: `${top}px`, zIndex: baseZ }
-                }
+                    : {}),
+                }}
+                drag={isCoarsePointer && isActive ? "y" : false}
+                // Позволяем чуть протянуть карту вверх для подтверждения выбора
+                dragConstraints={{ top: -140, bottom: 0 }}
+                dragElastic={0.2}
+                onDragEnd={(e, info) => {
+                  if (!isCoarsePointer || !isActive) return;
+                  if (info.offset.y < -55) {
+                    onHandCardClick?.(emotion);
+                  }
+                }}
                 onClick={() => {
-                  setActiveHandCard((prev) => (prev === emotion ? null : emotion));
+                  if (isCoarsePointer) {
+                    // 1-й тап: только поднимаем карту. Постановка — через drag вверх.
+                    setActiveHandCard((prev) => (prev === emotion ? prev : emotion));
+                    return;
+                  }
+
+                  // Не-touch: ведём себя как на desktop
+                  setActiveHandCard(emotion);
                   onHandCardClick?.(emotion);
                 }}
-                initial={{ opacity: 0, scale: 0.92, x: "-50%", y: "-50%", rotate: rotation }}
+                initial={false}
                 animate={{
                   opacity: 1,
-                  scale: isRaised ? 1.06 : 1,
-                  x: "-50%",
-                  y: isRaised ? "-68%" : "-50%",
+                  scale: isRaised ? 1.08 : 1,
+                  y: isRaised ? -25 + arcY : arcY,
                   rotate: rotation,
                 }}
-                transition={{ duration: 0.2, delay: index * 0.03 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
                 whileTap={{ scale: isRaised ? 1.04 : 0.98 }}
               >
                 <div className="oval-table__hand-card-text">{emotion}</div>

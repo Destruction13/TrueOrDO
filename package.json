@@ -6,7 +6,7 @@
     "client"
   ],
   "scripts": {
-    "dev": "concurrently -n server,client -c green,cyan \"npm:dev --prefix server\" \"npm:dev --prefix client\"",
+    "dev": "concurrently -n server,client -c green,cyan \"npm:dev --prefix server\" \"npm:dev:delayed --prefix client\"",
     "build": "npm --prefix client run build",
     "start": "npm --prefix server run start",
     "db:migrate": "npm --prefix server run db:migrate",

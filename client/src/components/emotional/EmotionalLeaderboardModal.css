@@ -1,0 +1,328 @@
+/* ==========================================================================
+   EmotionalLeaderboardModal — модальное окно лидерборда при завершении игры
+   Стиль: glassmorphism с фиолетово-бирюзовыми акцентами (Emotional palette)
+   ========================================================================== */
+
+.emotional-leaderboard-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.emotional-leaderboard-modal {
+  position: relative;
+  background: linear-gradient(
+    145deg,
+    rgba(20, 25, 45, 0.95) 0%,
+    rgba(10, 12, 25, 0.98) 100%
+  );
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 24px;
+  padding: 28px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow:
+    0 0 60px rgba(139, 92, 246, 0.15),
+    0 25px 70px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Кнопка закрытия */
+.emotional-leaderboard-modal__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease-out;
+  z-index: 10;
+}
+
+.emotional-leaderboard-modal__close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.emotional-leaderboard-modal__close:active {
+  transform: scale(0.95);
+}
+
+/* Scrollbar styling */
+.emotional-leaderboard-modal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.emotional-leaderboard-modal::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+}
+
+.emotional-leaderboard-modal::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 3px;
+}
+
+/* Header */
+.emotional-leaderboard-modal__header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.emotional-leaderboard-modal__icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 16px;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.25) 0%,
+    rgba(20, 184, 166, 0.15) 100%
+  );
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  box-shadow:
+    0 0 40px rgba(139, 92, 246, 0.2),
+    inset 0 0 25px rgba(20, 184, 166, 0.1);
+}
+
+.emotional-leaderboard-modal__title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #fff 0%, rgba(139, 92, 246, 0.9) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.emotional-leaderboard-modal__winner-text {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+}
+
+.emotional-leaderboard-modal__winner-text strong {
+  color: rgba(251, 191, 36, 0.95);
+  font-weight: 700;
+}
+
+/* List */
+.emotional-leaderboard-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.emotional-leaderboard-modal__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.emotional-leaderboard-modal__item--me {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.3);
+}
+
+.emotional-leaderboard-modal__item--winner {
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.12) 0%,
+    rgba(139, 92, 246, 0.08) 100%
+  );
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.emotional-leaderboard-modal__winner-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(251, 191, 36, 0.08) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: winner-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes winner-shimmer {
+  0%, 100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+}
+
+/* Rank */
+.emotional-leaderboard-modal__rank {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.emotional-leaderboard-modal__medal {
+  font-size: 24px;
+}
+
+.emotional-leaderboard-modal__rank-number {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Player info */
+.emotional-leaderboard-modal__player {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.emotional-leaderboard-modal__player-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emotional-leaderboard-modal__you-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: rgba(20, 184, 166, 0.25);
+  color: rgba(94, 234, 212, 0.95);
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.emotional-leaderboard-modal__place-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Score */
+.emotional-leaderboard-modal__score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.emotional-leaderboard-modal__score-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.emotional-leaderboard-modal__score-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Footer */
+.emotional-leaderboard-modal__footer {
+  text-align: center;
+}
+
+.emotional-leaderboard-modal__button {
+  width: 100%;
+}
+
+.emotional-leaderboard-modal__waiting {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0;
+  padding: 12px 0;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .emotional-leaderboard-modal {
+    padding: 20px;
+    margin: 12px;
+    border-radius: 20px;
+  }
+
+  .emotional-leaderboard-modal__icon {
+    width: 64px;
+    height: 64px;
+    font-size: 32px;
+  }
+
+  .emotional-leaderboard-modal__title {
+    font-size: 1.35rem;
+  }
+
+  .emotional-leaderboard-modal__item {
+    padding: 10px 12px;
+  }
+
+  .emotional-leaderboard-modal__rank {
+    width: 30px;
+    height: 30px;
+  }
+
+  .emotional-leaderboard-modal__medal {
+    font-size: 20px;
+  }
+
+  .emotional-leaderboard-modal__player-name {
+    font-size: 13px;
+  }
+
+  .emotional-leaderboard-modal__score-value {
+    font-size: 17px;
+  }
+}

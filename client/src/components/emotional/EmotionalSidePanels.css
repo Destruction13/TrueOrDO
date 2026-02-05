@@ -1,0 +1,553 @@
+/* ===== Players Panel ===== */
+.emotional-players-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.emotional-players-panel__item {
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 1.5cqw, 10px);
+  padding: clamp(6px, 1.2cqw, 8px) clamp(8px, 1.5cqw, 10px);
+  border-radius: clamp(8px, 1.5cqw, 10px);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.emotional-players-panel__item--me {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.25);
+}
+
+.emotional-players-panel__rank {
+  width: clamp(20px, 4cqw, 24px);
+  text-align: center;
+  font-size: clamp(12px, 2.2cqw, 14px);
+}
+
+.emotional-players-panel__rank-number {
+  font-size: clamp(10px, 1.8cqw, 12px);
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+.emotional-players-panel__player {
+  flex: 1;
+  min-width: 0;
+}
+
+.emotional-players-panel__player-name {
+  font-size: clamp(11px, 2cqw, 13px);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: clamp(4px, 1cqw, 6px);
+  flex-wrap: wrap;
+}
+
+.emotional-players-panel__badge {
+  font-size: clamp(8px, 1.4cqw, 9px);
+  padding: clamp(1px, 0.3cqw, 2px) clamp(4px, 0.8cqw, 5px);
+  border-radius: clamp(3px, 0.6cqw, 4px);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.emotional-players-panel__badge--host {
+  background: rgba(99, 102, 241, 0.25);
+  color: rgba(165, 180, 252, 0.95);
+}
+
+.emotional-players-panel__badge--leader {
+  background: rgba(251, 191, 36, 0.25);
+  color: rgba(253, 224, 71, 0.95);
+}
+
+.emotional-players-panel__badge--offline {
+  background: rgba(239, 68, 68, 0.2);
+  color: rgba(252, 165, 165, 0.95);
+  font-size: clamp(10px, 1.8cqw, 12px);
+  padding: clamp(0px, 0.2cqw, 1px) clamp(3px, 0.6cqw, 4px);
+}
+
+.emotional-players-panel__item--disconnected {
+  background: rgba(100, 100, 100, 0.15);
+  border-color: rgba(100, 100, 100, 0.2);
+}
+
+.emotional-players-panel__item--disconnected .emotional-players-panel__player-name {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.emotional-players-panel__item--disconnected .emotional-players-panel__score {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.emotional-players-panel__score {
+  font-size: clamp(13px, 2.4cqw, 15px);
+  font-weight: 800;
+  min-width: clamp(24px, 4.5cqw, 28px);
+  text-align: right;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* ===== Round Report (Game Report) ===== */
+.emotional-round-report {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.emotional-round-report--desktop {
+  max-height: 100%; /* Не превышает высоту родителя */
+  overflow-y: auto;
+  min-height: 0; /* Позволяет сжиматься */
+  flex-shrink: 1; /* Позволяет уменьшаться при нехватке места */
+}
+
+.emotional-round-report--desktop::-webkit-scrollbar {
+  width: 6px;
+}
+
+.emotional-round-report--desktop::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.emotional-round-report--desktop::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.emotional-round-report--desktop::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.emotional-round-report--mobile {
+  /* На mobile нет внутреннего скролла, каты расширяют страницу */
+  max-height: none;
+  overflow: visible;
+}
+
+.emotional-round-report__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.emotional-round-report__icon {
+  font-size: 16px;
+}
+
+.emotional-round-report__title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.85;
+}
+
+.emotional-round-report__empty {
+  font-size: 13px;
+  opacity: 0.6;
+  text-align: center;
+  padding: 16px 8px;
+  font-style: italic;
+}
+
+.emotional-round-report__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emotional-round-report__item {
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+/* Вариации по результату */
+.emotional-round-report__item--correct {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.emotional-round-report__item--incorrect {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.emotional-round-report__item--draw-correct {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+.emotional-round-report__item--draw {
+  background: rgba(251, 191, 36, 0.06);
+  border-color: rgba(251, 191, 36, 0.18);
+}
+
+.emotional-round-report__item--skipped {
+  background: rgba(156, 163, 175, 0.06);
+  border-color: rgba(156, 163, 175, 0.15);
+}
+
+.emotional-round-report__item--no-votes {
+  background: rgba(156, 163, 175, 0.04);
+  border-color: rgba(156, 163, 175, 0.12);
+}
+
+.emotional-round-report__item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.emotional-round-report__item-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.emotional-round-report__round-number {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  min-width: 70px;
+}
+
+.emotional-round-report__result-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.emotional-round-report__result-icon {
+  font-size: 14px;
+}
+
+.emotional-round-report__result-text {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.emotional-round-report__chevron {
+  font-size: 10px;
+  opacity: 0.5;
+  transition: transform 0.45s cubic-bezier(0.33, 1, 0.68, 1);
+  margin-left: 4px;
+}
+
+.emotional-round-report__chevron--open {
+  transform: rotate(180deg);
+}
+
+.emotional-round-report__details-wrapper {
+  overflow: hidden;
+}
+
+.emotional-round-report__details {
+  padding: 8px 12px 12px;
+}
+
+/* Строка ведущего */
+.emotional-round-report__leader-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.emotional-round-report__leader-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(253, 224, 71, 0.95);
+}
+
+.emotional-round-report__secret-emotion {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(94, 234, 212, 0.95);
+  font-style: italic;
+}
+
+/* Секция голосования */
+.emotional-round-report__votes-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.emotional-round-report__vote-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.emotional-round-report__vote-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.emotional-round-report__vote-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.emotional-round-report__vote-header--winner {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.emotional-round-report__vote-header--winner:hover {
+  background: rgba(34, 197, 94, 0.18);
+}
+
+.emotional-round-report__vote-header--leader.emotional-round-report__vote-header--winner {
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.15) 0%, rgba(34, 197, 94, 0.1) 100%);
+  border-color: rgba(250, 204, 21, 0.3);
+}
+
+.emotional-round-report__vote-header--leader.emotional-round-report__vote-header--winner:hover {
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.22) 0%, rgba(34, 197, 94, 0.15) 100%);
+}
+
+.emotional-round-report__vote-emotion {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.emotional-round-report__winner-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.emotional-round-report__emotion-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emotional-round-report__leader-star {
+  font-size: 10px;
+  color: rgba(250, 204, 21, 0.9);
+  flex-shrink: 0;
+}
+
+.emotional-round-report__vote-count-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  min-width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.emotional-round-report__vote-chevron {
+  font-size: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.emotional-round-report__vote-chevron--open {
+  transform: rotate(180deg);
+}
+
+/* Выпадающий список голосовавших */
+.emotional-round-report__voters-wrapper {
+  overflow: hidden;
+  margin-left: 10%;
+  width: 80%;
+}
+
+.emotional-round-report__voters-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+}
+
+.emotional-round-report__voter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.emotional-round-report__voter-row:last-child {
+  border-bottom: none;
+}
+
+.emotional-round-report__voter-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emotional-round-report__voter-points {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+}
+
+.emotional-round-report__voter-points--positive {
+  color: rgba(74, 222, 128, 0.95);
+}
+
+
+/* ===== Layout containers ===== */
+
+/* Единый контейнер — стили берутся из .emotional-room__panel в EmotionalRoomScreen.css */
+.emotional-main-layout {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 400px;
+  align-items: flex-start; /* Выравниваем по верху */
+}
+
+.emotional-side-left {
+  width: clamp(160px, 28cqw, 220px);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Центрируем по вертикали */
+  gap: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.emotional-side-right {
+  width: clamp(200px, 36cqw, 300px);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Центрируем по вертикали */
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.emotional-main-layout__center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.emotional-bottom-panels {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* Mobile layout (<1200px) */
+@media (max-width: 1199px) {
+  .emotional-main-layout {
+    flex-direction: column;
+    padding: 0;
+    min-height: auto;
+    width: 100%;
+    align-items: stretch;
+  }
+
+  /* Скрываем боковые панели на mobile */
+  .emotional-side-left {
+    display: none !important;
+  }
+
+  .emotional-side-right {
+    display: none !important;
+  }
+
+  /* Центр занимает полную ширину на mobile */
+  .emotional-main-layout__center {
+    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Показываем нижние панели на mobile */
+  .emotional-bottom-panels {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 16px;
+    padding: 16px 0;
+  }
+
+  /* Панель игроков на mobile - вертикальный список */
+  .emotional-bottom-panels .emotional-players-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .emotional-bottom-panels .emotional-players-panel__item {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+}

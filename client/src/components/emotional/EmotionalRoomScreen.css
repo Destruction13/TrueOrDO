@@ -106,11 +106,15 @@
 
 .emotional-room__panel {
   margin-top: 16px;
-  padding: 16px;
+  padding: clamp(8px, 2vw, 16px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   background: rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(10px);
+  
+  /* Container Queries: элементы внутри масштабируются относительно этого контейнера */
+  container-type: inline-size;
+  container-name: emotional-panel;
 }
 
 .emotional-room__game {
@@ -122,6 +126,14 @@
   background: rgba(255, 255, 255, 0.04);
   border-radius: 16px;
   padding: 14px;
+}
+
+.emotional-room__main-container {
+  padding: 10px;
+}
+
+.emotional-room__phase-content {
+  /* Контент фазы без дополнительной обёртки */
 }
 
 .emotional-room__phase-top {
@@ -144,8 +156,145 @@
   font-weight: 800;
 }
 
-.emotional-room__countdown {
-  /* Таймер уже в правильном месте благодаря phase-top */
+/* Таймер в хедере */
+.emotional-header-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Центральные действия (кнопки + уведомления) */
+.emotional-room__center-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 2.2cqw, 12px);
+}
+
+.emotional-room__deck-empty-notice {
+  font-size: clamp(10px, 2.5cqw, 14px);
+  font-weight: 600;
+  color: rgba(251, 191, 36, 0.95);
+  text-align: center;
+  padding: clamp(6px, 1.5cqw, 8px) clamp(10px, 3cqw, 16px);
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: clamp(6px, 1.5cqw, 8px);
+  animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.emotional-room__reshuffled-notice {
+  font-size: clamp(10px, 2.4cqw, 13px);
+  font-weight: 600;
+  color: rgba(34, 197, 94, 0.95);
+  text-align: center;
+  padding: clamp(6px, 1.5cqw, 8px) clamp(10px, 3cqw, 16px);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: clamp(6px, 1.5cqw, 8px);
+  animation: fade-in-up 0.4s ease-out;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Таймер в хэдере - центрируем относительно стола */
+/* На десктопе стол смещён влево из-за разной ширины панелей */
+/* Левая панель: ~190px (clamp(160px, 28cqw, 220px)), правая: ~250px (clamp(200px, 36cqw, 300px)) */
+/* Смещение центра стола = (leftPanel - rightPanel) / 2 ≈ -30px */
+.emotional-room .codenames-header-new__center {
+  /* Смещаем таймер влево на половину разницы между панелями */
+  --left-panel: clamp(160px, 28cqw, 220px);
+  --right-panel: clamp(200px, 36cqw, 300px);
+  --table-offset: calc((var(--left-panel) - var(--right-panel)) / 2);
+  
+  position: absolute;
+  left: calc(50% + var(--table-offset));
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  z-index: 1;
+}
+
+/* На мобильных (< 1200px) боковых панелей нет - таймер по центру экрана */
+@media (max-width: 1199px) {
+  /* Хедер должен использовать flex для корректного распределения */
+  .emotional-room .codenames-header-new {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+  }
+
+  /* Левая и правая части для flex-распределения */
+  .emotional-room .codenames-header-new__left {
+    flex-shrink: 0;
+  }
+
+  /* Центр по центру экрана (панелей нет) */
+  .emotional-room .codenames-header-new__center {
+    --table-offset: 0px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .emotional-room .codenames-header-new__center > * {
+    pointer-events: auto;
+  }
+
+  .emotional-room .codenames-header-new__right {
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .emotional-header-timer .radial-countdown {
+    --rc-size: auto !important;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .emotional-header-timer .radial-countdown__rings,
+  .emotional-header-timer .radial-countdown__svg {
+    display: none !important;
+  }
+
+  .emotional-header-timer .radial-countdown__center {
+    position: static;
+    transform: none;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    padding: 6px 12px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .emotional-header-timer .radial-countdown__value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--rc-accent, #2ee6ff);
+    text-shadow: 0 0 10px var(--rc-accent, #2ee6ff);
+  }
+
+  .emotional-header-timer .radial-countdown__label {
+    display: none;
+  }
 }
 
 .emotional-room__game-title {
@@ -158,6 +307,16 @@
   opacity: 0.8;
   line-height: 1.35;
   text-align: center;
+}
+
+.emotional-room__wait-center {
+  font-weight: 800;
+  font-size: clamp(22px, 2.2vw, 34px);
+  letter-spacing: 0.2px;
+  text-align: center;
+  line-height: 1.15;
+  user-select: none;
+  pointer-events: none;
 }
 
 .emotional-room__game-hint {
@@ -438,4 +597,70 @@
 .emotional-room__empty {
   font-size: 13px;
   opacity: 0.75;
+}
+
+/* Адаптивное масштабирование кода комнаты для всех разрешений */
+.emotional-room .room-code-block {
+  padding: clamp(0.15rem, 0.8vw, 0.4rem) clamp(0.25rem, 1.5vw, 0.75rem);
+  min-width: clamp(55px, 15vw, 100px);
+  flex-shrink: 0;
+}
+
+.emotional-room .room-code-label {
+  font-size: clamp(0.45rem, 1.3vw, 0.65rem);
+}
+
+.emotional-room .room-code {
+  font-size: clamp(0.6rem, 2vw, 1rem);
+  letter-spacing: clamp(0.02em, 0.15vw, 0.1em);
+}
+
+/* Адаптивные кнопки хедера */
+.emotional-room .codenames-header-btn {
+  padding: clamp(0.3rem, 1vw, 0.5rem) clamp(0.4rem, 1.5vw, 0.75rem);
+}
+
+.emotional-room .codenames-header-btn svg {
+  width: clamp(14px, 4vw, 20px);
+  height: clamp(14px, 4vw, 20px);
+}
+
+.emotional-room .codenames-header-new {
+  padding: clamp(0.25rem, 1vw, 0.5rem) clamp(0.35rem, 1.5vw, 0.75rem);
+  gap: clamp(0.25rem, 1vw, 0.5rem);
+}
+
+.emotional-room .codenames-header-new__left {
+  gap: clamp(0.25rem, 1.2vw, 0.75rem);
+}
+
+@media (max-width: 480px) {
+  .emotional-room__panel {
+    padding: 6px;
+    padding-bottom: 12px;
+  }
+  
+  .emotional-room {
+    padding: 12px;
+  }
+}
+
+/* Скрываем таймер на очень узких экранах, где он перекрывает другие элементы */
+@media (max-width: 380px) {
+  .emotional-room .codenames-header-new__center {
+    display: none;
+  }
+}
+
+
+@media (max-width: 400px) {
+  .emotional-room {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .emotional-room {
+    padding: 6px;
+  }
 }
