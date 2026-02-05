@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:delayed": "node -e \"Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000)\" && vite",
     "build": "vite build",
     "preview": "vite preview"
   },

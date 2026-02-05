@@ -1,0 +1,25 @@
+[client] [eval]:1
+[client] setTimeout(() =, 2000)
+[client]             ^
+[client] Parenthesized expression cannot be empty
+[client] 
+[client] SyntaxError: Unexpected token ')'
+[client]     at makeContextifyScript (node:internal/vm:194:14)
+[client]     at compileScript (node:internal/process/execution:388:10)
+[client]     at evalTypeScript (node:internal/process/execution:260:22)
+[client]     at node:internal/main/eval_string:71:3
+[client] 
+[client] Node.js v24.12.0
+[client] node -e "setTimeout(() =, 2000)" && npm:dev --prefix client exited with code 1
+[server] 
+[server] > dev
+[server] > nodemon src/index.js
+[server] 
+[server] [33m[nodemon] 3.1.11[39m
+[server] [33m[nodemon] to restart at any time, enter `rs`[39m
+[server] [33m[nodemon] watching path(s): *.*[39m
+[server] [33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[server] [32m[nodemon] starting `node src/index.js`[39m
+[server] [Codenames] Loaded 4197 words
+[server] Server listening on port 3001
+[server] �������� �믮������ ����⭮�� 䠩�� [Y(��)/N(���)]? npm run dev --prefix server exited with code 1

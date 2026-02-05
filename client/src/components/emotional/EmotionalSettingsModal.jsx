@@ -3,7 +3,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import Button from "../ui/Button";
 import "./EmotionalSettingsModal.css";
 
-export default function EmotionalSettingsModal({ isOpen, onClose, settings, onSave, onNewGame, isHost }) {
+export default function EmotionalSettingsModal({ 
+  isOpen, 
+  onClose, 
+  settings, 
+  onSave, 
+  onNewGame, 
+  isHost,
+  players = [],
+  meId,
+  hostId,
+  onKickPlayer,
+}) {
   const [localSettings, setLocalSettings] = useState(settings);
 
   useEffect(() => {
@@ -14,6 +25,11 @@ export default function EmotionalSettingsModal({ isOpen, onClose, settings, onSa
     await onSave?.(localSettings);
     onClose?.();
   };
+
+  // Фильтруем игроков для списка исключения (только онлайн, не хост)
+  const kickablePlayers = players.filter(
+    (p) => p.connectionStatus === "online" && p.id !== hostId
+  );
 
   if (!isOpen) return null;
 
@@ -41,6 +57,7 @@ export default function EmotionalSettingsModal({ isOpen, onClose, settings, onSa
           </div>
 
           <div className="emotional-modal__body">
+            {/* Играем до N очков */}
             <div className="emotional-setting">
               <label className="emotional-setting__label">
                 Играем до: <strong>{localSettings?.targetScore ?? 15} очков</strong>
@@ -67,28 +84,66 @@ export default function EmotionalSettingsModal({ isOpen, onClose, settings, onSa
               </div>
             </div>
 
+            {/* Автопродолжение */}
             <div className="emotional-setting">
-              <label className="emotional-setting__label">Разрешить пропуск хода</label>
+              <label className="emotional-setting__label">Автопродолжение</label>
               <div className="emotional-setting__toggle">
                 <button
                   type="button"
-                  className={`emotional-setting__toggle-btn ${localSettings?.allowSkip ? "active" : ""}`}
-                  onClick={() => isHost && setLocalSettings((s) => ({ ...(s || {}), allowSkip: true }))}
+                  className={`emotional-setting__toggle-btn ${!localSettings?.autoAdvance ? "active" : ""}`}
+                  onClick={() =>
+                    isHost &&
+                    setLocalSettings((s) => ({
+                      ...(s || {}),
+                      autoAdvance: false,
+                    }))
+                  }
                   disabled={!isHost}
                 >
-                  Да
+                  Выкл
                 </button>
                 <button
                   type="button"
-                  className={`emotional-setting__toggle-btn ${localSettings?.allowSkip === false ? "active" : ""}`}
-                  onClick={() => isHost && setLocalSettings((s) => ({ ...(s || {}), allowSkip: false }))}
+                  className={`emotional-setting__toggle-btn ${localSettings?.autoAdvance ? "active" : ""}`}
+                  onClick={() =>
+                    isHost &&
+                    setLocalSettings((s) => ({
+                      ...(s || {}),
+                      autoAdvance: true,
+                    }))
+                  }
                   disabled={!isHost}
                 >
-                  Нет
+                  Вкл
                 </button>
               </div>
+              <p className="emotional-setting__hint">
+                Следующий раунд начнётся автоматически через 5 секунд после завершения
+              </p>
             </div>
 
+            {/* Исключение игроков (только для хоста) */}
+            {isHost && kickablePlayers.length > 0 && (
+              <div className="emotional-setting">
+                <label className="emotional-setting__label">Исключить игрока</label>
+                <div className="emotional-setting__players-list">
+                  {kickablePlayers.map((player) => (
+                    <div key={player.id} className="emotional-setting__player-row">
+                      <span className="emotional-setting__player-name">{player.name}</span>
+                      <button
+                        type="button"
+                        className="emotional-setting__kick-btn"
+                        onClick={() => onKickPlayer?.(player.id)}
+                      >
+                        Исключить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Новая игра (только для хоста) */}
             {isHost ? (
               <div className="emotional-setting">
                 <button

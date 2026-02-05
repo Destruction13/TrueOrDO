@@ -13,7 +13,7 @@ export default function FitTwoLineText({
   text,
   className = "",
   maxFontSize = 20,
-  minFontSize = 12,
+  minFontSize = 8,
   lineHeight = 1.15,
 }) {
   const ref = useRef(null);

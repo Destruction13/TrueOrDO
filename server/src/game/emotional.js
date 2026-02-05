@@ -36,7 +36,9 @@ const WORDS_SOURCE = readLines(path.join(EMOTIONAL_DATA_DIR, "words.txt"));
 
 // Чтобы колода не заканчивалась слишком быстро при 4+ игроках,
 // используем заранее размноженный набор эмоций (перемешиваем один раз на комнату).
-const EMOTION_COPIES = 6;
+// Требование ТЗ: уникальность эмоций во всей игре.
+// Одна эмоция = одна карточка. Колода может закончиться — это нормально.
+const EMOTION_COPIES = 1;
 
 
 function normalizeName(name) {
@@ -70,6 +72,7 @@ function getDefaultSettings() {
   return {
     targetScore: 15,
     allowSkip: true,
+    autoAdvance: false, // Автоматический переход к следующему раунду через 5 секунд
   };
 }
 
@@ -82,8 +85,9 @@ function normalizeSettings(raw) {
     : defaults.targetScore;
 
   const allowSkip = typeof raw.allowSkip === "boolean" ? raw.allowSkip : defaults.allowSkip;
+  const autoAdvance = typeof raw.autoAdvance === "boolean" ? raw.autoAdvance : defaults.autoAdvance;
 
-  return { targetScore, allowSkip };
+  return { targetScore, allowSkip, autoAdvance };
 }
 
 /**
@@ -101,10 +105,11 @@ function hyphenateWord(word) {
 }
 
 function createEmotionDeck() {
+  // Применяем переносы один раз; затем формируем колоду.
+  const hyphenatedEmotions = EMOTIONS_SOURCE.map((emotion) => hyphenateWord(emotion));
+
   const deck = [];
   for (let i = 0; i < EMOTION_COPIES; i++) {
-    // Применяем переносы к каждой эмоции
-    const hyphenatedEmotions = EMOTIONS_SOURCE.map(emotion => hyphenateWord(emotion));
     deck.push(...hyphenatedEmotions);
   }
   return shuffleInPlace(deck);
@@ -147,6 +152,8 @@ function createRoom(hostName, hostAvatarUrl, visitorId) {
     tableRevealed: false,
     votes: {}, // voterId -> slotId
     roundResult: null,
+    // История раундов для отчёта игры
+    roundHistory: [], // { roundNumber, secretEmotion, voteResult: "correct" | "incorrect" | "draw" | "no_contest" }
     emptySince: null,
 
     createdAt: new Date(),
@@ -217,6 +224,13 @@ function joinRoom(code, name, avatarUrl, visitorId) {
       existing.connectionStatus = "online";
       existing.lastSeen = new Date();
       if (avatarUrl !== undefined) existing.avatarUrl = avatarUrl;
+      // Обновляем имя при переподключении, если передано новое
+      if (name) {
+        const takenNames = room.players
+          .filter((p) => p.connectionStatus !== "left" && p.id !== existing.id)
+          .map((p) => (p.name || "").toLowerCase());
+        existing.name = makeUniqueName(name, takenNames);
+      }
       room.updatedAt = new Date();
       room.emptySince = null;
       if (room.scores[existing.id] == null) room.scores[existing.id] = 0;
@@ -263,6 +277,13 @@ function leaveRoom(code, playerId) {
     player.connectionStatus = "left";
     player.lastSeen = new Date();
 
+    // Возвращаем карты ушедшего игрока в колоду
+    const hand = room.hands?.[playerId] || [];
+    if (hand.length > 0 && room.emotionDeck) {
+      room.emotionDeck.push(...hand);
+      shuffleInPlace(room.emotionDeck);
+    }
+
     // cleanup per-player state
     if (room.hands) delete room.hands[playerId];
     if (room.submissions) delete room.submissions[playerId];
@@ -304,7 +325,11 @@ function buildRoomState(room, meId) {
       }))
     : [];
 
+  const deckCount = Array.isArray(room.emotionDeck) ? room.emotionDeck.length : 0;
+
   return {
+    // Серверное время для синхронизации таймеров на клиенте
+    serverNow: Date.now(),
     room: {
       code: room.code,
       hostId: room.hostId,
@@ -315,6 +340,10 @@ function buildRoomState(room, meId) {
       leaderId: room.leaderId,
       settings: room.settings,
       currentWord: room.currentWord,
+      deckCount,
+      deckEmpty: deckCount === 0,
+      // Итерация 10: флаг очистки стола после показа результатов
+      tableCleared: room.tableCleared || false,
       createdAt: room.createdAt,
       updatedAt: room.updatedAt,
     },
@@ -331,21 +360,15 @@ function buildRoomState(room, meId) {
 
     // Публичные данные
     scores: room.scores || {},
-    table: (() => {
-      // В фазе reveal эмоции раскрываются по одной, поэтому часть слотов может оставаться "в рубашке".
-      // publicTable содержит полную таблицу (emotion), но наружу отдаём emotion=null пока слот не раскрыт.
-      if (room.phase === "reveal") {
-        const revealed = room.revealedSlotIds || {};
-        return publicTable.map((s) => ({
-          ...s,
-          emotion: revealed[s.slotId] ? s.emotion : null,
-        }));
-      }
-
-      return publicTable;
-    })(),
+    // Всегда отправляем emotion — клиент сам управляет анимацией reveal по таймеру
+    table: publicTable,
+    // Время начала reveal фазы для клиентской анимации
+    // Отправляем в обеих фазах (reveal и vote), чтобы клиент мог управлять анимацией без перемонтирования
+    revealStartedAt: (room.phase === "reveal" || room.phase === "vote") ? room.revealStartedAt : null,
     votesCountBySlotId: getVotesCountBySlotId(room),
+    votersBySlotId: getVotersBySlotId(room),
     roundResult: room.roundResult || null,
+    roundHistory: room.roundHistory || [],
 
     players: room.players.map((p) => ({
       id: p.id,
@@ -366,6 +389,26 @@ function getVotesCountBySlotId(room) {
     counts[slotId] = (counts[slotId] || 0) + 1;
   });
   return counts;
+}
+
+/**
+ * Возвращает объект: slotId -> массив никнеймов игроков, которые голосовали за этот слот.
+ * Используется для отчёта раунда в UI.
+ */
+function getVotersBySlotId(room) {
+  const votersMap = {};
+  if (!room?.votes) return votersMap;
+
+  Object.entries(room.votes).forEach(([voterId, slotId]) => {
+    if (!slotId) return;
+    if (!votersMap[slotId]) votersMap[slotId] = [];
+    const player = room.players.find((p) => p.id === voterId);
+    if (player) {
+      votersMap[slotId].push(player.name || "Аноним");
+    }
+  });
+
+  return votersMap;
 }
 
 
@@ -401,12 +444,26 @@ function resetGame(code, actorId) {
   room.revealStartedAt = null;
   room.tableRevealed = false;
   room.roundResult = null;
+  room.tableCleared = false;
+  room.resultsShownAt = null;
+  room.roundHistory = []; // Сброс истории раундов
 
-  // По правилам запрещено восстанавливать колоды автоматически.
-  // В reset делаем только сброс состояния раунда; сами колоды не пересоздаём.
+  // Полный сброс: создаём новые колоды эмоций и слов
+  room.emotionDeck = createEmotionDeck();
+  room.wordDeck = createWordDeck();
 
-  // ensure hands again
-  ensureLobbyReady(room);
+  // Сбрасываем очки всех игроков
+  room.players.forEach((p) => {
+    room.scores[p.id] = 0;
+  });
+
+  // Очищаем руки всех игроков (будут розданы при старте игры)
+  room.hands = {};
+  room.players.forEach((p) => {
+    room.hands[p.id] = [];
+  });
+
+  // НЕ раздаём руки здесь — они раздаются при startGame
 
   room.updatedAt = new Date();
   return { room };
@@ -424,6 +481,19 @@ function kickPlayer(code, actorId, targetPlayerId) {
 
   target.connectionStatus = "kicked";
   target.lastSeen = new Date();
+
+  // Возвращаем карты кикнутого игрока в колоду
+  const hand = room.hands?.[targetPlayerId] || [];
+  if (hand.length > 0 && room.emotionDeck) {
+    room.emotionDeck.push(...hand);
+    shuffleInPlace(room.emotionDeck);
+  }
+  delete room.hands[targetPlayerId];
+  
+  // Очищаем данные раунда
+  if (room.submissions) delete room.submissions[targetPlayerId];
+  if (room.votes) delete room.votes[targetPlayerId];
+
   room.updatedAt = new Date();
 
   return { room, kickedPlayerName: target.name };
@@ -431,6 +501,48 @@ function kickPlayer(code, actorId, targetPlayerId) {
 
 function getActivePlayers(room) {
   return room.players.filter((p) => p.connectionStatus === "online");
+}
+
+/**
+ * Отметить игрока как отключённого (disconnected).
+ * Карты остаются у игрока, но он не участвует в голосовании текущего раунда.
+ * При переподключении (joinRoom с тем же visitorId) статус вернётся в "online".
+ */
+function disconnectPlayer(code, playerId) {
+  const room = getRoom(code);
+  if (!room) return { error: "Комната не найдена" };
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player) return { error: "Игрок не найден" };
+  
+  // Если игрок уже ушёл или кикнут — не меняем статус
+  if (player.connectionStatus === "left" || player.connectionStatus === "kicked") {
+    return { room };
+  }
+
+  player.connectionStatus = "disconnected";
+  player.lastSeen = new Date();
+  room.updatedAt = new Date();
+
+  // Если дисконнектнулся хост — передаём права
+  if (room.hostId === playerId) {
+    const newHost = room.players.find(
+      (p) => p.connectionStatus === "online" && p.id !== playerId
+    );
+    if (newHost) {
+      room.hostId = newHost.id;
+    }
+  }
+
+  // Проверяем, остались ли активные игроки
+  const hasActive = room.players.some((p) => p.connectionStatus === "online");
+  if (!hasActive) {
+    room.emptySince = Date.now();
+    return { room, empty: true };
+  }
+
+  room.emptySince = null;
+  return { room };
 }
 
 function ensureLobbyReady(room) {
@@ -512,7 +624,17 @@ function canAdvanceToVote(room, nowMs = Date.now()) {
   if (room.phase !== "submit") return false;
   const active = getActivePlayers(room);
   const leaderId = room.leaderId;
-  const allSubmitted = active.every((p) => (p.id === leaderId ? true : room.submissions?.[p.id]));
+  // Игрок считается "сделавшим ход" если:
+  // 1. Он ведущий (ведущий не выкладывает карту из руки)
+  // 2. Он уже сделал submission
+  // 3. У него нет карт на руке (новый игрок, присоединившийся во время раунда)
+  const allSubmitted = active.every((p) => {
+    if (p.id === leaderId) return true;
+    if (room.submissions?.[p.id]) return true;
+    const hand = room.hands?.[p.id] || [];
+    if (hand.length === 0) return true; // Нет карт — не ожидаем submission
+    return false;
+  });
   const timeOver = room.phaseEndsAt && nowMs >= room.phaseEndsAt;
   return allSubmitted || timeOver;
 }
@@ -570,6 +692,48 @@ function advanceToVote(room, nowMs = Date.now()) {
     });
   }
 
+  // Итерация 9: если на столе < 2 карт — голосование бессмысленно.
+  // Переходим сразу в фазу "no_contest" (пропуск раунда без голосования).
+  if (slots.length < 2) {
+    room.table = slots;
+    room.tableRevealed = true;
+    room.revealedSlotIds = Object.fromEntries(slots.map((s) => [s.slotId, true]));
+    room.allRevealedAt = null;
+    room.phase = "no_contest";
+    room.phaseEndsAt = null;
+    room.tableCleared = true; // Сразу показываем кнопку "Следующий раунд"
+    room.votes = {};
+    room.roundResult = {
+      leaderId: room.leaderId,
+      leaderSecretEmotion: room.secretEmotionByLeader,
+      winners: [],
+      leaderWon: false,
+      votesCount: {},
+      scores: room.scores,
+      noContest: true,
+    };
+
+    // Сохраняем результат раунда no_contest в историю
+    const leaderPlayer = room.players.find((p) => p.id === room.leaderId);
+    if (!room.roundHistory) room.roundHistory = [];
+    room.roundHistory.push({
+      roundNumber: room.round,
+      secretEmotion: room.secretEmotionByLeader,
+      voteResult: "no_contest",
+      winnerEmotions: [],
+      leaderId: room.leaderId,
+      leaderName: leaderPlayer?.name || "Ведущий",
+      roundScores: {},
+      votersByEmotion: {},
+    });
+
+    room.updatedAt = new Date();
+
+    // добор карт до 8
+    dealHands(room);
+    return;
+  }
+
   shuffleInPlace(slots);
   room.table = slots;
   room.tableRevealed = false;
@@ -600,13 +764,15 @@ function castVote(code, voterId, slotId) {
     return { error: "Ведущий не голосует" };
   }
 
-  // Игрок, пропустивший выкладку, не участвует в голосовании
-  if (room.submissions?.[voterId] === "skip") {
-    return { error: "Вы пропустили раунд и не участвуете в голосовании" };
+  // Игрок, пропустивший выкладку или не участвовавший в раунде, не голосует
+  const submission = room.submissions?.[voterId];
+  if (!submission || submission === "skip") {
+    return { error: "Вы не участвуете в голосовании этого раунда" };
   }
 
   const voter = room.players.find((p) => p.id === voterId);
-  if (!voter || voter.connectionStatus !== "online") return { error: "Игрок не найден" };
+  if (!voter) return { error: "Игрок не найден" };
+  if (voter.connectionStatus !== "online") return { error: "Отключённые игроки не могут голосовать" };
 
   const slot = room.table.find((s) => s.slotId === slotId);
   if (!slot) return { error: "Карта не найдена" };
@@ -619,10 +785,13 @@ function castVote(code, voterId, slotId) {
 function canFinalizeVote(room, nowMs = Date.now()) {
   if (room.phase !== "vote") return false;
 
-  // Голосуют только те, кто НЕ пропустил выкладку (и не ведущий)
-  const active = getActivePlayers(room).filter(
-    (p) => p.id !== room.leaderId && room.submissions?.[p.id] !== "skip"
-  );
+  // Голосуют только онлайн-игроки (не disconnected), кто сделал submission (не skip) и не ведущий
+  const active = getActivePlayers(room).filter((p) => {
+    if (p.id === room.leaderId) return false;
+    const submission = room.submissions?.[p.id];
+    // Игрок участвует в голосовании только если он выложил карту (не skip и не undefined)
+    return submission && submission !== "skip";
+  });
   const allVoted = active.every((p) => room.votes?.[p.id]);
   const timeOver = room.phaseEndsAt && nowMs >= room.phaseEndsAt;
   return allVoted || timeOver;
@@ -661,14 +830,39 @@ function finalizeRound(room) {
   // Определяем, есть ли среди победителей карта ведущего
   const leaderWon = winnerSlots.some((s) => s.playerId === leaderId);
 
-  // начисление очков
-  if (winnerSlots.length > 0) {
-    winnerSlots.forEach((s) => {
-      if (room.scores[s.playerId] == null) room.scores[s.playerId] = 0;
-      const add = s.playerId === leaderId ? 2 : 1;
-      room.scores[s.playerId] += add;
+  // Находим slotId карты ведущего
+  const leaderSlot = room.table.find((s) => s.playerId === leaderId);
+  const leaderSlotId = leaderSlot?.slotId;
+
+  // Начисление очков по новой логике:
+  // 1. Игроки, проголосовавшие за карту ведущего, получают +1 (независимо от победы)
+  // 2. Ведущий получает +2 только если его карта победила
+  // 3. Игрок (не ведущий), чья карта победила, получает +1
+  // 4. Проголосовавшие за победившую карту игрока (не ведущего) — ничего
+
+  // 1. Начисляем +1 всем, кто проголосовал за карту ведущего
+  if (leaderSlotId) {
+    Object.entries(room.votes || {}).forEach(([voterId, votedSlotId]) => {
+      if (votedSlotId === leaderSlotId) {
+        if (room.scores[voterId] == null) room.scores[voterId] = 0;
+        room.scores[voterId] += 1;
+      }
     });
   }
+
+  // 2. Если карта ведущего победила — ведущий получает +2
+  if (leaderWon) {
+    if (room.scores[leaderId] == null) room.scores[leaderId] = 0;
+    room.scores[leaderId] += 2;
+  }
+
+  // 3. Игроки (не ведущие), чьи карты победили — получают +1
+  winnerSlots.forEach((s) => {
+    if (s.playerId !== leaderId) {
+      if (room.scores[s.playerId] == null) room.scores[s.playerId] = 0;
+      room.scores[s.playerId] += 1;
+    }
+  });
 
   // roundResult для UI
   room.roundResult = {
@@ -680,6 +874,82 @@ function finalizeRound(room) {
     scores: room.scores,
   };
 
+  // Сохраняем результат раунда в историю
+  let voteResult = "incorrect";
+  if (winnerSlots.length === 0) {
+    voteResult = "no_votes";
+  } else if (winnerSlots.length > 1) {
+    // Проверяем, есть ли среди победителей карта ведущего
+    const leaderAmongWinners = winnerSlots.some((s) => s.playerId === leaderId);
+    voteResult = leaderAmongWinners ? "draw_correct" : "draw_incorrect";
+  } else if (leaderWon) {
+    voteResult = "correct";
+  }
+
+  // Вычисляем очки за этот раунд
+  const roundScores = {};
+  
+  // Ведущий получает +2 если победил
+  if (leaderWon) {
+    roundScores[leaderId] = (roundScores[leaderId] || 0) + 2;
+  }
+
+  // Игроки получают +1 за голос за карту ведущего
+  if (leaderSlotId) {
+    Object.entries(room.votes || {}).forEach(([voterId, votedSlotId]) => {
+      if (votedSlotId === leaderSlotId) {
+        roundScores[voterId] = (roundScores[voterId] || 0) + 1;
+      }
+    });
+  }
+
+  // Владельцы победивших карт (не ведущий) получают +1
+  winnerSlots.forEach((s) => {
+    if (s.playerId !== leaderId) {
+      roundScores[s.playerId] = (roundScores[s.playerId] || 0) + 1;
+    }
+  });
+
+  // Собираем информацию о голосах по эмоциям для истории
+  const votersByEmotion = {};
+  const slotById = Object.fromEntries(room.table.map((s) => [s.slotId, s]));
+  Object.entries(room.votes || {}).forEach(([voterId, slotId]) => {
+    const slot = slotById[slotId];
+    if (slot) {
+      const voter = room.players.find((p) => p.id === voterId);
+      if (!votersByEmotion[slot.emotion]) {
+        votersByEmotion[slot.emotion] = {
+          emotion: slot.emotion,
+          isLeaderCard: slot.playerId === leaderId,
+          ownerName: room.players.find((p) => p.id === slot.playerId)?.name || null,
+          voters: [],
+          voteCount: 0,
+          isWinner: winnerSlots.some((w) => w.slotId === slotId),
+        };
+      }
+      // Сохраняем и id, и имя для отображения очков в отчёте
+      votersByEmotion[slot.emotion].voters.push({
+        id: voterId,
+        name: voter?.name || "?",
+      });
+      votersByEmotion[slot.emotion].voteCount++;
+    }
+  });
+
+  const leaderPlayer = room.players.find((p) => p.id === leaderId);
+  
+  if (!room.roundHistory) room.roundHistory = [];
+  room.roundHistory.push({
+    roundNumber: room.round,
+    secretEmotion: leaderSecret,
+    voteResult,
+    winnerEmotions: winnerSlots.map((s) => s.emotion),
+    leaderId,
+    leaderName: leaderPlayer?.name || "Ведущий",
+    roundScores,
+    votersByEmotion,
+  });
+
   const target = room.settings?.targetScore ?? 15;
   const reached = Object.entries(room.scores || {})
     .filter(([, score]) => score >= target)
@@ -689,9 +959,14 @@ function finalizeRound(room) {
     room.status = "ended";
     room.phase = "ended";
     room.phaseEndsAt = null;
+    room.resultsShownAt = null;
+    room.tableCleared = false;
   } else {
     room.phase = "results";
     room.phaseEndsAt = null;
+    // Итерация 10: запоминаем время показа результатов для автоматической очистки стола через 5 сек
+    room.resultsShownAt = Date.now();
+    room.tableCleared = false;
   }
 
   room.updatedAt = new Date();
@@ -715,8 +990,8 @@ function advanceRevealToVote(room, nowMs = Date.now()) {
   room.phase = "vote";
   room.phaseEndsAt = nowMs + 30_000;
 
-  // cleanup reveal meta
-  room.revealStartedAt = null;
+  // НЕ очищаем revealStartedAt — клиент использует его для плавной анимации без перемонтирования
+  // room.revealStartedAt остаётся для клиентской анимации
   room.allRevealedAt = null;
 
   room.updatedAt = new Date();
@@ -740,6 +1015,12 @@ function startNextRound(code, actorId, nowMs = Date.now()) {
     return { room, winners };
   }
 
+  // Проверяем, достаточно ли карт в колоде для следующего раунда
+  // Нужна минимум 1 карта для секретной эмоции ведущего
+  if (!room.emotionDeck || room.emotionDeck.length < 1) {
+    return { error: "Колода закончилась", deckEmpty: true };
+  }
+
   rotateLeader(room);
 
   room.phase = "submit";
@@ -757,11 +1038,46 @@ function startNextRound(code, actorId, nowMs = Date.now()) {
   room.allRevealedAt = null;
   room.revealStartedAt = null;
   room.tableRevealed = false;
+  room.tableCleared = false;
+  room.resultsShownAt = null;
+  room.autoAdvanceAt = null; // Сбрасываем таймер автопродолжения
 
   ensureLobbyReady(room);
   room.updatedAt = new Date();
 
   return { room };
+}
+
+/**
+ * Перетасовать колоду эмоций — восстанавливает все эмоции кроме тех, что на руках у игроков
+ */
+function reshuffleDeck(code, actorId) {
+  const room = getRoom(code);
+  if (!room) return { error: "Комната не найдена" };
+  if (room.hostId !== actorId) return { error: "Только хост может перетасовать колоду" };
+
+  // Собираем все эмоции, которые сейчас на руках у игроков
+  const handsEmotions = new Set();
+  Object.values(room.hands || {}).forEach((hand) => {
+    hand.forEach((emotion) => handsEmotions.add(emotion));
+  });
+
+  // Создаём новую колоду из всех эмоций, исключая те, что на руках
+  const hyphenatedEmotions = EMOTIONS_SOURCE.map((emotion) => hyphenateWord(emotion));
+  const newDeck = [];
+  for (let i = 0; i < EMOTION_COPIES; i++) {
+    hyphenatedEmotions.forEach((emotion) => {
+      if (!handsEmotions.has(emotion)) {
+        newDeck.push(emotion);
+      }
+    });
+  }
+
+  shuffleInPlace(newDeck);
+  room.emotionDeck = newDeck;
+  room.updatedAt = new Date();
+
+  return { room, reshuffled: true };
 }
 
 function cleanupRooms(nowMs = Date.now(), maxEmptyMs = 10 * 60 * 1000) {
@@ -784,6 +1100,7 @@ module.exports = {
   getRoom,
   joinRoom,
   leaveRoom,
+  disconnectPlayer,
   updateSettings,
   resetGame,
   kickPlayer,
@@ -798,6 +1115,7 @@ module.exports = {
   canFinalizeVote,
   finalizeRound,
   startNextRound,
+  reshuffleDeck,
 
   // reveal auto-advance
   advanceRevealToVote,

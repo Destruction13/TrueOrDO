@@ -103,6 +103,14 @@ export default function EmotionalPage() {
     document.title = "Эмоциональный интеллект";
   }, []);
 
+  // Автоматическая очистка ошибки через 5 секунд
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
   useEffect(() => {
     socket.connect();
     return () => socket.disconnect();
@@ -225,18 +233,10 @@ export default function EmotionalPage() {
     const onConnect = () => setConnected(true);
     const onDisconnect = () => setConnected(false);
     const onStateSync = (state) => {
+      console.log("[Emotional] state:sync received - phase:", state?.room?.phase, "table:", state?.table?.length);
       setGameState(state);
       // На всякий случай подхватываем meId из payload
       if (state?.meId) setMeId(state.meId);
-
-      // DEV: простой лог фаз/состояния, чтобы быстрее отлавливать неожиданные переходы
-      if (import.meta?.env?.DEV) {
-        const code = state?.room?.code;
-        const phase = state?.room?.phase;
-        const timerEndsAt = state?.room?.timerEndsAt;
-        // eslint-disable-next-line no-console
-        console.debug("[Emotional][state:sync]", { code, phase, timerEndsAt });
-      }
     };
 
     const onKicked = (payload) => {
@@ -329,9 +329,17 @@ export default function EmotionalPage() {
         return handleAck(res);
       },
 
-      nextRound: async () => {
+      nextRound: async (callback) => {
         const res = await emitWithAck("emotional:round:next", {});
-        return handleAck(res);
+        const result = handleAck(res);
+        if (callback) callback(result);
+        return result;
+      },
+      reshuffleDeck: async (callback) => {
+        const res = await emitWithAck("emotional:deck:reshuffle", {});
+        const result = handleAck(res);
+        if (callback) callback(result);
+        return result;
       },
       leaveRoom: async () => {
         socket.emit("emotional:room:leave", {});
