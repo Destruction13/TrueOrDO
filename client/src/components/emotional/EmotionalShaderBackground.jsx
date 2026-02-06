@@ -14,12 +14,10 @@ const EmotionalShaderBackground = () => {
         position: 'fixed',
         top: 0,
         left: 0,
-        width: '100vw',
-        /* 100dvh учитывает динамическую высоту viewport на мобильных (адресная строка) */
-        /* Fallback на 100vh для старых браузеров */
-        height: '100dvh',
-        minHeight: '100vh',
+        width: '100%',
+        height: '100%',
         zIndex: -1,
+        overflow: 'hidden',
         background: 'black'
       }}
       aria-hidden="true"
