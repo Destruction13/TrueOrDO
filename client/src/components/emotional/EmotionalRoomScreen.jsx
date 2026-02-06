@@ -14,6 +14,52 @@ import EmotionalLeaderboardModal from "./EmotionalLeaderboardModal";
 import "../codenames/CodenamesRoomScreen.css";
 import "./EmotionalRoomScreen.css";
 
+// Компонент для отладки - показывает размеры экрана и состояние
+function DebugPanel({ room, gameState, meId }) {
+  const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const panelRef = useRef(null);
+  const [panelWidth, setPanelWidth] = useState(0);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setDimensions({ width: window.innerWidth, height: window.innerHeight });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Измеряем ширину .emotional-room__panel
+  useEffect(() => {
+    const measurePanel = () => {
+      const panel = document.querySelector('.emotional-room__panel');
+      if (panel) {
+        setPanelWidth(panel.getBoundingClientRect().width);
+      }
+    };
+    measurePanel();
+    window.addEventListener('resize', measurePanel);
+    return () => window.removeEventListener('resize', measurePanel);
+  }, []);
+
+  return (
+    <div style={{ 
+      position: 'fixed', top: 10, right: 10, 
+      background: 'rgba(0,0,0,0.95)', color: 'lime', 
+      padding: 12, fontSize: 13, zIndex: 999999, borderRadius: 8,
+      fontFamily: 'monospace', lineHeight: 1.6,
+      border: '2px solid lime',
+      pointerEvents: 'none'
+    }}>
+      <div style={{ color: '#ff0', fontWeight: 'bold' }}>Screen: {dimensions.width} × {dimensions.height}</div>
+      <div style={{ color: '#0ff' }}>Panel: {Math.round(panelWidth)}px</div>
+      <div>phase: {room?.phase || 'undefined'}</div>
+      <div>table: {gameState?.table?.length ?? 'n/a'}</div>
+      <div>hand: {gameState?.my?.hand?.length ?? 'n/a'}</div>
+      <div>meId: {meId?.slice(-6) || 'n/a'}</div>
+    </div>
+  );
+}
+
 export default function EmotionalRoomScreen({ connected, error, meId, gameState, actions }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -145,6 +191,25 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
             </button>
           )}
 
+          {/* Кнопка паузы - только для хоста во время игры */}
+          {isHost && room?.status === "playing" && (
+            <button 
+              className={`codenames-header-btn ${room?.isPaused ? "codenames-header-btn--paused" : ""}`}
+              onClick={() => room?.isPaused ? actions.resumeGame() : actions.pauseGame()}
+              title={room?.isPaused ? "Продолжить" : "Пауза"}
+            >
+              {room?.isPaused ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
+                </svg>
+              )}
+            </button>
+          )}
+
           <button className="codenames-header-btn codenames-header-btn--exit" onClick={() => setShowLeaveConfirm(true)} title="Выйти">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -155,7 +220,11 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
         </div>
 
         <div className="codenames-header-new__center">
-          {room?.phaseEndsAt && room?.phase === "vote" && (
+          {room?.isPaused ? (
+            <div className="codenames-header-turn__timer codenames-header-turn__timer--paused">
+              Пауза
+            </div>
+          ) : room?.phaseEndsAt && room?.phase === "vote" ? (
             <div className="emotional-header-timer">
               <RadialCountdown
                 secondsLeft={(room.phaseEndsAt - adjustedNowMs) / 1000}
@@ -166,7 +235,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
                 showLabel={false}
               />
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="codenames-header-new__right">
@@ -194,13 +263,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
       {error ? <div className="emotional-room__error">{error}</div> : null}
 
       {/* DEV: временный лог для отладки */}
-      {import.meta?.env?.DEV && (
-        <div style={{ position: 'fixed', top: 10, right: 10, background: 'rgba(0,0,0,0.8)', color: 'lime', padding: 10, fontSize: 12, zIndex: 9999, borderRadius: 8 }}>
-          <div>phase: {room?.phase || 'undefined'}</div>
-          <div>table: {gameState?.table?.length ?? 'n/a'}</div>
-          <div>meId: {meId?.slice(-6) || 'n/a'}</div>
-        </div>
-      )}
+      <DebugPanel room={room} gameState={gameState} meId={meId} />
 
       <AnimatePresence>
         {showLeaveConfirm && (
@@ -269,10 +332,11 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
             onSlotClick={(slotId) => actions?.castVote?.(slotId)}
             myVote={gameState?.my?.vote}
             canVote={
-              // Игрок может голосовать если он не ведущий и сделал submission (не skip)
+              // Игрок может голосовать если он не ведущий и сделал submission (не skip), и игра не на паузе
               room?.leaderId !== meId &&
               gameState?.my?.submission &&
-              gameState?.my?.submission !== "skip"
+              gameState?.my?.submission !== "skip" &&
+              !room?.isPaused
             }
             votesCountBySlotId={gameState?.votesCountBySlotId}
             showVotes={room?.phase === "vote" || room?.phase === "results"}
@@ -283,7 +347,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
                 : []
             }
             onHandCardClick={
-              (room?.phase === "submit" && room?.leaderId !== meId)
+              (room?.phase === "submit" && room?.leaderId !== meId && !room?.isPaused)
                 ? ((emotion) => actions?.submitEmotion?.(emotion))
                 : null
             }
@@ -302,16 +366,21 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
             isHost={isHost}
             centerTimer={
               room?.phase === "submit" && room?.phaseEndsAt ? (
-                <RadialCountdown
-                  secondsLeft={(room.phaseEndsAt - adjustedNowMs) / 1000}
-                  totalSeconds={60}
-                  size={80}
-                  strokeWidth={6}
-                  variant="semi"
-                  showLabel={false}
-                />
+                room?.isPaused ? (
+                  <div className="emotional-pause-indicator">Пауза</div>
+                ) : (
+                  <RadialCountdown
+                    secondsLeft={(room.phaseEndsAt - adjustedNowMs) / 1000}
+                    totalSeconds={60}
+                    size={80}
+                    strokeWidth={6}
+                    variant="semi"
+                    showLabel={false}
+                  />
+                )
               ) : null
             }
+            isPaused={room?.isPaused}
             centerAction={
               room?.phase === "lobby" ? (
                 isHost ? null : (

@@ -41,22 +41,6 @@ export default function EmotionalOvalTable({
     typeof window.matchMedia === "function" &&
     window.matchMedia("(pointer: coarse)").matches;
 
-  const handStripRef = useRef(null);
-  const [handStripLayout, setHandStripLayout] = useState({ width: 0, padLeft: 0, padRight: 0 });
-
-  // "Телефонная" версия по требованиям: всё что ниже 1200px.
-  // Делаем реактивно (поворот экрана/resize).
-  const [isPhoneLayout, setIsPhoneLayout] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth <= 1200 : false
-  );
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const onResize = () => setIsPhoneLayout(window.innerWidth <= 1200);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   // Локальное управление reveal анимацией по таймеру
   // Тайминги: 2 сек задержка после появления карт, затем по 0.5 сек на карту
@@ -180,36 +164,6 @@ export default function EmotionalOvalTable({
     return () => clearInterval(interval);
   }, [localAnimationStart, slots.length]);
 
-  // Измеряем ширину контейнера руки на мобильных, чтобы считать дугу в px (и гарантировать, что всё влезает)
-  useEffect(() => {
-    if (!isPhoneLayout) return;
-    const el = handStripRef.current;
-    if (!el) return;
-
-    const update = () => {
-      const rect = el.getBoundingClientRect();
-      const styles = window.getComputedStyle(el);
-      const padLeft = parseFloat(styles.paddingLeft || "0") || 0;
-      const padRight = parseFloat(styles.paddingRight || "0") || 0;
-
-      setHandStripLayout({
-        width: Math.round(rect.width),
-        padLeft: Math.round(padLeft),
-        padRight: Math.round(padRight),
-      });
-    };
-
-    update();
-
-    if (typeof ResizeObserver !== "undefined") {
-      const ro = new ResizeObserver(() => update());
-      ro.observe(el);
-      return () => ro.disconnect();
-    }
-
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, [isPhoneLayout]);
   // Вычисляем позиции игроков по эллипсу (текущий игрок всегда снизу)
   const playerPositions = useMemo(() => {
     if (!players || players.length === 0) return [];
@@ -277,51 +231,7 @@ export default function EmotionalOvalTable({
 
     const count = myHand.length;
 
-    // Мобильная версия: дуга, но в px и от реальной ширины контейнера.
-    // Позиционируем так, чтобы крайние карточки гарантированно помещались (учитываем ширину карточки).
-    if (isPhoneLayout) {
-      const gap = 10; // в px; увеличиваем интервал, чтобы текст не залезал на соседнюю карточку
-
-      // Формула ширины карточки должна совпадать по смыслу с CSS.
-      // Здесь считаем "логическую" ширину, чтобы правильно ограничить крайние позиции.
-      const innerW = Math.max(0, handStripLayout.width - handStripLayout.padLeft - handStripLayout.padRight);
-
-      const cardW = Math.max(
-        30,
-        Math.min(88, count > 0 ? (innerW - gap * (count - 1)) / count : 60)
-      );
-
-      const cardH = 112; // приблизительная высота для расчёта дуги (реальная управляется CSS)
-      const arcDepth = Math.max(8, Math.min(16, Math.round(cardH * 0.12)));
-
-      const usableW = Math.max(0, innerW - cardW);
-      const maxX = usableW / 2;
-      const radius = (maxX * maxX + arcDepth * arcDepth) / (2 * arcDepth || 1);
-
-      // Центр по Y: размещаем чуть ниже верхней границы strip, чтобы дуга была ближе к столу
-      const baseTop = cardH / 2 + 6;
-
-      return myHand.map((emotion, i) => {
-        const t = count > 1 ? i / (count - 1) : 0.5;
-        const xOffset = (t - 0.5) * usableW;
-
-        const underRoot = Math.max(0, radius * radius - xOffset * xOffset);
-        const arcY = radius - Math.sqrt(underRoot);
-
-        // left/top задаём в px внутри handStrip
-        const left = handStripLayout.padLeft + (innerW / 2) + xOffset;
-        const top = baseTop + arcY;
-
-        const maxAngle = 10;
-        const rotation = (t - 0.5) * 2 * maxAngle;
-        const zIndex = count - Math.abs(i - (count - 1) / 2);
-
-        return { emotion, rotation, left, top, index: i, zIndex };
-      });
-    }
-
-    // Десктопная версия: дуга в процентах внутри стола.
-    
+    // Дуга в процентах внутри стола — единая логика для всех разрешений.
 
     // Расстояние между центрами карточек (в % от ширины стола)
     // Подбирается под ширину карточек, чтобы рука выглядела плотной, но читабельной.
@@ -367,7 +277,7 @@ export default function EmotionalOvalTable({
 
       return { emotion, rotation, x, y, index: i, zIndex };
     });
-  }, [myHand, isPhoneLayout, handStripLayout]);
+  }, [myHand]);
 
   return (
     <div className={`oval-table${secretEmotion ? " oval-table--leader-secret" : ""}${(!myHand || myHand.length === 0 || phase !== "submit") ? " oval-table--no-hand" : ""}`}>
@@ -572,8 +482,8 @@ export default function EmotionalOvalTable({
           </AnimatePresence>
         </div>
 
-        {/* Рука под столом (десктоп: дуга внутри стола) — только в фазе submit */}
-        {!isPhoneLayout && phase === "submit" && myHand && myHand.length > 0 && (
+        {/* Рука под столом (дуга внутри стола) — только в фазе submit */}
+        {phase === "submit" && myHand && myHand.length > 0 && (
           <div className="oval-table__hand">
             {handPositions.map(({ emotion, rotation, x, y, index, zIndex }) => {
               const isSelected = selectedHandCard === emotion;
@@ -638,92 +548,6 @@ export default function EmotionalOvalTable({
         )}
       </div>
 
-      {/* Телефонная версия (<1200): рука отдельным блоком в потоке — только в фазе submit */}
-      {isPhoneLayout && phase === "submit" && myHand && myHand.length > 0 && (
-        <div
-          ref={handStripRef}
-          className="oval-table__hand-strip oval-table__hand-strip--arc"
-          role="group"
-          aria-label="Ваша рука"
-          style={{ "--hand-count": myHand.length }}
-        >
-          {myHand.map((emotion, index) => {
-            const isSelected = selectedHandCard === emotion;
-            const isActive = activeHandCard === emotion;
-            const isRaised = isSelected || isActive;
-            const color = emotion ? getEmotionColor(emotion) : null;
-
-            // Вычисляем параметры веера
-            const count = myHand.length;
-            const centerIndex = (count - 1) / 2;
-            const offset = index - centerIndex;
-            
-            // Угол наклона: крайние карты наклонены больше
-            const maxAngle = Math.min(15, 8 + count); // больше карт = больше угол
-            const rotation = count > 1 ? (offset / centerIndex) * maxAngle : 0;
-            
-            // Вертикальное смещение для дуги: крайние карты ниже
-            const maxArcOffset = Math.min(20, 8 + count * 1.5);
-            const normalizedOffset = count > 1 ? Math.abs(offset) / centerIndex : 0;
-            const arcY = normalizedOffset * normalizedOffset * maxArcOffset;
-            
-            // z-index: центральные карты поверх крайних
-            const baseZ = isRaised ? 2000 : Math.round(count - Math.abs(offset));
-
-            return (
-              <motion.button
-                key={`${emotion}:${index}`}
-                type="button"
-                className={`oval-table__hand-card oval-table__hand-card--phone ${
-                  isRaised ? "oval-table__hand-card--raised" : ""
-                } ${isSelected ? "oval-table__hand-card--selected" : ""} ${isActive ? "oval-table__hand-card--active" : ""}`}
-                style={{
-                  zIndex: baseZ,
-                  transformOrigin: 'center bottom',
-                  ...(color
-                    ? {
-                        '--emotion-rgb': color.rgb,
-                        '--emotion-hex': color.hex,
-                      }
-                    : {}),
-                }}
-                drag={isCoarsePointer && isActive ? "y" : false}
-                // Позволяем чуть протянуть карту вверх для подтверждения выбора
-                dragConstraints={{ top: -140, bottom: 0 }}
-                dragElastic={0.2}
-                onDragEnd={(e, info) => {
-                  if (!isCoarsePointer || !isActive) return;
-                  if (info.offset.y < -55) {
-                    onHandCardClick?.(emotion);
-                  }
-                }}
-                onClick={() => {
-                  if (isCoarsePointer) {
-                    // 1-й тап: только поднимаем карту. Постановка — через drag вверх.
-                    setActiveHandCard((prev) => (prev === emotion ? prev : emotion));
-                    return;
-                  }
-
-                  // Не-touch: ведём себя как на desktop
-                  setActiveHandCard(emotion);
-                  onHandCardClick?.(emotion);
-                }}
-                initial={false}
-                animate={{
-                  opacity: 1,
-                  scale: isRaised ? 1.08 : 1,
-                  y: isRaised ? -25 + arcY : arcY,
-                  rotate: rotation,
-                }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
-                whileTap={{ scale: isRaised ? 1.04 : 0.98 }}
-              >
-                <div className="oval-table__hand-card-text">{emotion}</div>
-              </motion.button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

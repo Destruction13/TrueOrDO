@@ -335,6 +335,16 @@ export default function EmotionalPage() {
         if (callback) callback(result);
         return result;
       },
+      // Pause / Resume
+      pauseGame: async () => {
+        const res = await emitWithAck("emotional:game:pause", {});
+        return handleAck(res);
+      },
+      resumeGame: async () => {
+        const res = await emitWithAck("emotional:game:resume", {});
+        return handleAck(res);
+      },
+
       reshuffleDeck: async (callback) => {
         const res = await emitWithAck("emotional:deck:reshuffle", {});
         const result = handleAck(res);

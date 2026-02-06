@@ -13,6 +13,7 @@ const ROOM_CODE_LENGTH = 6;
 const makeRoomCode = customAlphabet(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
 
 const emotionalRooms = new Map(); // code -> room
+const emotionalPausedRooms = new Map(); // roomCode -> { isPaused, pausedAt, remainingPhaseTime, remainingAutoAdvanceTime }
 
 function readLines(filePath) {
   const raw = fs.readFileSync(filePath, "utf8");
@@ -326,6 +327,10 @@ function buildRoomState(room, meId) {
     : [];
 
   const deckCount = Array.isArray(room.emotionDeck) ? room.emotionDeck.length : 0;
+  
+  // Получаем состояние паузы
+  const pauseState = emotionalPausedRooms.get(room.code);
+  const isPaused = pauseState?.isPaused || false;
 
   return {
     // Серверное время для синхронизации таймеров на клиенте
@@ -344,6 +349,8 @@ function buildRoomState(room, meId) {
       deckEmpty: deckCount === 0,
       // Итерация 10: флаг очистки стола после показа результатов
       tableCleared: room.tableCleared || false,
+      // Статус паузы
+      isPaused,
       createdAt: room.createdAt,
       updatedAt: room.updatedAt,
     },
@@ -1084,13 +1091,149 @@ function cleanupRooms(nowMs = Date.now(), maxEmptyMs = 10 * 60 * 1000) {
   for (const [code, room] of emotionalRooms.entries()) {
     if (room?.emptySince && nowMs - room.emptySince > maxEmptyMs) {
       emotionalRooms.delete(code);
+      emotionalPausedRooms.delete(code);
     }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAUSE / RESUME GAME
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Поставить игру на паузу.
+ * Сохраняет оставшееся время таймеров для корректного возобновления.
+ * Пауза блокирует:
+ * - submit: выкладку карт
+ * - reveal: анимацию раскрытия
+ * - vote: голосование
+ * - results: автопродолжение (autoAdvance)
+ * 
+ * @param {string} code - код комнаты
+ * @param {string} playerId - ID игрока (должен быть хостом)
+ * @returns {object} - результат операции
+ */
+function pauseGame(code, playerId) {
+  const room = getRoom(code);
+  if (!room) return { error: "Комната не найдена" };
+  if (room.hostId !== playerId) return { error: "Только хост может ставить игру на паузу" };
+  if (room.status !== "playing") return { error: "Игра не активна" };
+  
+  // Проверяем, не на паузе ли уже
+  const existingPause = emotionalPausedRooms.get(code);
+  if (existingPause?.isPaused) return { error: "Игра уже на паузе" };
+
+  const now = Date.now();
+  
+  // Вычисляем оставшееся время фазы
+  let remainingPhaseTime = null;
+  if (room.phaseEndsAt && room.phaseEndsAt > now) {
+    remainingPhaseTime = room.phaseEndsAt - now;
+  }
+  
+  // Вычисляем оставшееся время autoAdvance (для фазы results)
+  let remainingAutoAdvanceTime = null;
+  if (room.phase === "results" && room.resultsShownAt && room.settings?.autoAdvance) {
+    const autoAdvanceDelay = 5000; // 5 секунд
+    const elapsed = now - room.resultsShownAt;
+    if (elapsed < autoAdvanceDelay) {
+      remainingAutoAdvanceTime = autoAdvanceDelay - elapsed;
+    }
+  }
+  
+  // Вычисляем оставшееся время для reveal анимации
+  let remainingRevealTime = null;
+  if (room.phase === "reveal" && room.revealStartedAt) {
+    remainingRevealTime = now - room.revealStartedAt; // сколько уже прошло
+  }
+
+  const pauseState = {
+    isPaused: true,
+    pausedAt: now,
+    phase: room.phase,
+    remainingPhaseTime,
+    remainingAutoAdvanceTime,
+    remainingRevealTime,
+    revealStartedAt: room.revealStartedAt,
+    resultsShownAt: room.resultsShownAt,
+  };
+
+  emotionalPausedRooms.set(code, pauseState);
+
+  // Устанавливаем флаг паузы в комнате
+  room.isPaused = true;
+  room.updatedAt = new Date();
+
+  return { room, pauseState };
+}
+
+/**
+ * Возобновить игру после паузы.
+ * Восстанавливает таймеры с учётом оставшегося времени.
+ * 
+ * @param {string} code - код комнаты
+ * @param {string} playerId - ID игрока (должен быть хостом)
+ * @returns {object} - результат операции
+ */
+function resumeGame(code, playerId) {
+  const room = getRoom(code);
+  if (!room) return { error: "Комната не найдена" };
+  if (room.hostId !== playerId) return { error: "Только хост может возобновить игру" };
+
+  const pauseState = emotionalPausedRooms.get(code);
+  if (!pauseState || !pauseState.isPaused) {
+    return { error: "Игра не на паузе" };
+  }
+
+  const now = Date.now();
+
+  // Восстанавливаем таймер фазы
+  if (pauseState.remainingPhaseTime !== null) {
+    room.phaseEndsAt = now + pauseState.remainingPhaseTime;
+  }
+  
+  // Восстанавливаем время начала reveal (сдвигаем на время паузы)
+  if (pauseState.phase === "reveal" && pauseState.revealStartedAt !== null) {
+    const pauseDuration = now - pauseState.pausedAt;
+    room.revealStartedAt = pauseState.revealStartedAt + pauseDuration;
+  }
+  
+  // Восстанавливаем время показа результатов (для autoAdvance)
+  if (pauseState.phase === "results" && pauseState.resultsShownAt !== null) {
+    const pauseDuration = now - pauseState.pausedAt;
+    room.resultsShownAt = pauseState.resultsShownAt + pauseDuration;
+  }
+
+  // Снимаем паузу
+  room.isPaused = false;
+  emotionalPausedRooms.delete(code);
+  room.updatedAt = new Date();
+
+  return { room };
+}
+
+/**
+ * Проверить, на паузе ли игра
+ * @param {string} code - код комнаты
+ * @returns {boolean}
+ */
+function isGamePaused(code) {
+  return emotionalPausedRooms.get(code)?.isPaused || false;
+}
+
+/**
+ * Получить состояние паузы
+ * @param {string} code - код комнаты
+ * @returns {object|null}
+ */
+function getPauseState(code) {
+  return emotionalPausedRooms.get(code) || null;
 }
 
 module.exports = {
   cleanupRooms,
   emotionalRooms,
+  emotionalPausedRooms,
   normalizeName,
   makeUniqueName,
   generateRoomCode,
@@ -1119,6 +1262,12 @@ module.exports = {
 
   // reveal auto-advance
   advanceRevealToVote,
+
+  // pause / resume
+  pauseGame,
+  resumeGame,
+  isGamePaused,
+  getPauseState,
 
   buildRoomState,
 };
