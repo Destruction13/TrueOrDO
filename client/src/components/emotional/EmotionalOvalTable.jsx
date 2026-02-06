@@ -518,6 +518,7 @@ export default function EmotionalOvalTable({
                     top: `${y}%`,
                     zIndex: baseZ,
                     rotate: `${rotation}deg`,
+                    touchAction: 'none', // Важно для drag на мобильных
                     ...(color
                       ? {
                           '--emotion-rgb': color.rgb,
@@ -534,15 +535,19 @@ export default function EmotionalOvalTable({
                     setHoveredHandCard((prev) => (prev === emotion ? null : prev));
                   }}
                   onClick={() => {
-                    if (isCoarsePointer) {
-                      // На реальном мобильном 1-й тап — только поднимает карту (аналог hover на desktop)
-                      setActiveHandCard((prev) => (prev === emotion ? prev : emotion));
-                      return;
+                    // Клик поднимает карту (активирует для drag)
+                    setActiveHandCard((prev) => (prev === emotion ? null : emotion));
+                  }}
+                  // Drag-механика для выбора карточки (работает на desktop и mobile)
+                  drag="y"
+                  dragConstraints={{ top: -150, bottom: 0 }}
+                  dragElastic={0.3}
+                  onDragEnd={(e, info) => {
+                    // Если потянули вверх достаточно далеко — выбираем карту
+                    if (info.offset.y < -60) {
+                      onHandCardClick?.(emotion);
+                      setActiveHandCard(null);
                     }
-
-                    // Desktop: клик = выбор (подсветка) + отправка
-                    setActiveHandCard(emotion);
-                    onHandCardClick?.(emotion);
                   }}
                   initial={false}
                   animate={{
@@ -551,8 +556,98 @@ export default function EmotionalOvalTable({
                   }}
                   transition={{ duration: 0.15, ease: "easeOut" }}
                   whileTap={{ scale: isRaised ? 1.04 : 0.98 }}
+                  whileDrag={{ scale: 1.1, zIndex: 3000 }}
                 >
                   <div className="oval-table__hand-card-text">{emotion}</div>
+                  
+                  {/* Подсказка для drag — показываем только для активной карты */}
+                  {isActive && (
+                    <motion.div
+                      className="oval-table__hand-card-hint"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      style={{
+                        position: 'absolute',
+                        bottom: 'calc(100% + 15px)',
+                        left: 0,
+                        right: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '3px',
+                        pointerEvents: 'none',
+                        zIndex: 10,
+                      }}
+                    >
+                      {/* Анимированные стрелки вверх (снизу вверх) */}
+                      <motion.div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0px',
+                        }}
+                      >
+                        <motion.span
+                          style={{
+                            color: '#00d4ff',
+                            fontSize: 'clamp(16px, 4cqw, 24px)',
+                            fontWeight: 'bold',
+                            textShadow: '0 0 12px rgba(0, 212, 255, 0.9)',
+                            lineHeight: 0.7,
+                          }}
+                          animate={{ y: [0, -6, 0], opacity: [0.6, 1, 0.6] }}
+                          transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                          ᐱ
+                        </motion.span>
+                        <motion.span
+                          style={{
+                            color: '#00d4ff',
+                            fontSize: 'clamp(14px, 3.5cqw, 20px)',
+                            fontWeight: 'bold',
+                            textShadow: '0 0 10px rgba(0, 212, 255, 0.7)',
+                            lineHeight: 0.7,
+                          }}
+                          animate={{ y: [0, -6, 0], opacity: [0.5, 1, 0.5] }}
+                          transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
+                        >
+                          ᐱ
+                        </motion.span>
+                        <motion.span
+                          style={{
+                            color: '#00d4ff',
+                            fontSize: 'clamp(12px, 3cqw, 16px)',
+                            fontWeight: 'bold',
+                            textShadow: '0 0 8px rgba(0, 212, 255, 0.5)',
+                            lineHeight: 0.7,
+                          }}
+                          animate={{ y: [0, -6, 0], opacity: [0.4, 1, 0.4] }}
+                          transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                        >
+                          ᐱ
+                        </motion.span>
+                      </motion.div>
+                      {/* Текст подсказки */}
+                      <motion.span
+                        style={{
+                          color: '#ff9500',
+                          fontSize: 'clamp(9px, 2cqw, 12px)',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          textShadow: '0 0 10px rgba(255, 149, 0, 0.7)',
+                          whiteSpace: 'nowrap',
+                          marginTop: '6px',
+                        }}
+                        animate={{ opacity: [0.6, 1, 0.6] }}
+                        transition={{ duration: 1.2, repeat: Infinity }}
+                      >
+                        Потяните вверх
+                      </motion.span>
+                    </motion.div>
+                  )}
                 </motion.button>
               );
             })}

@@ -6,6 +6,8 @@
   /* Container Query: карточки руки масштабируются относительно ширины стола */
   container-type: inline-size;
   container-name: oval-table;
+  /* Разрешаем карточкам выходить за границы при drag */
+  overflow: visible;
 }
 
 .oval-table__surface {
@@ -503,18 +505,20 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+  /* Разрешаем карточкам выходить за границы при drag */
+  overflow: visible;
 }
 
 
 .oval-table__hand-card {
   position: absolute;
-  overflow: hidden;
+  overflow: visible;
   isolation: isolate;
   
   /* Адаптивные размеры: масштабируются пропорционально ширине КОНТЕЙНЕРА (container query) */
   /* Контейнер .oval-table имеет container-type: inline-size */
-  /* Карточки = 13.2% от ширины стола (увеличено на 15% от 11.5%) */
-  --card-width: clamp(48px, 13.2cqw, 120px);
+  /* Карточки = 13.9% от ширины стола (увеличено на 20% от исходных 11.5%) */
+  --card-width: clamp(50px, 13.9cqw, 126px);
   --card-height: calc(var(--card-width) * 1.42);
   
   width: var(--card-width);
@@ -602,6 +606,12 @@
 
   /* Не позволяем тексту выходить за границы карточки и залезать на соседнюю */
   overflow: hidden;
+  /* Ограничиваем область текста размерами карточки */
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   text-transform: uppercase;
   letter-spacing: 0.05em;
