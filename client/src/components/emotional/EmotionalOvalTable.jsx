@@ -36,6 +36,18 @@ export default function EmotionalOvalTable({
   // hoveredHandCard — карточка под курсором на desktop (поднимаем как при выборе, но без подсветки)
   const [hoveredHandCard, setHoveredHandCard] = useState(null);
 
+  // Отслеживаем ширину экрана для адаптивного cardSpacing
+  const [isSmallScreen, setIsSmallScreen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 1200 : false
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => setIsSmallScreen(window.innerWidth <= 1200);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const isCoarsePointer =
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
@@ -234,8 +246,8 @@ export default function EmotionalOvalTable({
     // Дуга в процентах внутри стола — единая логика для всех разрешений.
 
     // Расстояние между центрами карточек (в % от ширины стола)
-    // Подбирается под ширину карточек, чтобы рука выглядела плотной, но читабельной.
-    const cardSpacing = 10.5;
+    // На экранах ≤1200px увеличиваем spacing, чтобы уменьшить боковые отступы на 50%
+    const cardSpacing = isSmallScreen ? 12.4 : 10.5;
 
     // Глубина дуги ("стрела" дуги): насколько крайние карточки ниже центральной.
     // Важно: именно дуга окружности (а не парабола), чтобы край не выглядел приподнятым.
@@ -277,7 +289,7 @@ export default function EmotionalOvalTable({
 
       return { emotion, rotation, x, y, index: i, zIndex };
     });
-  }, [myHand]);
+  }, [myHand, isSmallScreen]);
 
   return (
     <div className={`oval-table${secretEmotion ? " oval-table--leader-secret" : ""}${(!myHand || myHand.length === 0 || phase !== "submit") ? " oval-table--no-hand" : ""}`}>
