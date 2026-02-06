@@ -593,8 +593,8 @@
 
 .oval-table__hand-card-text {
   font-family: 'Roboto Condensed', sans-serif;
-  /* Адаптивный размер текста ~13% от ширины карточки (через container query) */
-  font-size: clamp(7px, 1.4cqw, 14px);
+  /* Адаптивный размер текста ~18% от ширины карточки (через container query) */
+  font-size: clamp(9px, 2.1cqw, 19px);
   font-weight: 800;
   color: rgba(255, 255, 255, 0.98);
   text-align: center;
