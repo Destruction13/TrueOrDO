@@ -3,6 +3,23 @@
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
+  /* Отключаем overscroll (rubber banding) на мобильных устройствах */
+  overscroll-behavior: none;
+}
+
+/* Скрываем глобальные фоновые градиенты для Emotional,
+   чтобы они не мешали динамическому шейдеру */
+body:has(.emotional-page)::before,
+body:has(.emotional-page)::after {
+  background: transparent !important;
+  background-image: none !important;
+  opacity: 0 !important;
+}
+
+/* Блокируем overscroll на уровне body когда открыта Emotional страница */
+html:has(.emotional-page),
+body:has(.emotional-page) {
+  overscroll-behavior: none;
 }
 
 /* Overlay для режима "в комнате" (чтобы текст читался поверх шейдера) */
