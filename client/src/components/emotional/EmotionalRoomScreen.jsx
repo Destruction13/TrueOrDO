@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -12,52 +12,6 @@ import { PlayersPanel, RoundReport } from "./EmotionalSidePanels";
 import EmotionalLeaderboardModal from "./EmotionalLeaderboardModal";
 import "../codenames/CodenamesRoomScreen.css";
 import "./EmotionalRoomScreen.css";
-
-// Компонент для отладки - показывает размеры экрана и состояние
-function DebugPanel({ room, gameState, meId }) {
-  const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const panelRef = useRef(null);
-  const [panelWidth, setPanelWidth] = useState(0);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setDimensions({ width: window.innerWidth, height: window.innerHeight });
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Измеряем ширину .emotional-room__panel
-  useEffect(() => {
-    const measurePanel = () => {
-      const panel = document.querySelector('.emotional-room__panel');
-      if (panel) {
-        setPanelWidth(panel.getBoundingClientRect().width);
-      }
-    };
-    measurePanel();
-    window.addEventListener('resize', measurePanel);
-    return () => window.removeEventListener('resize', measurePanel);
-  }, []);
-
-  return (
-    <div style={{ 
-      position: 'fixed', top: 10, right: 10, 
-      background: 'rgba(0,0,0,0.95)', color: 'lime', 
-      padding: 12, fontSize: 13, zIndex: 999999, borderRadius: 8,
-      fontFamily: 'monospace', lineHeight: 1.6,
-      border: '2px solid lime',
-      pointerEvents: 'none'
-    }}>
-      <div style={{ color: '#ff0', fontWeight: 'bold' }}>Screen: {dimensions.width} × {dimensions.height}</div>
-      <div style={{ color: '#0ff' }}>Panel: {Math.round(panelWidth)}px</div>
-      <div>phase: {room?.phase || 'undefined'}</div>
-      <div>table: {gameState?.table?.length ?? 'n/a'}</div>
-      <div>hand: {gameState?.my?.hand?.length ?? 'n/a'}</div>
-      <div>meId: {meId?.slice(-6) || 'n/a'}</div>
-    </div>
-  );
-}
 
 export default function EmotionalRoomScreen({ connected, error, meId, gameState, actions }) {
   const navigate = useNavigate();
@@ -259,9 +213,6 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
       </header>
 
       {error ? <div className="emotional-room__error">{error}</div> : null}
-
-      {/* DEV: временный лог для отладки */}
-      <DebugPanel room={room} gameState={gameState} meId={meId} />
 
       <AnimatePresence>
         {showLeaveConfirm && (
