@@ -3,6 +3,9 @@
   max-width: 900px;
   margin: 0 auto;
   padding: 20px 0;
+  /* Container Query: карточки руки масштабируются относительно ширины стола */
+  container-type: inline-size;
+  container-name: oval-table;
 }
 
 .oval-table__surface {
@@ -20,9 +23,8 @@
     inset 0 0 150px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(12px);
   overflow: visible;
-  /* Адаптивный отступ снизу для карточек руки — пропорционален ширине стола */
-  --table-width: min(100vw - 40px, 900px);
-  margin: 0 0 clamp(70px, calc(var(--table-width) * 0.2), 180px) 0;
+  /* Адаптивный отступ снизу для карточек руки — пропорционален ширине контейнера */
+  margin: 0 0 clamp(70px, 20cqw, 180px) 0;
 }
 
 /* Если у ведущего скрыта рука, большой отступ снизу не нужен */
@@ -509,10 +511,10 @@
   overflow: hidden;
   isolation: isolate;
   
-  /* Адаптивные размеры: масштабируются пропорционально ширине стола */
-  /* Стол занимает min(100vw - 40px, 900px), карточки = 11.5% от ширины стола */
-  --table-width: min(100vw - 40px, 900px);
-  --card-width: clamp(42px, calc(var(--table-width) * 0.115), 104px);
+  /* Адаптивные размеры: масштабируются пропорционально ширине КОНТЕЙНЕРА (container query) */
+  /* Контейнер .oval-table имеет container-type: inline-size */
+  /* Карточки = 11.5% от ширины стола для плотного размещения в веере */
+  --card-width: clamp(42px, 11.5cqw, 104px);
   --card-height: calc(var(--card-width) * 1.42);
   
   width: var(--card-width);
@@ -591,8 +593,8 @@
 
 .oval-table__hand-card-text {
   font-family: 'Roboto Condensed', sans-serif;
-  /* Адаптивный размер текста пропорционален ширине карточки (~13%) */
-  font-size: clamp(7px, calc(var(--card-width, 70px) * 0.13), 14px);
+  /* Адаптивный размер текста ~13% от ширины карточки (через container query) */
+  font-size: clamp(7px, 1.4cqw, 14px);
   font-weight: 800;
   color: rgba(255, 255, 255, 0.98);
   text-align: center;
