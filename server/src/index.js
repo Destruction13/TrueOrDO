@@ -120,6 +120,11 @@ const {
   startNextRound: startEmotionalNextRound,
   reshuffleDeck: reshuffleEmotionalDeck,
 
+  // Pause functions
+  pauseGame: pauseEmotionalGame,
+  resumeGame: resumeEmotionalGame,
+  isGamePaused: isEmotionalGamePaused,
+
   buildRoomState: buildEmotionalRoomState
 } = require("./game/emotional");
 
@@ -192,6 +197,11 @@ function startEmotionalTimer(roomCode) {
     const room = require("./game/emotional").getRoom(roomCode);
     if (!room || room.status !== "playing") {
       stopEmotionalTimer(roomCode);
+      return;
+    }
+
+    // Если игра на паузе — пропускаем тик таймера
+    if (isEmotionalGamePaused(roomCode)) {
       return;
     }
 
@@ -4964,6 +4974,62 @@ io.on("connection", (socket) => {
     });
 
     if (ack) ack({ ok: true, kickedPlayerName: result.kickedPlayerName });
+  });
+
+  // Пауза игры
+  socket.on("emotional:game:pause", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = pauseEmotionalGame(roomCode, playerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    // Уведомляем всех игроков о паузе
+    result.room.players.forEach(p => {
+      if (p.connectionStatus === "left" || p.connectionStatus === "kicked") return;
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
+  });
+
+  // Возобновление игры
+  socket.on("emotional:game:resume", async (payload, ack) => {
+    const roomCode = socket.data.emotionalRoomCode;
+    const playerId = socket.data.emotionalPlayerId;
+
+    if (!roomCode || !playerId) {
+      if (ack) ack({ ok: false, error: "Не в комнате" });
+      return;
+    }
+
+    const result = resumeEmotionalGame(roomCode, playerId);
+    if (result.error) {
+      if (ack) ack({ ok: false, error: result.error });
+      return;
+    }
+
+    // Уведомляем всех игроков о возобновлении
+    result.room.players.forEach(p => {
+      if (p.connectionStatus === "left" || p.connectionStatus === "kicked") return;
+      const socketId = emotionalPlayerSockets.get(p.id);
+      if (socketId) {
+        io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));
+      }
+    });
+
+    if (ack) ack({ ok: true });
   });
 
   // ===========================================================================

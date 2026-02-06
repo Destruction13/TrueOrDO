@@ -147,11 +147,23 @@
 }
 
 .emotional-setting__player-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   color: rgba(255, 255, 255, 0.9);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.emotional-setting__player-name--offline {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.emotional-setting__offline-badge {
+  font-size: 12px;
+  opacity: 0.8;
 }
 
 .emotional-setting__kick-btn {

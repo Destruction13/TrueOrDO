@@ -26,9 +26,10 @@ export default function EmotionalSettingsModal({
     onClose?.();
   };
 
-  // Фильтруем игроков для списка исключения (только онлайн, не хост)
+  // Фильтруем игроков для списка исключения (онлайн или отключённые, не хост)
+  // Отключённые игроки (disconnected) тоже могут быть исключены хостом
   const kickablePlayers = players.filter(
-    (p) => p.connectionStatus === "online" && p.id !== hostId
+    (p) => (p.connectionStatus === "online" || p.connectionStatus === "disconnected") && p.id !== hostId
   );
 
   if (!isOpen) return null;
@@ -129,7 +130,12 @@ export default function EmotionalSettingsModal({
                 <div className="emotional-setting__players-list">
                   {kickablePlayers.map((player) => (
                     <div key={player.id} className="emotional-setting__player-row">
-                      <span className="emotional-setting__player-name">{player.name}</span>
+                      <span className={`emotional-setting__player-name ${player.connectionStatus === "disconnected" ? "emotional-setting__player-name--offline" : ""}`}>
+                        {player.name}
+                        {player.connectionStatus === "disconnected" && (
+                          <span className="emotional-setting__offline-badge" title="Отключён">⚡</span>
+                        )}
+                      </span>
                       <button
                         type="button"
                         className="emotional-setting__kick-btn"
