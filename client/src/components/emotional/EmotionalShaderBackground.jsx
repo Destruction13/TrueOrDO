@@ -15,7 +15,10 @@ const EmotionalShaderBackground = () => {
         top: 0,
         left: 0,
         width: '100vw',
-        height: '100vh',
+        /* 100dvh учитывает динамическую высоту viewport на мобильных (адресная строка) */
+        /* Fallback на 100vh для старых браузеров */
+        height: '100dvh',
+        minHeight: '100vh',
         zIndex: -1,
         background: 'black'
       }}
