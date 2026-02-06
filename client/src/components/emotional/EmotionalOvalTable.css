@@ -513,8 +513,8 @@
   
   /* Адаптивные размеры: масштабируются пропорционально ширине КОНТЕЙНЕРА (container query) */
   /* Контейнер .oval-table имеет container-type: inline-size */
-  /* Карточки = 11.5% от ширины стола для плотного размещения в веере */
-  --card-width: clamp(42px, 11.5cqw, 104px);
+  /* Карточки = 13.2% от ширины стола (увеличено на 15% от 11.5%) */
+  --card-width: clamp(48px, 13.2cqw, 120px);
   --card-height: calc(var(--card-width) * 1.42);
   
   width: var(--card-width);
