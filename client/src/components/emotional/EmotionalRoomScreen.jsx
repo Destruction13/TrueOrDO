@@ -7,7 +7,6 @@ import RadialCountdown from "../ui/RadialCountdown";
 import EmotionalSettingsModal from "./EmotionalSettingsModal";
 import EmotionalRulesModal from "./EmotionalRulesModal";
 import EmotionalOvalTable from "./EmotionalOvalTable";
-import EmotionalShaderBackground from "./EmotionalShaderBackground";
 import TextShimmer from "../alias/TextShimmer";
 import { PlayersPanel, RoundReport } from "./EmotionalSidePanels";
 import EmotionalLeaderboardModal from "./EmotionalLeaderboardModal";
@@ -166,7 +165,6 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
 
   return (
     <div className="emotional-room">
-      <EmotionalShaderBackground />
       <header className="codenames-header-new">
         <div className="codenames-header-new__left">
           <div className="room-code-block" onClick={copyRoomLink} title="Скопировать ссылку">

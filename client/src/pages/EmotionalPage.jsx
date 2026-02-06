@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import { useAuth } from "../context/AuthContext";
 import EmotionalJoinScreen from "../components/emotional/EmotionalJoinScreen";
 import EmotionalRoomScreen from "../components/emotional/EmotionalRoomScreen";
+import EmotionalShaderBackground from "../components/emotional/EmotionalShaderBackground";
 import EmailVerifyBanner from "../components/auth/EmailVerifyBanner";
 import "./EmotionalPage.css";
 
@@ -368,6 +369,7 @@ export default function EmotionalPage() {
   if (isRestoring) {
     return (
       <div className="emotional-page">
+        <EmotionalShaderBackground />
         <div className="emotional-loading">
           <div className="emotional-loading__spinner" />
           <p>Восстановление сессии...</p>
@@ -379,6 +381,7 @@ export default function EmotionalPage() {
   if (!gameState) {
     return (
       <div className="emotional-page">
+        <EmotionalShaderBackground />
         <EmailVerifyBanner />
 
         <EmotionalJoinScreen
@@ -399,6 +402,7 @@ export default function EmotionalPage() {
 
   return (
     <div className="emotional-page emotional-page--in-room">
+      <EmotionalShaderBackground />
       <EmailVerifyBanner />
 
       <EmotionalRoomScreen
