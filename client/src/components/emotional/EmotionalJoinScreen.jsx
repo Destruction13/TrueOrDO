@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import Button from "../ui/Button";
 import PulseButton from "../ui/PulseButton";
 import EmotionalRulesModal from "./EmotionalRulesModal";
-import EmotionalShaderBackground from "./EmotionalShaderBackground";
 import "./EmotionalJoinScreen.css";
 
 export default function EmotionalJoinScreen({
@@ -129,7 +128,6 @@ export default function EmotionalJoinScreen({
 
   return (
     <div className="app-shell">
-      <EmotionalShaderBackground />
       <div className="user-header">
         {user ? (
           <button className="user-header__profile" onClick={onProfile} type="button">
