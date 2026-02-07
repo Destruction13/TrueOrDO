@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import Button from "./ui/Button";
 import PulseButton from "./ui/PulseButton";
+import BatteryModeButton from "./ui/BatteryModeButton";
+import { GAME_IDS } from "../context/SettingsContext";
 import TextShimmer from "./alias/TextShimmer";
 import RulesModal from "./ui/RulesModal";
 
@@ -157,6 +159,8 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
             Войти
           </Button>
         )}
+
+        <BatteryModeButton gameId={GAME_IDS.TRUTH_OR_DARE} />
         
         {/* Кнопка правил */}
         <button 
@@ -244,24 +248,13 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
               type="text"
               value={joinCode}
               onChange={handleInputChange(setJoinCode)}
-              placeholder="Например: A1B2C3"
+              placeholder="ABCD"
+              maxLength={6}
+              style={{ textTransform: "uppercase" }}
             />
           </label>
-          {user?.nickname ? (
-            <div className="field-info">
-              <span>Играете как</span>
-              <div className="field-user">
-                {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="" className="field-user__avatar" />
-                ) : (
-                  <span className="field-user__avatar-placeholder">
-                    {user.nickname[0].toUpperCase()}
-                  </span>
-                )}
-                <span className="field-user__name">{user.nickname}</span>
-              </div>
-            </div>
-          ) : (
+
+          {user?.nickname ? null : (
             <label className="field">
               <span>Твоё имя</span>
               <input
@@ -272,12 +265,13 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
               />
             </label>
           )}
+
           <Button
             variant="secondary"
-            size="md"
+            size="lg"
             type="submit"
             loading={loading}
-            disabled={!connected || !effectiveJoinName}
+            disabled={!connected || !effectiveJoinName || !joinCode.trim()}
             fullWidth
           >
             Войти

@@ -7,6 +7,8 @@ import AliasRulesModal from "./AliasRulesModal";
 import CyberRunner from "./CyberRunner";
 import CyberRunnerLeaderboard from "./CyberRunnerLeaderboard";
 import { useAuth } from "../../context/AuthContext";
+import { GAME_IDS } from "../../context/SettingsContext";
+import BatteryModeButton from "../ui/BatteryModeButton";
 import useIsMobile from "../../hooks/useIsMobile";
 import "./AliasRoomScreen.css";
 
@@ -316,6 +318,8 @@ export default function AliasRoomScreen({
         </div>
         
         <div className="alias-header-new__right">
+          <BatteryModeButton gameId={GAME_IDS.ALIAS} />
+          
           {/* Профиль или Войти */}
           {isAuthenticated ? (
             <button 

@@ -18,6 +18,8 @@ import TaskReport from "./ui/TaskReport";
 import RulesModal from "./ui/RulesModal";
 import CustomDecisionModal from "./ui/CustomDecisionModal";
 import { useAuth } from "../context/AuthContext";
+import { GAME_IDS } from "../context/SettingsContext";
+import BatteryModeButton from "./ui/BatteryModeButton";
 
 function formatTimer(seconds) {
   if (seconds == null || Number.isNaN(seconds)) {
@@ -387,6 +389,8 @@ function RoomScreen({
         </div>
         
         <div className="room-header__right">
+          <BatteryModeButton gameId={GAME_IDS.TRUTH_OR_DARE} />
+          
           {/* Профиль или Войти */}
           {isAuthenticated ? (
             <button 

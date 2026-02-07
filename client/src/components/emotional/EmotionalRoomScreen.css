@@ -188,31 +188,34 @@
   50% { opacity: 0.7; }
 }
 
-/* Индикатор паузы */
-.emotional-pause-indicator {
+/* Символ паузы "||" */
+.emotional-pause-symbol {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 700;
   color: #fbbf24;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 12px 24px;
-  background: rgba(251, 191, 36, 0.15);
-  border: 2px solid rgba(251, 191, 36, 0.4);
-  border-radius: 12px;
-  animation: pulse-pause 2s ease-in-out infinite;
+  letter-spacing: 0.15em;
+  animation: pause-pulse 2.5s ease-in-out infinite;
 }
 
-@keyframes pulse-pause {
+/* Большой символ паузы в центре стола */
+.emotional-pause-symbol--large {
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+}
+
+@keyframes pause-pulse {
   0%, 100% {
     opacity: 1;
     transform: scale(1);
   }
   50% {
-    opacity: 0.7;
-    transform: scale(0.98);
+    opacity: 0.5;
+    transform: scale(0.95);
   }
 }
 
@@ -638,10 +641,7 @@
   font-size: clamp(0.45rem, 1.3vw, 0.65rem);
 }
 
-.emotional-room .room-code {
-  font-size: clamp(0.6rem, 2vw, 1rem);
-  letter-spacing: clamp(0.02em, 0.15vw, 0.1em);
-}
+/* Используем стандартные стили .room-code из CodenamesRoomScreen.css */
 
 /* Адаптивные кнопки хедера */
 .emotional-room .codenames-header-btn {

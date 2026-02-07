@@ -1,0 +1,180 @@
+/* Кнопка батареи */
+.battery-mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.battery-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.battery-mode-btn--active {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+}
+
+.battery-mode-btn--active:hover {
+  background: rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+}
+
+.battery-mode-btn__icon {
+  width: 22px;
+  height: 22px;
+}
+
+/* Модальное окно */
+.battery-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.battery-modal {
+  background: linear-gradient(145deg, rgba(30, 35, 45, 0.98), rgba(20, 25, 35, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 28px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(34, 197, 94, 0.1);
+}
+
+.battery-modal__icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  padding: 12px;
+  background: rgba(34, 197, 94, 0.15);
+  border-radius: 14px;
+  color: #22c55e;
+}
+
+.battery-modal__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.battery-modal__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 12px;
+}
+
+.battery-modal__text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0 0 12px;
+}
+
+.battery-modal__note {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 24px;
+  font-style: italic;
+}
+
+.battery-modal__buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.battery-modal__btn {
+  flex: 1;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.battery-modal__btn--cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.battery-modal__btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.battery-modal__btn--confirm {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+}
+
+.battery-modal__btn--confirm:hover {
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
+}
+
+/* Кнопка включения шейдеров (оранжевая/жёлтая) */
+.battery-modal__btn--enable {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+}
+
+.battery-modal__btn--enable:hover {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+}
+
+/* Иконка при включении шейдеров */
+.battery-modal__icon--enable {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+/* Мобильные */
+@media (max-width: 480px) {
+  .battery-mode-btn {
+    width: 36px;
+    height: 36px;
+    padding: 6px;
+  }
+  
+  .battery-mode-btn__icon {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .battery-modal {
+    padding: 24px 20px;
+  }
+  
+  .battery-modal__title {
+    font-size: 18px;
+  }
+  
+  .battery-modal__text {
+    font-size: 13px;
+  }
+}

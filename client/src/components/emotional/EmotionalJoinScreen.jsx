@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import Button from "../ui/Button";
 import PulseButton from "../ui/PulseButton";
+import BatteryModeButton from "../ui/BatteryModeButton";
+import { GAME_IDS } from "../../context/SettingsContext";
 import EmotionalRulesModal from "./EmotionalRulesModal";
 import "./EmotionalJoinScreen.css";
 
@@ -146,6 +148,8 @@ export default function EmotionalJoinScreen({
           </Button>
         )}
 
+        <BatteryModeButton gameId={GAME_IDS.EMOTIONAL} />
+
         <button
           className="rules-btn-header"
           onClick={() => setShowRulesModal(true)}
@@ -242,7 +246,8 @@ export default function EmotionalJoinScreen({
             </label>
           )}
 
-          <PulseButton
+          <Button
+            variant="secondary"
             size="lg"
             type="submit"
             loading={loading}
@@ -250,7 +255,7 @@ export default function EmotionalJoinScreen({
             fullWidth
           >
             Войти
-          </PulseButton>
+          </Button>
         </form>
       </div>
 

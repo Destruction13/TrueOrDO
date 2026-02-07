@@ -31,6 +31,7 @@ export default function RadialCountdown({
   className = "",
   variant = "full", // "full" | "semi"
   showLabel = true,
+  pauseSymbol = null, // Символ для отображения вместо цифр при паузе
 }) {
   // remaining: 1 -> 0
   const remaining = useMemo(() => {
@@ -170,8 +171,17 @@ export default function RadialCountdown({
       )}
 
       <div className="radial-countdown__center" role="timer" aria-live="polite">
-        <div className="radial-countdown__value">{formatSeconds(secondsLeft)}</div>
-        {showLabel ? <div className="radial-countdown__label">сек.</div> : null}
+        {pauseSymbol ? (
+          <div className="radial-countdown__pause-icon">
+            <span className="radial-countdown__pause-bar" />
+            <span className="radial-countdown__pause-bar" />
+          </div>
+        ) : (
+          <>
+            <div className="radial-countdown__value">{formatSeconds(secondsLeft)}</div>
+            {showLabel ? <div className="radial-countdown__label">сек.</div> : null}
+          </>
+        )}
       </div>
     </div>
   );

@@ -526,7 +526,6 @@ export default function EmotionalOvalTable({
                   style={{
                     left: `${x}%`,
                     top: `${y}%`,
-                    zIndex: baseZ,
                     rotate: `${rotation}deg`,
                     touchAction: 'none', // Важно для drag на мобильных
                     ...(color
@@ -536,14 +535,8 @@ export default function EmotionalOvalTable({
                         }
                       : {}),
                   }}
-                  onMouseEnter={() => {
-                    if (isCoarsePointer) return;
-                    setHoveredHandCard(emotion);
-                  }}
-                  onMouseLeave={() => {
-                    if (isCoarsePointer) return;
-                    setHoveredHandCard((prev) => (prev === emotion ? null : prev));
-                  }}
+                  onMouseEnter={() => setHoveredHandCard(emotion)}
+                  onMouseLeave={() => setHoveredHandCard((prev) => (prev === emotion ? null : prev))}
                   onClick={() => {
                     // Клик поднимает карту (активирует для drag)
                     setActiveHandCard((prev) => (prev === emotion ? null : emotion));
@@ -563,6 +556,7 @@ export default function EmotionalOvalTable({
                   animate={{
                     y: isRaised ? -30 : 0,
                     scale: isRaised ? 1.06 : 1,
+                    zIndex: baseZ,
                   }}
                   transition={{ duration: 0.15, ease: "easeOut" }}
                   whileTap={{ scale: isRaised ? 1.04 : 0.98 }}
