@@ -1,0 +1,315 @@
+/* ============================================================================
+   Lo-Fi Radio Player
+   ============================================================================ */
+
+.lofi-player-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+/* Floating Action Button */
+.lofi-fab {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(124, 58, 237, 0.3) 100%);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+}
+
+.lofi-fab:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 6px 30px rgba(139, 92, 246, 0.4);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(124, 58, 237, 0.4) 100%);
+}
+
+.lofi-fab--playing {
+  border-color: rgba(139, 92, 246, 0.6);
+  box-shadow: 0 4px 25px rgba(139, 92, 246, 0.5);
+}
+
+.lofi-fab--loading {
+  opacity: 0.8;
+}
+
+/* Пульсация при воспроизведении */
+.lofi-fab__pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(139, 92, 246, 0.6);
+  animation: lofi-pulse 2s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes lofi-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* Спиннер загрузки */
+.lofi-spinner {
+  animation: lofi-spin 1s linear infinite;
+}
+
+@keyframes lofi-spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Панель управления */
+.lofi-panel {
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  width: 280px;
+  background: rgba(12, 18, 32, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4), 0 0 60px rgba(139, 92, 246, 0.1);
+}
+
+.lofi-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lofi-panel__title {
+  font-family: "Orbitron", "Space Grotesk", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.lofi-panel__error {
+  padding: 8px 12px;
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 0.8rem;
+}
+
+/* Выбор станции */
+.lofi-station-wrapper {
+  position: relative;
+}
+
+.lofi-station-selector {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.lofi-station-selector:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.lofi-station-selector svg {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.lofi-station-icon {
+  font-size: 1.1rem;
+}
+
+.lofi-station-name {
+  flex: 1;
+  text-align: left;
+}
+
+/* Dropdown станций */
+.lofi-station-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: rgba(12, 18, 32, 0.98);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 10;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.lofi-station-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.lofi-station-option:hover {
+  background: rgba(139, 92, 246, 0.15);
+  color: #fff;
+}
+
+.lofi-station-option--active {
+  background: rgba(139, 92, 246, 0.2);
+  color: #fff;
+}
+
+.lofi-station-option--active::after {
+  content: "✓";
+  margin-left: auto;
+  color: #8b5cf6;
+}
+
+/* Регулятор громкости */
+.lofi-volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.lofi-volume__slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.lofi-volume__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.lofi-volume__slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.lofi-volume__slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  border: none;
+  cursor: pointer;
+}
+
+.lofi-volume__value {
+  min-width: 36px;
+  font-size: 0.8rem;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Кнопка Play/Pause */
+.lofi-play-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+}
+
+.lofi-play-btn:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+.lofi-play-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.lofi-play-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.lofi-play-btn--playing {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(124, 58, 237, 0.4) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  box-shadow: none;
+}
+
+.lofi-play-btn--playing:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.4) 0%, rgba(124, 58, 237, 0.5) 100%);
+  box-shadow: none;
+}
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+  .lofi-player-container {
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .lofi-fab {
+    width: 48px;
+    height: 48px;
+  }
+
+  .lofi-panel {
+    width: 260px;
+    bottom: 60px;
+  }
+}
