@@ -300,3 +300,29 @@
     transform: scale(0.92);
   }
 }
+
+/* Вариант text-only: только число без кольца */
+.radial-countdown--text-only {
+  width: auto;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radial-countdown__center--text-only {
+  position: static;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 8px;
+  padding: 6px 14px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.radial-countdown--text-only .radial-countdown__value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--rc-accent, #2ee6ff);
+  text-shadow: 0 0 12px var(--rc-accent, #2ee6ff);
+}

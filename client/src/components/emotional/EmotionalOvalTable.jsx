@@ -21,6 +21,7 @@ export default function EmotionalOvalTable({
   selectedHandCard = null,
   centerWord = null,
   centerTimer = null,
+  voteTimer = null, // Таймер голосования для мобильных (отображается над картами)
   secretEmotion = null,
   surfaceRef = null, // Ref для измерения высоты поверхности стола
   hostId = null,
@@ -401,6 +402,12 @@ export default function EmotionalOvalTable({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
               >
+                {/* Таймер голосования над картами (мобильный) */}
+                {voteTimer && (
+                  <div className="oval-table__vote-timer">
+                    {voteTimer}
+                  </div>
+                )}
                 <div className="oval-table__slots" style={{ '--card-count': slots.length }}>
                   <AnimatePresence>
                     {slots.map((slot, idx) => {

@@ -29,7 +29,7 @@ export default function RadialCountdown({
   size = 168,
   strokeWidth = 10,
   className = "",
-  variant = "full", // "full" | "semi"
+  variant = "full", // "full" | "semi" | "text-only"
   showLabel = true,
   pauseSymbol = null, // Символ для отображения вместо цифр при паузе
 }) {
@@ -66,6 +66,28 @@ export default function RadialCountdown({
   const dashOffsetFull = circumference * (1 - elapsed);
 
   const isSemi = variant === "semi";
+  const isTextOnly = variant === "text-only";
+
+  // Вариант text-only — только цифра без кольца
+  if (isTextOnly) {
+    return (
+      <div
+        className={`radial-countdown radial-countdown--text-only ${className}`}
+        style={{ "--rc-accent": accent }}
+      >
+        <div className="radial-countdown__center radial-countdown__center--text-only" role="timer" aria-live="polite">
+          {pauseSymbol ? (
+            <div className="radial-countdown__pause-icon">
+              <span className="radial-countdown__pause-bar" />
+              <span className="radial-countdown__pause-bar" />
+            </div>
+          ) : (
+            <div className="radial-countdown__value">{formatSeconds(secondsLeft)}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

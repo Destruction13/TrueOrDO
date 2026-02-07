@@ -260,8 +260,13 @@
   z-index: 1;
 }
 
-/* На мобильных (< 1200px) боковых панелей нет - таймер по центру экрана */
-@media (max-width: 1199px) {
+/* На мобильных (≤1200px) таймер голосования переносится внутрь стола */
+@media (max-width: 1200px) {
+  /* Скрываем таймер в хедере — он теперь внутри стола */
+  .emotional-room .codenames-header-new__center {
+    display: none;
+  }
+
   /* Хедер должен использовать flex для корректного распределения */
   .emotional-room .codenames-header-new {
     display: flex;
@@ -275,56 +280,9 @@
     flex-shrink: 0;
   }
 
-  /* Центр по центру экрана (панелей нет) */
-  .emotional-room .codenames-header-new__center {
-    --table-offset: 0px;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    pointer-events: none;
-  }
-
-  .emotional-room .codenames-header-new__center > * {
-    pointer-events: auto;
-  }
-
   .emotional-room .codenames-header-new__right {
     flex-shrink: 0;
     margin-left: auto;
-  }
-
-  .emotional-header-timer .radial-countdown {
-    --rc-size: auto !important;
-    width: auto;
-    height: auto;
-    min-width: 0;
-    min-height: 0;
-  }
-
-  .emotional-header-timer .radial-countdown__rings,
-  .emotional-header-timer .radial-countdown__svg {
-    display: none !important;
-  }
-
-  .emotional-header-timer .radial-countdown__center {
-    position: static;
-    transform: none;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 8px;
-    padding: 6px 12px;
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-  }
-
-  .emotional-header-timer .radial-countdown__value {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--rc-accent, #2ee6ff);
-    text-shadow: 0 0 10px var(--rc-accent, #2ee6ff);
-  }
-
-  .emotional-header-timer .radial-countdown__label {
-    display: none;
   }
 }
 
@@ -673,12 +631,7 @@
   }
 }
 
-/* Скрываем таймер на очень узких экранах, где он перекрывает другие элементы */
-@media (max-width: 380px) {
-  .emotional-room .codenames-header-new__center {
-    display: none;
-  }
-}
+/* Таймер в хедере скрывается на ≤1200px (см. выше), на мобильных он внутри стола */
 
 
 @media (max-width: 400px) {
