@@ -234,8 +234,13 @@ export function RoundReport({ roundHistory = [], phase = null, isDesktop = true,
                       >
                         {/* Ведущий и загаданная эмоция */}
                         <div className="emotional-round-report__leader-row">
-                          <span className="emotional-round-report__leader-badge">👑 {round.leaderName}</span>
-                          <span className="emotional-round-report__secret-emotion">«{round.secretEmotion}»</span>
+                          <span className="emotional-round-report__leader-info">
+                            <span className="emotional-round-report__leader-badge">👑 {round.leaderName}</span>
+                            <span className="emotional-round-report__secret-emotion">{round.secretEmotion}</span>
+                          </span>
+                          <span className={`emotional-round-report__leader-points ${(round.roundScores?.[round.leaderId] || 0) > 0 ? "emotional-round-report__leader-points--positive" : ""}`}>
+                            {(round.roundScores?.[round.leaderId] || 0) > 0 ? `+${round.roundScores[round.leaderId]}` : "0"}
+                          </span>
                         </div>
 
                         {/* Голосование */}

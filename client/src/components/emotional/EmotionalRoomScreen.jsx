@@ -32,7 +32,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
   const [reshuffledNotice, setReshuffledNotice] = useState(false);
   
   // Ref и состояние для синхронизации высоты боковых панелей с овальным столом
-  const tableRef = useRef(null);
+  const surfaceRef = useRef(null);
   const [tableHeight, setTableHeight] = useState(0);
   
   // Разница между серверным и клиентским временем для корректных таймеров
@@ -86,7 +86,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
 
   // Отслеживаем высоту овального стола для синхронизации боковых панелей
   useEffect(() => {
-    const el = tableRef.current;
+    const el = surfaceRef.current;
     if (!el) return;
 
     const updateHeight = () => {
@@ -256,7 +256,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
           {/* Левая панель: игроки (desktop) */}
           <div 
             className="emotional-side-left"
-            style={tableHeight > 0 ? { height: tableHeight, maxHeight: tableHeight } : undefined}
+            style={tableHeight > 0 ? { height: tableHeight * 0.75, maxHeight: tableHeight * 0.75, marginTop: tableHeight * 0.125 } : undefined}
           >
             <PlayersPanel
               players={players}
@@ -270,12 +270,13 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
           {/* Центр: игровая зона */}
           <div className="emotional-main-layout__center">
 
-        <div className="emotional-room__game" ref={tableRef}>
+        <div className="emotional-room__game">
           {/* Единый EmotionalOvalTable без перемонтирования между фазами */}
           <EmotionalOvalTable
             players={players}
             meId={meId}
             phase={room?.phase}
+            surfaceRef={surfaceRef}
             slots={gameState?.table || []}
             revealStartedAt={gameState?.revealStartedAt}
             onSlotClick={(slotId) => actions?.castVote?.(slotId)}
@@ -395,7 +396,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
           {/* Правая панель: отчёт игры (desktop) */}
           <div 
             className="emotional-side-right"
-            style={tableHeight > 0 ? { height: tableHeight, maxHeight: tableHeight } : undefined}
+            style={tableHeight > 0 ? { height: tableHeight * 0.75, maxHeight: tableHeight * 0.75, marginTop: tableHeight * 0.125 } : undefined}
           >
             <RoundReport
               roundHistory={gameState?.roundHistory || []}

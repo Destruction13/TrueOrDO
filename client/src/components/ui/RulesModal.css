@@ -512,3 +512,97 @@
     font-size: 13px;
   }
 }
+
+/* ==========================================================================
+   EMOTIONAL: Дополнительные стили для правил
+   ========================================================================== */
+
+/* Секция с featured контентом */
+.rules-section--featured {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(59, 130, 246, 0.08));
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+/* Highlight блок для уникальной механики */
+.rules-highlight {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.1));
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 10px;
+}
+
+.rules-highlight__icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.rules-highlight__text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Секция победы */
+.rules-section--victory {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.rules-section__number--victory {
+  background: linear-gradient(135deg, rgba(30, 27, 45, 0.95), rgba(45, 40, 65, 0.9)) !important;
+  border: 2px solid rgba(251, 191, 36, 0.5) !important;
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.25) !important;
+}
+
+.rules-section__body--victory {
+  text-align: center;
+}
+
+.rules-victory-text {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 16px;
+}
+
+.rules-victory-crown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, rgba(30, 27, 45, 0.9), rgba(45, 40, 65, 0.85));
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+}
+
+.rules-victory-crown__icon {
+  font-size: 28px;
+  animation: crown-pulse 2s ease-in-out infinite;
+}
+
+.rules-victory-crown__text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fbbf24;
+}
+
+@keyframes crown-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}

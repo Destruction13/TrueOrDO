@@ -22,6 +22,7 @@ export default function EmotionalOvalTable({
   centerWord = null,
   centerTimer = null,
   secretEmotion = null,
+  surfaceRef = null, // Ref для измерения высоты поверхности стола
   hostId = null,
   centerAction = null,
   onEmptyHostClick = null,
@@ -293,7 +294,7 @@ export default function EmotionalOvalTable({
 
   return (
     <div className={`oval-table${secretEmotion ? " oval-table--leader-secret" : ""}${(!myHand || myHand.length === 0 || phase !== "submit" || selectedHandCard) ? " oval-table--no-hand" : ""}`}>
-      <div className="oval-table__surface">
+      <div className="oval-table__surface" ref={surfaceRef}>
         {/* Игроки по эллипсу */}
         {playerPositions.map(({ player, x, y, isMe }) => {
           const initial = player.name?.[0]?.toUpperCase() || "?";
@@ -400,7 +401,7 @@ export default function EmotionalOvalTable({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
               >
-                <div className="oval-table__slots">
+                <div className="oval-table__slots" style={{ '--card-count': slots.length }}>
                   <AnimatePresence>
                     {slots.map((slot, idx) => {
                       const chosen = myVote === slot.slotId;
