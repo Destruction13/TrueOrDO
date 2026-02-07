@@ -388,6 +388,16 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
             emptyHostLabel="Начать игру"
             tableCleared={room?.tableCleared}
             round={room?.round}
+            voteTimer={
+              room?.phase === "vote" && room?.phaseEndsAt && !room?.isPaused ? (
+                <RadialCountdown
+                  secondsLeft={(room.phaseEndsAt - adjustedNowMs) / 1000}
+                  totalSeconds={30}
+                  variant="text-only"
+                  showLabel={false}
+                />
+              ) : null
+            }
           />
         </div>
 

@@ -292,6 +292,38 @@
   font-size: clamp(6px, 1.4cqw, 10px);
 }
 
+/* Таймер голосования над картами (мобильный, text-only) */
+.oval-table__vote-timer {
+  display: none; /* По умолчанию скрыт на десктопе */
+  justify-content: center;
+  align-items: center;
+  margin-bottom: clamp(6px, 2cqw, 12px);
+}
+
+/* Показываем только на мобильных (≤1200px) */
+@media (max-width: 1200px) {
+  .oval-table__vote-timer {
+    display: flex;
+  }
+}
+
+/* Адаптивные стили для таймера внутри стола */
+.oval-table__vote-timer .radial-countdown--text-only {
+  /* Масштабирование относительно стола */
+}
+
+.oval-table__vote-timer .radial-countdown__center--text-only {
+  padding: clamp(4px, 1.2cqw, 8px) clamp(10px, 3cqw, 18px);
+  border-radius: clamp(6px, 1.5cqw, 10px);
+  background: rgba(0, 0, 0, 0.6);
+  border: clamp(1px, 0.3cqw, 1.5px) solid rgba(255, 255, 255, 0.2);
+}
+
+.oval-table__vote-timer .radial-countdown__value {
+  font-size: clamp(14px, 4cqw, 22px);
+  font-weight: 700;
+}
+
 /* Таймер-дуга поверх блока слова: края совпадают с краями word-display */
 .oval-table__phrase-timer--overlay {
   position: absolute;
