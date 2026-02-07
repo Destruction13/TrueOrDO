@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import CodenamesShaderBackground from "../components/codenames/CodenamesShaderBackground";
 import { useAuth } from "../context/AuthContext";
+import { useSettings, GAME_IDS } from "../context/SettingsContext";
 import CodenamesJoinScreen from "../components/codenames/CodenamesJoinScreen";
 import CodenamesRoomScreen from "../components/codenames/CodenamesRoomScreen";
 import EmailVerifyBanner from "../components/auth/EmailVerifyBanner";
@@ -82,6 +83,7 @@ export default function CodenamesPage() {
   const location = useLocation();
   const { roomCode: urlRoomCode } = useParams();
   const { user } = useAuth();
+  const { isShadersDisabled } = useSettings();
   
   const [connected, setConnected] = useState(false);
   const [gameState, setGameState] = useState(null);
@@ -465,7 +467,7 @@ export default function CodenamesPage() {
   if (isRestoring) {
     return (
       <div className="codenames-page">
-        <CodenamesShaderBackground colorMode="neutral" />
+        {!isShadersDisabled(GAME_IDS.CODENAMES) && <CodenamesShaderBackground colorMode="neutral" />}
         <div className="codenames-loading-screen">
           <div className="codenames-loading-screen__spinner" />
           <p>Восстановление сессии...</p>
@@ -477,7 +479,7 @@ export default function CodenamesPage() {
   if (!gameState) {
     return (
       <div className="codenames-page">
-        <CodenamesShaderBackground colorMode="neutral" />
+        {!isShadersDisabled(GAME_IDS.CODENAMES) && <CodenamesShaderBackground colorMode="neutral" />}
         <EmailVerifyBanner />
         <CodenamesJoinScreen
           connected={connected}
@@ -497,7 +499,7 @@ export default function CodenamesPage() {
 
   return (
     <div className="codenames-page codenames-page--in-room">
-      <CodenamesShaderBackground colorMode={shaderColorMode} />
+      {!isShadersDisabled(GAME_IDS.CODENAMES) && <CodenamesShaderBackground colorMode={shaderColorMode} />}
       <EmailVerifyBanner />
       <div className="codenames-shader-overlay" />
       <CodenamesRoomScreen

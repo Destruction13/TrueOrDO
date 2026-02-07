@@ -5,6 +5,8 @@ import Button from "../ui/Button";
 import PulseButton from "../ui/PulseButton";
 import CodenamesRulesModal from "./CodenamesRulesModal";
 import { useAuth } from "../../context/AuthContext";
+import { GAME_IDS } from "../../context/SettingsContext";
+import BatteryModeButton from "../ui/BatteryModeButton";
 import "./CodenamesRoomScreen.css";
 
 const TEAM_COLORS = {
@@ -585,6 +587,8 @@ export default function CodenamesRoomScreen({
         </div>
         
         <div className="codenames-header-new__right">
+          <BatteryModeButton gameId={GAME_IDS.CODENAMES} />
+          
           {/* Список наблюдателей во время игры */}
           {isPlaying && spectators.length > 0 && (
             <div className="codenames-header-spectators">

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import Button from "../ui/Button";
 import PulseButton from "../ui/PulseButton";
+import BatteryModeButton from "../ui/BatteryModeButton";
+import { GAME_IDS } from "../../context/SettingsContext";
 import CodenamesRulesModal from "./CodenamesRulesModal";
 
 export default function CodenamesJoinScreen({ 
@@ -146,6 +148,8 @@ export default function CodenamesJoinScreen({
             Войти
           </Button>
         )}
+
+        <BatteryModeButton gameId={GAME_IDS.CODENAMES} />
         
         <button 
           className="rules-btn-header" 
@@ -218,24 +222,13 @@ export default function CodenamesJoinScreen({
               type="text"
               value={joinCode}
               onChange={handleInputChange(setJoinCode)}
-              placeholder="Например: A1B2C3"
+              placeholder="ABCD"
+              maxLength={6}
+              style={{ textTransform: "uppercase" }}
             />
           </label>
-          {user?.nickname ? (
-            <div className="field-info">
-              <span>Играете как</span>
-              <div className="field-user">
-                {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="" className="field-user__avatar" />
-                ) : (
-                  <span className="field-user__avatar-placeholder">
-                    {user.nickname[0].toUpperCase()}
-                  </span>
-                )}
-                <span className="field-user__name">{user.nickname}</span>
-              </div>
-            </div>
-          ) : (
+
+          {user?.nickname ? null : (
             <label className="field">
               <span>Твоё имя</span>
               <input
@@ -246,12 +239,13 @@ export default function CodenamesJoinScreen({
               />
             </label>
           )}
+
           <Button
             variant="secondary"
-            size="md"
+            size="lg"
             type="submit"
             loading={loading}
-            disabled={!connected || !effectiveJoinName}
+            disabled={!connected || !effectiveJoinName || !joinCode.trim()}
             fullWidth
           >
             Войти

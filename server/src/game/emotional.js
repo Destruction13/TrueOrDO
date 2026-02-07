@@ -32,7 +32,26 @@ function shuffleInPlace(arr) {
 }
 
 const EMOTIONAL_DATA_DIR = path.join(__dirname, "..", "..", "data", "emotional");
-const EMOTIONS_SOURCE = readLines(path.join(EMOTIONAL_DATA_DIR, "emotions.txt"));
+
+// Парсим эмоции с категориями: формат "Эмоция,category"
+const EMOTIONS_RAW = readLines(path.join(EMOTIONAL_DATA_DIR, "emotions.txt"));
+const EMOTIONS_WITH_CATEGORIES = EMOTIONS_RAW.map((line) => {
+  const [emotion, category] = line.split(",").map((s) => s.trim());
+  return { emotion, category: category || "other" };
+});
+// Для обратной совместимости — просто список эмоций
+const EMOTIONS_SOURCE = EMOTIONS_WITH_CATEGORIES.map((e) => e.emotion);
+// Маппинг эмоция -> категория (для быстрого поиска)
+const EMOTION_TO_CATEGORY = Object.fromEntries(
+  EMOTIONS_WITH_CATEGORIES.map((e) => [e.emotion, e.category])
+);
+// Маппинг категория -> список эмоций
+const CATEGORY_TO_EMOTIONS = {};
+EMOTIONS_WITH_CATEGORIES.forEach((e) => {
+  if (!CATEGORY_TO_EMOTIONS[e.category]) CATEGORY_TO_EMOTIONS[e.category] = [];
+  CATEGORY_TO_EMOTIONS[e.category].push(e.emotion);
+});
+
 const WORDS_SOURCE = readLines(path.join(EMOTIONAL_DATA_DIR, "words.txt"));
 
 // Чтобы колода не заканчивалась слишком быстро при 4+ игроках,
@@ -191,6 +210,44 @@ function drawFromDeck(room, count) {
   return drawn;
 }
 
+/**
+ * Выбирает карты из колоды, отдавая приоритет той же категории (вайбу),
+ * что и referenceEmotion. Если в колоде нет карт той же категории,
+ * берёт любые доступные карты.
+ * 
+ * @param {object} room - комната
+ * @param {number} count - сколько карт нужно
+ * @param {string} referenceEmotion - эмоция-образец (для определения категории)
+ * @returns {string[]} - массив эмоций
+ */
+function drawFromDeckByCategory(room, count, referenceEmotion) {
+  if (!room.emotionDeck || room.emotionDeck.length === 0) return [];
+  
+  // Убираем soft hyphens для поиска категории
+  const cleanEmotion = referenceEmotion?.replace(/\u00AD/g, "") || "";
+  const targetCategory = EMOTION_TO_CATEGORY[cleanEmotion] || "other";
+  
+  const drawn = [];
+  
+  // Сначала ищем карты той же категории
+  for (let i = room.emotionDeck.length - 1; i >= 0 && drawn.length < count; i--) {
+    const emotion = room.emotionDeck[i];
+    const emotionClean = emotion?.replace(/\u00AD/g, "") || "";
+    const emotionCategory = EMOTION_TO_CATEGORY[emotionClean];
+    
+    if (emotionCategory === targetCategory) {
+      drawn.push(room.emotionDeck.splice(i, 1)[0]);
+    }
+  }
+  
+  // Если не хватило карт той же категории — добираем любые
+  while (drawn.length < count && room.emotionDeck.length > 0) {
+    drawn.push(room.emotionDeck.pop());
+  }
+  
+  return drawn;
+}
+
 function dealHands(room) {
   const activePlayers = room.players.filter((p) => p.connectionStatus === "online");
   activePlayers.forEach((p) => {
@@ -219,9 +276,10 @@ function joinRoom(code, name, avatarUrl, visitorId) {
   // reconnect by visitorId
   if (visitorId) {
     const existing = room.players.find(
-      (p) => p.visitorId === visitorId && p.connectionStatus !== "left"
+      (p) => p.visitorId === visitorId && p.connectionStatus !== "left" && p.connectionStatus !== "kicked"
     );
     if (existing) {
+      console.log("[Emotional joinRoom] Reconnecting player:", existing.id, "visitorId:", visitorId, "hand before:", room.hands[existing.id]?.length || 0);
       existing.connectionStatus = "online";
       existing.lastSeen = new Date();
       if (avatarUrl !== undefined) existing.avatarUrl = avatarUrl;
@@ -235,11 +293,16 @@ function joinRoom(code, name, avatarUrl, visitorId) {
       room.updatedAt = new Date();
       room.emptySince = null;
       if (room.scores[existing.id] == null) room.scores[existing.id] = 0;
+      // Инициализируем руку только если её нет (не перезаписываем существующую)
       if (!room.hands[existing.id]) room.hands[existing.id] = [];
+      console.log("[Emotional joinRoom] Reconnected. Hand after:", room.hands[existing.id]?.length || 0);
       return { room, playerId: existing.id, reconnected: true };
     }
   }
 
+  // Не нашли существующего игрока для reconnect — создаём нового
+  console.log("[Emotional joinRoom] Creating NEW player. visitorId:", visitorId, "existing players:", room.players.map(p => ({ id: p.id, visitorId: p.visitorId, status: p.connectionStatus })));
+  
   const takenNames = room.players
     .filter((p) => p.connectionStatus !== "left")
     .map((p) => (p.name || "").toLowerCase());
@@ -696,6 +759,30 @@ function advanceToVote(room, nowMs = Date.now()) {
       slotId: `s_${Math.random().toString(36).slice(2, 9)}`,
       emotion: room.secretEmotionByLeader,
       playerId: room.leaderId,
+    });
+  }
+
+  // Добавляем дополнительные карты из колоды при малом количестве игроков:
+  // - 2 игрока: +2 карты (итого минимум 4 на столе)
+  // - 3 игрока: +1 карта (итого минимум 4 на столе)
+  // Карты выбираются из той же категории (вайба), что и секретная эмоция ведущего,
+  // чтобы голосование было интереснее и не слишком очевидным.
+  const activeCount = getActivePlayers(room).length;
+  let extraCardsNeeded = 0;
+  if (activeCount === 2) {
+    extraCardsNeeded = 2;
+  } else if (activeCount === 3) {
+    extraCardsNeeded = 1;
+  }
+  
+  if (extraCardsNeeded > 0) {
+    const extraEmotions = drawFromDeckByCategory(room, extraCardsNeeded, room.secretEmotionByLeader);
+    extraEmotions.forEach((emotion) => {
+      slots.push({
+        slotId: `s_${Math.random().toString(36).slice(2, 9)}`,
+        emotion: emotion,
+        playerId: null, // Карта из колоды — без владельца
+      });
     });
   }
 

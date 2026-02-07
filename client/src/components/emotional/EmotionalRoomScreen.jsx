@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { GAME_IDS } from "../../context/SettingsContext";
+import BatteryModeButton from "../ui/BatteryModeButton";
 import Button from "../ui/Button";
 import RadialCountdown from "../ui/RadialCountdown";
 import EmotionalSettingsModal from "./EmotionalSettingsModal";
@@ -172,11 +174,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
         </div>
 
         <div className="codenames-header-new__center">
-          {room?.isPaused ? (
-            <div className="codenames-header-turn__timer codenames-header-turn__timer--paused">
-              Пауза
-            </div>
-          ) : room?.phaseEndsAt && room?.phase === "vote" ? (
+          {room?.phaseEndsAt && room?.phase === "vote" && !room?.isPaused ? (
             <div className="emotional-header-timer">
               <RadialCountdown
                 secondsLeft={(room.phaseEndsAt - adjustedNowMs) / 1000}
@@ -191,6 +189,8 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
         </div>
 
         <div className="codenames-header-new__right">
+          <BatteryModeButton gameId={GAME_IDS.EMOTIONAL} />
+          
           {isAuthenticated ? (
             <button className="codenames-header-profile__btn" onClick={() => navigate("/profile")} title="Профиль">
               {user?.avatarUrl ? (
@@ -315,18 +315,15 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
             isHost={isHost}
             centerTimer={
               room?.phase === "submit" && room?.phaseEndsAt ? (
-                room?.isPaused ? (
-                  <div className="emotional-pause-indicator">Пауза</div>
-                ) : (
-                  <RadialCountdown
-                    secondsLeft={(room.phaseEndsAt - adjustedNowMs) / 1000}
+                <RadialCountdown
+                    secondsLeft={room?.isPaused ? null : (room.phaseEndsAt - adjustedNowMs) / 1000}
                     totalSeconds={60}
                     size={80}
                     strokeWidth={6}
                     variant="semi"
                     showLabel={false}
+                    pauseSymbol={room?.isPaused ? "||" : null}
                   />
-                )
               ) : null
             }
             isPaused={room?.isPaused}

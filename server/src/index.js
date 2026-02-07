@@ -1430,17 +1430,21 @@ async function leaveAllRooms(socket) {
     socket.data.aliasPlayerId = null;
   }
 
-  // Выход из Emotional
+  // Выход из Emotional — используем disconnect вместо leave, чтобы сохранить карты
+  // Leave будет вызван только явно через emotional:room:leave
   if (socket.data.emotionalRoomCode && socket.data.emotionalPlayerId) {
     const roomCode = socket.data.emotionalRoomCode;
     const playerId = socket.data.emotionalPlayerId;
     try {
-      const result = leaveEmotionalRoom(roomCode, playerId);
+      // Используем disconnectPlayer вместо leaveRoom — карты остаются у игрока
+      const result = disconnectEmotionalPlayer(roomCode, playerId);
       socket.leave(`emotional:${roomCode}`);
       emotionalPlayerSockets.delete(playerId);
 
-      if (!result.deleted && result.room) {
+      if (result.room) {
         result.room.players.forEach(p => {
+          if (p.id === playerId) return;
+          if (p.connectionStatus === "left" || p.connectionStatus === "kicked") return;
           const socketId = emotionalPlayerSockets.get(p.id);
           if (socketId) {
             io.to(socketId).emit("emotional:state:sync", buildEmotionalRoomState(result.room, p.id));

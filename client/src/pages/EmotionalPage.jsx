@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { useAuth } from "../context/AuthContext";
+import { useSettings, GAME_IDS } from "../context/SettingsContext";
 import EmotionalJoinScreen from "../components/emotional/EmotionalJoinScreen";
 import EmotionalRoomScreen from "../components/emotional/EmotionalRoomScreen";
 import EmotionalShaderBackground from "../components/emotional/EmotionalShaderBackground";
@@ -89,6 +90,7 @@ export default function EmotionalPage() {
   const location = useLocation();
   const { roomCode: urlRoomCode } = useParams();
   const { user } = useAuth();
+  const { isShadersDisabled } = useSettings();
 
   const [connected, setConnected] = useState(false);
   const [gameState, setGameState] = useState(null);
@@ -369,7 +371,7 @@ export default function EmotionalPage() {
   if (isRestoring) {
     return (
       <div className="emotional-page">
-        <EmotionalShaderBackground />
+        {!isShadersDisabled(GAME_IDS.EMOTIONAL) && <EmotionalShaderBackground />}
         <div className="emotional-loading">
           <div className="emotional-loading__spinner" />
           <p>Восстановление сессии...</p>
@@ -381,7 +383,7 @@ export default function EmotionalPage() {
   if (!gameState) {
     return (
       <div className="emotional-page">
-        <EmotionalShaderBackground />
+        {!isShadersDisabled(GAME_IDS.EMOTIONAL) && <EmotionalShaderBackground />}
         <EmailVerifyBanner />
 
         <EmotionalJoinScreen
@@ -402,7 +404,7 @@ export default function EmotionalPage() {
 
   return (
     <div className="emotional-page emotional-page--in-room">
-      <EmotionalShaderBackground />
+      {!isShadersDisabled(GAME_IDS.EMOTIONAL) && <EmotionalShaderBackground />}
       <EmailVerifyBanner />
 
       <EmotionalRoomScreen

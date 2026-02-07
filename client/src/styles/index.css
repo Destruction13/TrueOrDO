@@ -189,6 +189,12 @@ p {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 24px;
+  align-items: stretch;
+}
+
+/* Убедимся, что карточки растягиваются на всю высоту */
+.join-screen .glass-card {
+  height: 100%;
 }
 
 /* Упрощённый экран входа по приглашению (одна карточка) */
@@ -247,12 +253,16 @@ p {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
   animation: fadeUp 0.7s ease both;
   min-width: 0;
+  /* Flexbox для выравнивания кнопок по низу */
+  display: flex;
+  flex-direction: column;
 }
 .glass-card:nth-child(2) {
   animation-delay: 0.1s;
 }
-.glass-card .btn-ds {
-  margin-top: 8px;
+.glass-card .btn-ds,
+.glass-card .pulse-btn {
+  margin-top: auto;
 }
 .field {
   display: flex;

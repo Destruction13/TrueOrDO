@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
 import AliasShaderBackground from "../components/alias/AliasShaderBackground";
 import { useAuth } from "../context/AuthContext";
+import { useSettings, GAME_IDS } from "../context/SettingsContext";
 import Button from "../components/ui/Button";
 import AliasJoinScreen from "../components/alias/AliasJoinScreen";
 import AliasRoomScreen from "../components/alias/AliasRoomScreen";
@@ -84,6 +85,7 @@ export default function AliasPage() {
   const location = useLocation();
   const { roomCode: urlRoomCode } = useParams();
   const { user } = useAuth();
+  const { isShadersDisabled } = useSettings();
   
   const [connected, setConnected] = useState(false);
   const [aliasState, setAliasState] = useState(null);
@@ -399,7 +401,7 @@ export default function AliasPage() {
   if (isRestoring) {
     return (
       <div className="alias-page">
-        <AliasShaderBackground />
+        {!isShadersDisabled(GAME_IDS.ALIAS) && <AliasShaderBackground />}
         <div className="alias-loading">
           <div className="alias-loading__spinner" />
           <p>Восстановление сессии...</p>
@@ -411,7 +413,7 @@ export default function AliasPage() {
   if (!aliasState) {
     return (
       <div className="alias-page">
-        <AliasShaderBackground />
+        {!isShadersDisabled(GAME_IDS.ALIAS) && <AliasShaderBackground />}
         <EmailVerifyBanner />
         <AliasJoinScreen
           connected={connected}
@@ -431,7 +433,7 @@ export default function AliasPage() {
 
   return (
     <div className="alias-page alias-page--in-room">
-      <AliasShaderBackground />
+      {!isShadersDisabled(GAME_IDS.ALIAS) && <AliasShaderBackground />}
       <EmailVerifyBanner />
       <div className="alias-shader-overlay" />
       <AliasRoomScreen

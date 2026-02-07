@@ -8,6 +8,7 @@ import EmailVerifyBanner from "../components/auth/EmailVerifyBanner";
 import BannedModal from "../components/ui/BannedModal";
 import GameEndedModal from "../components/ui/GameEndedModal";
 import { useAuth } from "../context/AuthContext";
+import { useSettings, GAME_IDS } from "../context/SettingsContext";
 import "./TruthOrDarePage.css";
 
 const socket = io(import.meta.env.VITE_SERVER_URL || "/", {
@@ -109,6 +110,7 @@ export default function TruthOrDarePage() {
   const location = useLocation();
   const { roomCode: urlRoomCode } = useParams();
   const { user } = useAuth();
+  const { isShadersDisabled } = useSettings();
   const [connected, setConnected] = useState(false);
   const [roomState, setRoomState] = useState(null);
   const [meId, setMeId] = useState(null);
@@ -755,7 +757,7 @@ export default function TruthOrDarePage() {
   if (!roomState) {
     return (
       <div className="truth-or-dare-page">
-        <ShaderBackground />
+        {!isShadersDisabled(GAME_IDS.TRUTH_OR_DARE) && <ShaderBackground />}
         <EmailVerifyBanner />
         <JoinScreen
           connected={connected}
@@ -784,7 +786,7 @@ export default function TruthOrDarePage() {
 
   return (
     <div className="truth-or-dare-page">
-      <ShaderBackground />
+      {!isShadersDisabled(GAME_IDS.TRUTH_OR_DARE) && <ShaderBackground />}
       <EmailVerifyBanner />
       <RoomScreen
         connected={connected}

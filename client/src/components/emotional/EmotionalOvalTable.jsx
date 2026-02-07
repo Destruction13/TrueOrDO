@@ -292,7 +292,7 @@ export default function EmotionalOvalTable({
   }, [myHand, isSmallScreen]);
 
   return (
-    <div className={`oval-table${secretEmotion ? " oval-table--leader-secret" : ""}${(!myHand || myHand.length === 0 || phase !== "submit") ? " oval-table--no-hand" : ""}`}>
+    <div className={`oval-table${secretEmotion ? " oval-table--leader-secret" : ""}${(!myHand || myHand.length === 0 || phase !== "submit" || selectedHandCard) ? " oval-table--no-hand" : ""}`}>
       <div className="oval-table__surface">
         {/* Игроки по эллипсу */}
         {playerPositions.map(({ player, x, y, isMe }) => {
@@ -375,6 +375,16 @@ export default function EmotionalOvalTable({
                     <div className="oval-table__secret-emotion-plain" aria-label={`Ваша секретная эмоция: ${secretEmotion}`}>
                       {secretEmotion}
                     </div>
+                  ) : selectedHandCard ? (
+                    <motion.div 
+                      className="oval-table__selected-emotion-plain" 
+                      aria-label={`Ваш выбор: ${selectedHandCard}`}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {selectedHandCard}
+                    </motion.div>
                   ) : null}
                 </div>
               </motion.div>
@@ -494,8 +504,8 @@ export default function EmotionalOvalTable({
           </AnimatePresence>
         </div>
 
-        {/* Рука под столом (дуга внутри стола) — только в фазе submit */}
-        {phase === "submit" && myHand && myHand.length > 0 && (
+        {/* Рука под столом (дуга внутри стола) — только в фазе submit и пока не выбрана карточка */}
+        {phase === "submit" && myHand && myHand.length > 0 && !selectedHandCard && (
           <div className="oval-table__hand">
             {handPositions.map(({ emotion, rotation, x, y, index, zIndex }) => {
               const isSelected = selectedHandCard === emotion;
@@ -516,7 +526,6 @@ export default function EmotionalOvalTable({
                   style={{
                     left: `${x}%`,
                     top: `${y}%`,
-                    zIndex: baseZ,
                     rotate: `${rotation}deg`,
                     touchAction: 'none', // Важно для drag на мобильных
                     ...(color
@@ -526,14 +535,8 @@ export default function EmotionalOvalTable({
                         }
                       : {}),
                   }}
-                  onMouseEnter={() => {
-                    if (isCoarsePointer) return;
-                    setHoveredHandCard(emotion);
-                  }}
-                  onMouseLeave={() => {
-                    if (isCoarsePointer) return;
-                    setHoveredHandCard((prev) => (prev === emotion ? null : prev));
-                  }}
+                  onMouseEnter={() => setHoveredHandCard(emotion)}
+                  onMouseLeave={() => setHoveredHandCard((prev) => (prev === emotion ? null : prev))}
                   onClick={() => {
                     // Клик поднимает карту (активирует для drag)
                     setActiveHandCard((prev) => (prev === emotion ? null : emotion));
@@ -553,6 +556,7 @@ export default function EmotionalOvalTable({
                   animate={{
                     y: isRaised ? -30 : 0,
                     scale: isRaised ? 1.06 : 1,
+                    zIndex: baseZ,
                   }}
                   transition={{ duration: 0.15, ease: "easeOut" }}
                   whileTap={{ scale: isRaised ? 1.04 : 0.98 }}
@@ -564,88 +568,83 @@ export default function EmotionalOvalTable({
                   {isActive && (
                     <motion.div
                       className="oval-table__hand-card-hint"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={{ opacity: 1 }}
+                      animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       style={{
                         position: 'absolute',
-                        bottom: 'calc(100% + 15px)',
+                        bottom: 'calc(100% + 5px)',
                         left: 0,
                         right: 0,
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '3px',
                         pointerEvents: 'none',
                         zIndex: 10,
+                        height: '50px',
+                        overflow: 'visible',
                       }}
                     >
-                      {/* Анимированные стрелки вверх (снизу вверх) */}
+                      {/* Стрелка-шеврон через CSS, поднимается снизу вверх 3 раза */}
                       <motion.div
                         style={{
+                          position: 'absolute',
+                          width: '75%',
+                          height: '12px',
                           display: 'flex',
-                          flexDirection: 'column',
+                          justifyContent: 'center',
                           alignItems: 'center',
-                          gap: '0px',
+                        }}
+                        initial={{ y: 12, opacity: 0 }}
+                        animate={{ 
+                          y: [12, 5, 5],
+                          opacity: [0, 1, 0]
+                        }}
+                        transition={{ 
+                          duration: 1.8, 
+                          repeat: 2, 
+                          repeatDelay: 0.8,
+                          ease: "easeInOut",
                         }}
                       >
-                        <motion.span
+                        {/* Шеврон через псевдо-элементы (две линии под углом) — смотрит ВВЕРХ */}
+                        <div
                           style={{
-                            color: '#00d4ff',
-                            fontSize: 'clamp(16px, 4cqw, 24px)',
-                            fontWeight: 'bold',
-                            textShadow: '0 0 12px rgba(0, 212, 255, 0.9)',
-                            lineHeight: 0.7,
+                            width: '100%',
+                            height: '100%',
+                            position: 'relative',
                           }}
-                          animate={{ y: [0, -6, 0], opacity: [0.6, 1, 0.6] }}
-                          transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
                         >
-                          ᐱ
-                        </motion.span>
-                        <motion.span
-                          style={{
-                            color: '#00d4ff',
-                            fontSize: 'clamp(14px, 3.5cqw, 20px)',
-                            fontWeight: 'bold',
-                            textShadow: '0 0 10px rgba(0, 212, 255, 0.7)',
-                            lineHeight: 0.7,
-                          }}
-                          animate={{ y: [0, -6, 0], opacity: [0.5, 1, 0.5] }}
-                          transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
-                        >
-                          ᐱ
-                        </motion.span>
-                        <motion.span
-                          style={{
-                            color: '#00d4ff',
-                            fontSize: 'clamp(12px, 3cqw, 16px)',
-                            fontWeight: 'bold',
-                            textShadow: '0 0 8px rgba(0, 212, 255, 0.5)',
-                            lineHeight: 0.7,
-                          }}
-                          animate={{ y: [0, -6, 0], opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                        >
-                          ᐱ
-                        </motion.span>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              left: '50%',
+                              top: 0,
+                              width: '50%',
+                              height: '3px',
+                              background: '#00d4ff',
+                              transformOrigin: 'left center',
+                              transform: 'rotate(35deg)',
+                              boxShadow: '0 0 10px rgba(0, 212, 255, 0.9)',
+                              borderRadius: '2px',
+                            }}
+                          />
+                          <div
+                            style={{
+                              position: 'absolute',
+                              right: '50%',
+                              top: 0,
+                              width: '50%',
+                              height: '3px',
+                              background: '#00d4ff',
+                              transformOrigin: 'right center',
+                              transform: 'rotate(-35deg)',
+                              boxShadow: '0 0 10px rgba(0, 212, 255, 0.9)',
+                              borderRadius: '2px',
+                            }}
+                          />
+                        </div>
                       </motion.div>
-                      {/* Текст подсказки */}
-                      <motion.span
-                        style={{
-                          color: '#ff9500',
-                          fontSize: 'clamp(9px, 2cqw, 12px)',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          textShadow: '0 0 10px rgba(255, 149, 0, 0.7)',
-                          whiteSpace: 'nowrap',
-                          marginTop: '6px',
-                        }}
-                        animate={{ opacity: [0.6, 1, 0.6] }}
-                        transition={{ duration: 1.2, repeat: Infinity }}
-                      >
-                        Потяните вверх
-                      </motion.span>
                     </motion.div>
                   )}
                 </motion.button>

@@ -260,3 +260,43 @@
     font-size: 38px;
   }
 }
+
+/* Иконка паузы — два прямоугольных контура */
+.radial-countdown__pause-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  animation: radial-pause-pulse 2.5s ease-in-out infinite;
+}
+
+.radial-countdown__pause-bar {
+  width: 10px;
+  height: 32px;
+  border: 3px solid #fbbf24;
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+}
+
+/* Адаптация для semi-варианта (меньший размер) */
+.radial-countdown--semi .radial-countdown__pause-icon {
+  gap: 6px;
+}
+
+.radial-countdown--semi .radial-countdown__pause-bar {
+  width: 8px;
+  height: 26px;
+  border-width: 2px;
+}
+
+@keyframes radial-pause-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+}
