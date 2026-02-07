@@ -133,11 +133,11 @@
 .oval-table__player-status-dot {
   position: absolute;
   bottom: 0;
-  right: 4px;
-  width: 10px;
-  height: 10px;
+  right: clamp(2px, 0.8cqw, 4px);
+  width: clamp(6px, 2cqw, 10px);
+  height: clamp(6px, 2cqw, 10px);
   border-radius: 50%;
-  border: 2px solid #0a0e14;
+  border: clamp(1px, 0.4cqw, 2px) solid #0a0e14;
   transition: background 0.3s ease;
   z-index: 100;
   pointer-events: none;
@@ -162,9 +162,9 @@
 /* Плавающая корона для хоста */
 .oval-table__player-crown {
   position: absolute;
-  top: clamp(-3px, -0.6cqw, -4px);
-  right: clamp(-3px, -0.6cqw, -4px);
-  font-size: clamp(10px, 2.5cqw, 14px);
+  top: clamp(-4px, -1cqw, -3px);
+  right: clamp(-4px, -1cqw, -3px);
+  font-size: clamp(8px, 2.2cqw, 14px);
   filter: drop-shadow(0 clamp(1px, 0.4cqw, 2px) clamp(2px, 0.5cqw, 3px) rgba(0, 0, 0, 0.6));
   animation: oval-table-crown-float 2s ease-in-out infinite;
   line-height: 1;
@@ -242,27 +242,27 @@
 .oval-table__word-display {
   position: relative;
   overflow: visible;
-  padding: clamp(6px, 2.5cqw, 16px) clamp(8px, 3.5cqw, 24px);
-  border-radius: clamp(8px, 2cqw, 12px);
-  border: clamp(1px, 0.4cqw, 2px) solid rgba(255, 255, 255, 0.2);
+  padding: clamp(4px, 1.5cqw, 12px) clamp(6px, 2.5cqw, 18px);
+  border-radius: clamp(6px, 1.5cqw, 10px);
+  border: clamp(1px, 0.3cqw, 1.5px) solid rgba(255, 255, 255, 0.2);
   background: rgba(10, 14, 20, 0.85);
   backdrop-filter: blur(10px);
-  box-shadow: 0 clamp(5px, 1.5cqw, 8px) clamp(14px, 4.5cqw, 24px) rgba(0, 0, 0, 0.4);
-  min-width: clamp(100px, 35cqw, 220px);
-  max-width: min(95cqw, 560px);
+  box-shadow: 0 clamp(3px, 1cqw, 6px) clamp(8px, 3cqw, 16px) rgba(0, 0, 0, 0.4);
+  min-width: clamp(70px, 22cqw, 160px);
+  max-width: min(70cqw, 400px);
   text-align: center;
 }
 
 .oval-table__word-label {
-  font-size: clamp(8px, 2cqw, 11px);
+  font-size: clamp(6px, 1.4cqw, 9px);
   opacity: 0.7;
-  margin-bottom: clamp(4px, 1cqw, 6px);
+  margin-bottom: clamp(2px, 0.6cqw, 4px);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
 .oval-table__word-value {
-  font-size: clamp(11px, 3.2cqw, 20px); /* базовый максимум, дальше подбирается JS */
+  font-size: clamp(9px, 2.4cqw, 16px); /* базовый максимум, дальше подбирается JS */
   font-weight: 800;
   letter-spacing: 0.3px;
   color: rgba(255, 255, 255, 0.95);
@@ -279,17 +279,17 @@
   margin: 0 auto;
 }
 
-/* Масштабируемый таймер внутри овального стола */
+/* Масштабируемый таймер внутри овального стола — пропорционален размеру стола */
 .oval-table__phrase-timer .radial-countdown {
-  --rc-size: clamp(36px, 12cqw, 80px);
+  --rc-size: clamp(28px, 7cqw, 52px);
 }
 
 .oval-table__phrase-timer .radial-countdown__value {
-  font-size: clamp(14px, 4.5cqw, 30px);
+  font-size: clamp(10px, 2.8cqw, 20px);
 }
 
 .oval-table__phrase-timer .radial-countdown__label {
-  font-size: clamp(8px, 2.2cqw, 13px);
+  font-size: clamp(6px, 1.4cqw, 10px);
 }
 
 /* Таймер-дуга поверх блока слова: края совпадают с краями word-display */
@@ -376,17 +376,27 @@
 }
 
 .oval-table__slots {
-  /* Сетка карт на столе (прямоугольники) */
-  --table-card-w: clamp(50px, 14cqw, 78px);  /* ~75% от 104px */
-  --table-card-h: calc(var(--table-card-w) * 1.42); /* ~соотношение 104x148 */
+  /* Сетка карт на столе — полностью адаптивная через container queries */
+  --card-count: 4; /* Переопределяется inline через style */
+  
+  /* Размер карточки: ~13.8% ширины стола как базовый, уменьшается при >4 картах */
+  /* При 4 картах: ~13.8cqw, при 8: ~6.9cqw, при 10: ~5.5cqw */
+  --table-card-w: calc(55.2cqw / max(var(--card-count), 4));
+  --table-card-h: calc(var(--table-card-w) * 1.42); /* Соотношение сторон 1:1.42 */
 
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--table-card-w), 1fr));
-  gap: clamp(6px, 1.8cqw, 10px);
-  place-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  /* Адаптивные отступы между картами */
+  gap: 2cqw;
 
-  width: min(520px, 95cqw);
+  /* Ширина: максимум 75% стола, чтобы не пересекаться с аватарами */
+  width: 75cqw;
+  max-width: 75cqw;
   margin: 0 auto;
+  /* Отступы сверху/снизу от аватаров */
+  padding: 2cqw 0;
   
   /* 3D контекст для карточек */
   perspective: 1200px;
@@ -651,18 +661,7 @@
 
 
 @media (max-width: 1200px) {
-  /* Фраза: базовый максимум меньше на узких, но финально размер подберёт FitTwoLineText */
-  .oval-table__word-value {
-    font-size: 20px;
-    letter-spacing: 0.15px;
-  }
-
-  .oval-table__word-display {
-    /* чуть меньше внутренние отступы, чтобы текст помещался без 3 строк */
-    padding: 14px 18px;
-    min-width: 200px;
-    max-width: min(92vw, 520px);
-  }
+  /* word-display и word-value масштабируются через container queries (cqw) */
 }
 
 /* Поднятая карточка всегда поверх */
@@ -678,13 +677,7 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 1200px) {
-  .oval-table__slots {
-    width: min(92vw, 520px);
-    gap: 8px;
-    --table-card-w: clamp(56px, 10.5vw, 74px);
-  }
-}
+/* Убраны фиксированные медиа-запросы для .oval-table__slots — масштабирование через cqw */
 
 .oval-table__hand-card > * {
   position: relative;
@@ -693,8 +686,9 @@
 
 .oval-table__card-emotion {
   /* Текст эмоции на карте стола: горизонтально, с переносами и без обрезки */
+  /* Размер шрифта пропорционален ширине карточки (~18% от ширины карты) */
   font-family: 'Roboto Condensed', sans-serif;
-  font-size: clamp(8px, 2.4cqw, 13px);
+  font-size: calc(var(--table-card-w, 11cqw) * 0.18);
   font-weight: 900;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -713,7 +707,7 @@
   /* даём тексту занимать всю высоту карты */
   display: grid;
   place-items: center;
-  padding: clamp(2px, 0.7cqw, 4px) clamp(1px, 0.4cqw, 2px);
+  padding: calc(var(--table-card-w, 11cqw) * 0.05);
 }
 
 .oval-table__card-votes {
@@ -748,25 +742,8 @@
     padding: 0;
   }
 
-  .oval-table__player-avatar {
-    width: 42px;
-    height: 42px;
-    font-size: 14px;
-  }
-
-  .oval-table__player-name {
-    font-size: 10px;
-  }
-
-  .oval-table__slots {
-    max-width: 300px;
-    gap: 8px;
-    --table-card-w: 70px;
-  }
-
-  .oval-table__card-emotion {
-    font-size: 11px;
-  }
+  /* Игроки масштабируются через container queries (cqw) */
+  /* .oval-table__slots и .oval-table__card-emotion масштабируются через container queries */
 }
 
 @media (max-width: 480px) {
@@ -774,13 +751,7 @@
     aspect-ratio: 4 / 3.5; /* Более компактный */
   }
 
-  .oval-table__slots {
-    --table-card-w: 60px;
-  }
-
-  .oval-table__card-emotion {
-    font-size: 10px;
-  }
+  /* .oval-table__slots и .oval-table__card-emotion масштабируются через container queries */
 
   /* Масштабирование кнопок в центре стола */
   .oval-table__center-action .btn-ds {
@@ -796,42 +767,7 @@
     aspect-ratio: 1 / 1; /* Более квадратный стол для узких экранов */
   }
 
-  .oval-table__word-display {
-    padding: 5px 6px;
-    min-width: 90px;
-    border-radius: 8px;
-  }
-
-  .oval-table__word-value {
-    font-size: 10px !important;
-  }
-
-  .oval-table__phrase-timer .radial-countdown {
-    --rc-size: 32px;
-  }
-
-  .oval-table__phrase-timer .radial-countdown__value {
-    font-size: 12px;
-  }
-
-  .oval-table__player-avatar {
-    width: 24px;
-    height: 24px;
-    font-size: 9px;
-  }
-
-  .oval-table__player-name {
-    font-size: 7px;
-  }
-
-  .oval-table__slots {
-    --table-card-w: 45px;
-    gap: 4px;
-  }
-
-  .oval-table__card-emotion {
-    font-size: 8px;
-  }
+  /* word-display, word-value, таймер, игроки — всё масштабируется через container queries (cqw) */
 
   /* Масштабирование кнопок в центре стола */
   .oval-table__center-action .btn-ds {
@@ -843,24 +779,7 @@
 }
 
 @media (max-width: 360px) {
-  .oval-table__word-display {
-    padding: 4px 5px;
-    min-width: 80px;
-  }
-
-  .oval-table__word-value {
-    font-size: 9px !important;
-  }
-
-  .oval-table__player-avatar {
-    width: 20px;
-    height: 20px;
-    font-size: 8px;
-  }
-
-  .oval-table__player-name {
-    font-size: 6px;
-  }
+  /* word-display, word-value, игроки — масштабируются через container queries (cqw) */
 
   /* Ещё более компактные кнопки */
   .oval-table__center-action .btn-ds {

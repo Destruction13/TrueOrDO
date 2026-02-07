@@ -71,61 +71,172 @@ export default function EmotionalRulesModal({ isOpen, onClose }) {
               <div className="rules-modal__content">
                 <section className="rules-section">
                   <div className="rules-section__header">
-                    <span className="rules-section__number">1</span>
-                    <h3 className="rules-section__title">Суть</h3>
+                    <span className="rules-section__number">🎯</span>
+                    <h3 className="rules-section__title">Цель игры</h3>
                   </div>
                   <div className="rules-section__body">
                     <p>
-                      Ведущий получает <strong>секретную эмоцию</strong>. Всем игрокам показывается одно слово.
-                      Каждый игрок выбирает эмоцию, с которой он бы ассоциировал это слово.
+                      <strong>Эмоциональный интеллект</strong> — это игра на эмпатию и понимание других. 
+                      Ведущий получает секретную эмоцию и должен «отыграть» её через фразу. 
+                      Остальные игроки пытаются угадать, какую эмоцию он загадал.
                     </p>
                     <p>
-                      Задача — <strong>угадать эмоцию ведущего</strong>. Ведущий, в свою очередь, пытается понять,
-                      как думают остальные.
+                      Набирайте очки за победу в голосовании и за угадывание эмоции ведущего!
                     </p>
                   </div>
                 </section>
 
                 <section className="rules-section">
                   <div className="rules-section__header">
-                    <span className="rules-section__number">2</span>
-                    <h3 className="rules-section__title">Раунд</h3>
+                    <span className="rules-section__number">🃏</span>
+                    <h3 className="rules-section__title">Подготовка</h3>
                   </div>
                   <div className="rules-section__body">
                     <ul className="rules-list">
                       <li className="rules-list__item rules-list__item--accept">
-                        <span className="rules-list__icon">✓</span>
-                        <span>Ведущий тянет эмоцию втайне от остальных</span>
+                        <span className="rules-list__icon">🎴</span>
+                        <span>Каждый игрок получает <strong>8 карт эмоций</strong> на руку</span>
                       </li>
                       <li className="rules-list__item rules-list__item--accept">
-                        <span className="rules-list__icon">✓</span>
-                        <span>Появляется слово (или фраза)</span>
+                        <span className="rules-list__icon">👑</span>
+                        <span>Ведущий меняется каждый раунд по очереди</span>
                       </li>
                       <li className="rules-list__item rules-list__item--accept">
-                        <span className="rules-list__icon">✓</span>
-                        <span>Все выбирают эмоцию и выкладывают карту</span>
+                        <span className="rules-list__icon">⚙️</span>
+                        <span>Хост настраивает лимит очков для победы (по умолчанию 15)</span>
+                      </li>
+                    </ul>
+                  </div>
+                </section>
+
+                <section className="rules-section">
+                  <div className="rules-section__header">
+                    <span className="rules-section__number">📖</span>
+                    <h3 className="rules-section__title">Ход раунда</h3>
+                  </div>
+                  <div className="rules-section__body">
+                    <ul className="rules-list">
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">1️⃣</span>
+                        <span><strong>Ведущий получает секретную эмоцию</strong> — она отображается автоматически, только он её видит</span>
                       </li>
                       <li className="rules-list__item rules-list__item--accept">
-                        <span className="rules-list__icon">✓</span>
-                        <span>Открывается «стол», начинается голосование</span>
+                        <span className="rules-list__icon">2️⃣</span>
+                        <span><strong>Появляется фраза</strong> — её видят все, но ведущий должен «зачитать» её с эмоцией</span>
+                      </li>
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">3️⃣</span>
+                        <span><strong>Все выкладывают карты</strong> — выберите эмоцию из руки и потяните вверх</span>
+                      </li>
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">4️⃣</span>
+                        <span><strong>Голосование</strong> — проголосуйте за эмоцию, которую, по вашему мнению, отыграл ведущий</span>
+                      </li>
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">5️⃣</span>
+                        <span><strong>Подсчёт очков</strong> — раскрываются результаты и начисляются баллы</span>
+                      </li>
+                    </ul>
+                  </div>
+                </section>
+
+                <section className="rules-section">
+                  <div className="rules-section__header">
+                    <span className="rules-section__number">⭐</span>
+                    <h3 className="rules-section__title">Система очков</h3>
+                  </div>
+                  <div className="rules-section__body">
+                    <ul className="rules-list">
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">👑</span>
+                        <span><strong>+2 очка ведущему</strong> — если его карта побеждает в голосовании</span>
+                      </li>
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">🎯</span>
+                        <span><strong>+1 очко игроку</strong> — за голос в пользу карты ведущего (даже если она не победила)</span>
+                      </li>
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">🏅</span>
+                        <span><strong>+1 очко игроку</strong> — если его карта (не ведущего) победила в голосовании</span>
                       </li>
                     </ul>
                     <p className="rules-note">
-                      Точная система очков и тонкости (таймер, пропуски, конец игры) будут расширены в следующих итерациях.
+                      💡 <strong>При ничьей</strong> очки получают все победители! Например: карта ведущего и карта игрока 
+                      набрали одинаково голосов — ведущий получает 2 очка, игрок 1 очко. Если вы проголосовали 
+                      за карту ведущего и ваша карта тоже победила — вы получите 2 очка (1+1).
                     </p>
                   </div>
                 </section>
 
-                <section className="rules-section rules-section--chaos">
+                <section className="rules-section rules-section--featured">
                   <div className="rules-section__header">
-                    <span className="rules-section__number rules-section__number--chaos">⚠️</span>
-                    <h3 className="rules-section__title">Важно</h3>
+                    <span className="rules-section__number">👥</span>
+                    <h3 className="rules-section__title">Игра вдвоём или втроём</h3>
                   </div>
                   <div className="rules-section__body">
-                    <p className="rules-warning">
-                      Игра в разработке: на текущем этапе доступен каркас комнат и синхронизация, а полноценные правила и
-                      механика будут добавляться по плану.
+                    <p>
+                      При малом количестве игроков на стол автоматически добавляются 
+                      <strong> дополнительные карты из колоды</strong>, чтобы голосование было интереснее:
                     </p>
+                    <ul className="rules-list">
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">2️⃣</span>
+                        <span><strong>2 игрока</strong> — +2 карты из колоды</span>
+                      </li>
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">3️⃣</span>
+                        <span><strong>3 игрока</strong> — +1 карта из колоды</span>
+                      </li>
+                    </ul>
+                    <div className="rules-highlight">
+                      <span className="rules-highlight__icon">✨</span>
+                      <span className="rules-highlight__text">
+                        <strong>Уникальная механика:</strong> дополнительные карты подбираются по «вайбу» 
+                        эмоции ведущего — похожие по настроению, чтобы угадать было не так просто!
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rules-section">
+                  <div className="rules-section__header">
+                    <span className="rules-section__number">⏸️</span>
+                    <h3 className="rules-section__title">Управление игрой</h3>
+                  </div>
+                  <div className="rules-section__body">
+                    <ul className="rules-list">
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">⏸️</span>
+                        <span><strong>Пауза</strong> — хост может приостановить игру в любой момент</span>
+                      </li>
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">🔌</span>
+                        <span><strong>Отключение</strong> — если игрок потерял связь, его карты сохраняются до переподключения</span>
+                      </li>
+                      <li className="rules-list__item rules-list__item--accept">
+                        <span className="rules-list__icon">🚪</span>
+                        <span><strong>Выход</strong> — при явном выходе карты игрока возвращаются в колоду</span>
+                      </li>
+                    </ul>
+                  </div>
+                </section>
+
+                <section className="rules-section rules-section--victory">
+                  <div className="rules-section__header">
+                    <span className="rules-section__number rules-section__number--victory">🏆</span>
+                    <h3 className="rules-section__title">Победа</h3>
+                  </div>
+                  <div className="rules-section__body rules-section__body--victory">
+                    <p className="rules-victory-text">
+                      Игра продолжается до тех пор, пока один из игроков не наберёт 
+                      <strong> необходимое количество очков</strong>
+                    </p>
+                    <div className="rules-victory-crown">
+                      <span className="rules-victory-crown__icon">👑</span>
+                      <span className="rules-victory-crown__text">
+                        Побеждает тот, кто лучше всех понимает эмоции других!
+                      </span>
+                    </div>
                   </div>
                 </section>
               </div>
