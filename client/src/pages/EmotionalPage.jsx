@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, getOrCreateGlobalVisitorId } from "../context/AuthContext";
 import { useSettings, GAME_IDS } from "../context/SettingsContext";
 import EmotionalJoinScreen from "../components/emotional/EmotionalJoinScreen";
 import EmotionalRoomScreen from "../components/emotional/EmotionalRoomScreen";
@@ -19,17 +19,9 @@ const SESSION_KEYS = {
 };
 
 function getOrCreateVisitorId() {
-  try {
-    let visitorId = localStorage.getItem(SESSION_KEYS.VISITOR_ID);
-    if (!visitorId) {
-      visitorId =
-        "ev_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
-      localStorage.setItem(SESSION_KEYS.VISITOR_ID, visitorId);
-    }
-    return visitorId;
-  } catch {
-    return "ev_" + Math.random().toString(36).substring(2);
-  }
+  // Используем глобальный visitorId (с префиксом u_) для всех пользователей
+  // Это позволяет привязывать статистику к аккаунту
+  return getOrCreateGlobalVisitorId();
 }
 
 function saveSession(playerId, roomCode, playerName) {
@@ -89,7 +81,7 @@ export default function EmotionalPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { roomCode: urlRoomCode } = useParams();
-  const { user } = useAuth();
+  const { user, customization } = useAuth();
   const { isShadersDisabled } = useSettings();
 
   const [connected, setConnected] = useState(false);
@@ -173,7 +165,7 @@ export default function EmotionalPage() {
           const visitorId = getOrCreateVisitorId();
           socket.emit(
             "emotional:room:join",
-            { code: targetCode, name, visitorId, avatarUrl: user?.avatarUrl },
+            { code: targetCode, name, visitorId, avatarUrl: user?.avatarUrl, frameSlug: customization?.frameAll },
             (res) => {
               if (res?.ok) {
                 setGameState(res.state);
@@ -199,7 +191,7 @@ export default function EmotionalPage() {
     const handleUrlJoin = () => {
       if (urlRoomCode) {
         if (user?.nickname) {
-          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl);
+          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl, customization?.frameAll);
         } else {
           setPendingJoinCode(urlRoomCode);
           setIsRestoring(false);
@@ -209,11 +201,11 @@ export default function EmotionalPage() {
       }
     };
 
-    const joinRoomDirect = (code, name, avatarUrl) => {
+    const joinRoomDirect = (code, name, avatarUrl, frameSlug) => {
       const visitorId = getOrCreateVisitorId();
       socket.emit(
         "emotional:room:join",
-        { code, name, visitorId, avatarUrl },
+        { code, name, visitorId, avatarUrl, frameSlug },
         (res) => {
           if (res?.ok) {
             setGameState(res.state);
@@ -266,12 +258,13 @@ export default function EmotionalPage() {
 
   const actions = useMemo(
     () => ({
-      createRoom: async (name, avatarUrl) => {
+      createRoom: async (name, avatarUrl, frameSlug) => {
         const visitorId = getOrCreateVisitorId();
         const res = await emitWithAck("emotional:room:create", {
           name,
           visitorId,
           avatarUrl,
+          frameSlug,
         });
         const result = handleAck(res);
         if (result.ok) {
@@ -283,13 +276,14 @@ export default function EmotionalPage() {
         }
         return result;
       },
-      joinRoom: async (name, code, avatarUrl) => {
+      joinRoom: async (name, code, avatarUrl, frameSlug) => {
         const visitorId = getOrCreateVisitorId();
         const res = await emitWithAck("emotional:room:join", {
           name,
           code,
           visitorId,
           avatarUrl,
+          frameSlug,
         });
         const result = handleAck(res);
         if (result.ok) {
@@ -392,6 +386,7 @@ export default function EmotionalPage() {
           onCreate={actions.createRoom}
           onJoin={actions.joinRoom}
           user={user}
+          customization={customization}
           onProfile={() => navigate("/profile")}
           onLogin={() => navigate("/login", { state: { backgroundLocation: location } })}
           onClearError={() => setError("")}
@@ -413,6 +408,7 @@ export default function EmotionalPage() {
         meId={meId}
         gameState={gameState}
         actions={actions}
+        socket={socket}
       />
     </div>
   );

@@ -1,0 +1,326 @@
+/* ============================================
+   FullProfileModal — Полный профиль игрока
+   Референс: image/README/fullprofdoska.png
+   ============================================ */
+
+/* Backdrop */
+.full-profile-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+/* Container — основной контейнер модалки */
+.full-profile-modal__container {
+  position: relative;
+  width: 100%;
+  max-width: 750px;
+  max-height: 90vh;
+  background: linear-gradient(145deg, #1a1a2e 0%, #16162a 50%, #0f0f1a 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Кнопка закрытия */
+.full-profile-modal__close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.full-profile-modal__close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+/* Content — двухколоночный layout */
+.full-profile-modal__content {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 85vh;
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+/* ============================================
+   Loading State
+   ============================================ */
+.full-profile-modal__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+.full-profile-modal__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: fullProfileSpin 0.8s linear infinite;
+}
+
+@keyframes fullProfileSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   Error State
+   ============================================ */
+.full-profile-modal__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 80px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  text-align: center;
+}
+
+.full-profile-modal__error-icon {
+  font-size: 48px;
+}
+
+.full-profile-modal__retry-btn {
+  margin-top: 8px;
+  padding: 8px 20px;
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.full-profile-modal__retry-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+}
+
+/* ============================================
+   Skeleton Loading
+   ============================================ */
+.full-profile-modal__skeleton {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 600px;
+  width: 100%;
+}
+
+.full-profile-modal__skeleton-sidebar {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.full-profile-modal__skeleton-tabs {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Skeleton elements */
+.skeleton-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+}
+
+.skeleton-line {
+  height: 16px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+}
+
+.skeleton-line--lg { width: 180px; height: 24px; }
+.skeleton-line--md { width: 140px; }
+.skeleton-line--sm { width: 100px; height: 12px; }
+
+.skeleton-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.skeleton-btn {
+  width: 140px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+}
+
+.skeleton-btn--sm { width: 38px; }
+
+.skeleton-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.skeleton-tabs-header {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.skeleton-tab {
+  width: 80px;
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+}
+
+.skeleton-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.skeleton-card {
+  aspect-ratio: 3/4;
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+}
+
+.skeleton-game-card {
+  height: 80px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================
+   Responsive — Mobile
+   ============================================ */
+@media (max-width: 768px) {
+  .full-profile-modal__backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .full-profile-modal__container {
+    max-width: 100%;
+    max-height: 95vh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .full-profile-modal__content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .full-profile-modal__container {
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .full-profile-modal__close-btn {
+    top: 12px;
+    right: 12px;
+  }
+
+  /* Skeleton mobile */
+  .full-profile-modal__skeleton {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .full-profile-modal__skeleton-sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 16px;
+  }
+
+  .skeleton-avatar {
+    width: 80px;
+    height: 80px;
+  }
+
+  .skeleton-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ============================================
+   Touch-friendly improvements
+   ============================================ */
+@media (hover: none) and (pointer: coarse) {
+  .full-profile-modal__close-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
+
+  .full-profile-modal__retry-btn {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+}

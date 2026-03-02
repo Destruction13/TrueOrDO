@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import AvatarFrame from "./AvatarFrame";
 import "./TaskReport.css";
 
 /**
@@ -12,6 +13,7 @@ function TaskReport({
   taskText,
   executorName,
   executorAvatar,
+  executorFrameSlug,
   result, // "approved" | "report" | "skipped"
   isTruth = false,
   isVisible = true,
@@ -115,13 +117,13 @@ function TaskReport({
           >
             {/* Левая часть: Аватар + Имя выполнил */}
             <div className="task-report__executor">
-              <div className="task-report__avatar">
+              <AvatarFrame size="s" frameSlug={executorFrameSlug}>
                 {executorAvatar ? (
                   <img src={executorAvatar} alt={executorName} />
                 ) : (
-                  <span>{initial}</span>
+                  <span className="task-report__avatar-placeholder">{initial}</span>
                 )}
-              </div>
+              </AvatarFrame>
               <div className="task-report__executor-text">
                 <span className="task-report__name">{executorName || "Игрок"}</span>
                 <span className="task-report__verb">выполнил</span>

@@ -1,0 +1,1677 @@
+/* ============================================
+   MiniProfile - Discord-style Popup
+   ============================================ */
+
+.mini-profile {
+  position: fixed;
+  z-index: 10001;
+  width: 300px;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16162a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  overflow: visible;
+}
+
+/* ============================================
+   Banner (верхняя часть, достигает 45% высоты аватара)
+   ============================================ */
+.mini-profile__banner {
+  position: relative;
+  width: 100%;
+  height: 90px;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+
+.mini-profile__banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Стандартный градиентный баннер */
+.mini-profile__banner-default {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #0d0d1a 0%, #1a1a3e 50%, #0f0f2a 100%);
+}
+
+/* Header Actions (кнопка ⋮) */
+.mini-profile__header-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+}
+
+.mini-profile__more-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-profile__more-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Иконка добавления в друзья (Discord-style) */
+.mini-profile__friend-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+}
+
+.mini-profile__friend-btn:hover {
+  background: rgba(46, 204, 113, 0.35);
+  transform: scale(1.05);
+}
+
+/* Кнопка редактирования профиля */
+.mini-profile__edit-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.mini-profile__edit-btn:hover {
+  background: rgba(102, 126, 234, 0.3);
+  color: #a8b4ff;
+  transform: scale(1.05);
+}
+
+.mini-profile__edit-btn:active {
+  transform: scale(0.95);
+}
+
+.mini-profile__edit-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mini-profile__friend-btn svg {
+  width: 100%;
+  height: 100%;
+}
+
+.mini-profile__friend-btn--pending {
+  background: rgba(241, 196, 15, 0.2);
+  color: #f1c40f;
+  animation: mini-profile-pulse 1.5s ease-in-out infinite;
+}
+
+.mini-profile__friend-btn--pending:hover {
+  background: rgba(241, 196, 15, 0.35);
+}
+
+@keyframes mini-profile-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Бейдж статуса дружбы */
+.mini-profile__friend-badge {
+  width: 28px;
+  height: 28px;
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+}
+
+.mini-profile__friend-badge svg {
+  width: 100%;
+  height: 100%;
+}
+
+.mini-profile__friend-badge--pending {
+  background: rgba(241, 196, 15, 0.15);
+  color: #f1c40f;
+}
+
+/* Loading State */
+.mini-profile__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.mini-profile__spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: mini-profile-spin 0.8s linear infinite;
+}
+
+@keyframes mini-profile-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error State */
+.mini-profile__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: rgba(231, 76, 60, 0.8);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ============================================
+   Header: Avatar left with status, Bio bubble right
+   ============================================ */
+.mini-profile__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 12px 16px 12px;
+  position: relative;
+  overflow: visible;
+  min-height: 120px;
+  margin-top: -70px;
+}
+
+/* Левая колонка: аватар */
+.mini-profile__left-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  margin-left: -8px;
+}
+
+.mini-profile__avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.mini-profile__avatar-wrapper--clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.mini-profile__avatar-wrapper--clickable::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  background: rgba(0, 0, 0, 0);
+  border-radius: 50%;
+  transition: background 0.15s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.mini-profile__avatar-wrapper--clickable:hover {
+  transform: scale(1.03);
+}
+
+.mini-profile__avatar-wrapper--clickable:hover::after {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.mini-profile__avatar-wrapper--clickable:active {
+  transform: scale(0.98);
+}
+
+.mini-profile__avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3498db, #9b59b6);
+  color: white;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+/* Индикатор статуса на аватаре (справа снизу, частично внутри аватара, частично выступает)
+   Wrapper 100px, внутренний аватар 84px, отступ 8px с каждой стороны */
+.mini-profile__status-indicator {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid #1a1a2e;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+
+.mini-profile__status-indicator--clickable {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.mini-profile__status-indicator--clickable:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* Overlay для закрытия селектора статуса при клике вне */
+.mini-profile__status-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: transparent;
+}
+
+/* Контейнер селектора статуса - абсолютно позиционирован внутри header */
+.mini-profile__status-selector-container {
+  position: absolute;
+  top: 115px;
+  left: 16px;
+  z-index: 10000;
+}
+
+/* Селектор статуса */
+.mini-profile__status-selector {
+  position: relative;
+  background: #2a2a4a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 150px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.mini-profile__status-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.mini-profile__status-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mini-profile__status-option--active {
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
+}
+
+.mini-profile__status-option-icon {
+  font-size: 12px;
+}
+
+.mini-profile__status-option-label {
+  flex: 1;
+  text-align: left;
+}
+
+.mini-profile__status-option-check {
+  color: #2ecc71;
+  font-size: 12px;
+}
+
+/* Никнейм под header — выровнен по левому краю (тот же отступ что у аватара) */
+.mini-profile__nickname-row {
+  padding: 10px 16px 4px 24px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  transition: all 0.2s ease;
+}
+
+.mini-profile__nickname-row .mini-profile__nickname {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Контейнер для никнейма с обрезкой */
+.mini-profile__nickname-clickable {
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Длинный никнейм (>12 символов) - обрезка с ... */
+.mini-profile__nickname-row--long .mini-profile__nickname-clickable {
+  max-width: 140px;
+}
+
+.mini-profile__nickname-row--long .mini-profile__nickname-clickable .mini-profile__nickname {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Контейнер для бейджиков */
+.mini-profile__nickname-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+/* При раскрытом состоянии (JS управление) - раскрываем никнейм */
+.mini-profile__nickname-row--expanded .mini-profile__nickname-clickable {
+  max-width: calc(300px - 48px); /* ширина мини-профиля минус паддинги */
+}
+
+.mini-profile__nickname-row--expanded .mini-profile__nickname-clickable .mini-profile__nickname {
+  text-overflow: clip;
+}
+
+/* Бейджики смещаются под никнейм при раскрытом состоянии */
+.mini-profile__nickname-row--expanded {
+  flex-wrap: wrap;
+}
+
+.mini-profile__nickname-row--expanded .mini-profile__nickname-badges {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* Бейджик с тегом (#1234) — стильный и выделяющийся */
+.mini-profile__tag-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(157, 78, 221, 0.3) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.5);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  letter-spacing: 0.5px;
+  color: #a8b4ff;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Tooltip для хэштега */
+.mini-profile__tag-tooltip {
+  position: fixed;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.8) 0%, rgba(30, 25, 50, 0.8) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 100000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+}
+
+.mini-profile__tag-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(38, 30, 55, 0.8);
+}
+
+/* При рендере через JS - всегда видимый */
+div.mini-profile__tag-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.mini-profile__tag-badge:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.5) 0%, rgba(157, 78, 221, 0.5) 100%);
+  border-color: rgba(157, 78, 221, 0.7);
+  color: #fff;
+  transform: scale(1.08);
+  text-shadow: 0 0 12px rgba(157, 78, 221, 0.8);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4),
+              0 0 20px rgba(157, 78, 221, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.mini-profile__tag-badge:active {
+  transform: scale(0.95);
+  box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
+}
+
+/* Всплывашка "Никнейм скопирован" */
+.mini-profile__copy-tooltip {
+  position: fixed;
+  z-index: 10010;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+  pointer-events: none;
+  animation: tooltipFadeIn 0.15s ease-out, tooltipFadeOut 0.3s ease-in 0.7s forwards;
+  white-space: nowrap;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tooltipFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Правая колонка: облако мыслей (Bio) 
+   Верхняя граница Bio на уровне центра аватара (100px / 2 = 50px)
+   Bio растёт только вниз, верхняя граница фиксирована */
+.mini-profile__right-column {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  padding-left: 0;
+  padding-top: 42px;
+  overflow: visible;
+  position: relative;
+  /* Фиксированная высота чтобы раскрытие Bio не выталкивало элементы */
+  height: 60px;
+}
+
+/* Bio как облако мыслей (как на референсе) 
+   Верхняя граница Bio на уровне центра аватара
+   Кружки идут диагонально вверх-влево к аватару
+   margin-left: -3px компенсирует 8px отступ wrapper, итого ~5px от круга аватара
+   Всегда absolute чтобы не терять позицию при анимации */
+.mini-profile__bio-bubble {
+  position: absolute;
+  top: 42px;
+  left: 0;
+  right: 0;
+  padding: 12px 14px;
+  background: #3a3a4a;
+  border-radius: 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.5;
+  cursor: default;
+  margin-left: -3px;
+  overflow: visible;
+  z-index: 1;
+  transition: background 0.3s ease, box-shadow 0.3s ease, z-index 0s 0.3s;
+}
+
+/* Текст Bio - ограничен 2 строками по умолчанию, с плавным раскрытием */
+.mini-profile__bio-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-height: 42px; /* ~2 строки при line-height 1.5 и font-size 13px */
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Большой кружок — сливается с верхней частью Bio (с севера) */
+.mini-profile__bio-bubble::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: -9px;
+  width: 20px;
+  height: 20px;
+  background: #3a3a4a;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+}
+
+/* Маленький кружок — диагонально вверх-влево от большого, к аватару 
+   На уровне ~80% высоты аватара, с отступом ~3px от границы аватара */
+.mini-profile__bio-bubble::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: -15px;
+  width: 10px;
+  height: 10px;
+  background: #3a3a4a;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+}
+
+/* При наведении Bio раскрывается вниз поверх других элементов */
+.mini-profile__bio-bubble:hover,
+.mini-profile__bio-bubble--expanded {
+  background: #454558;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: background 0.3s ease, box-shadow 0.3s ease, z-index 0s 0s;
+}
+
+/* При наведении текст плавно раскрывается с задержкой 0.3с */
+.mini-profile__bio-bubble:hover .mini-profile__bio-text,
+.mini-profile__bio-bubble--expanded .mini-profile__bio-text {
+  max-height: 300px; /* достаточно для ~10 строк */
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.3s;
+}
+
+/* При уходе курсора текст сворачивается без задержки */
+.mini-profile__bio-bubble:not(:hover):not(.mini-profile__bio-bubble--expanded) .mini-profile__bio-text {
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mini-profile__bio-bubble:hover::before,
+.mini-profile__bio-bubble--expanded::before,
+.mini-profile__bio-bubble:hover::after,
+.mini-profile__bio-bubble--expanded::after {
+  background: #454558;
+}
+
+/* Пустой статус (placeholder) */
+.mini-profile__bio-bubble--empty {
+  cursor: pointer;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: rgba(58, 58, 74, 0.5);
+}
+
+.mini-profile__bio-bubble--empty:hover {
+  background: rgba(58, 58, 74, 0.8);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.mini-profile__bio-text--placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Кнопки редактирования и удаления Bio (Discord-style) */
+.mini-profile__bio-actions {
+  position: absolute;
+  top: -12px;
+  right: -4px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.mini-profile__bio-action-btn {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.mini-profile__bio-action-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mini-profile__bio-action-btn--edit {
+  background: rgba(52, 152, 219, 0.9);
+  color: white;
+}
+
+.mini-profile__bio-action-btn--edit:hover {
+  background: #3498db;
+  transform: scale(1.1);
+}
+
+.mini-profile__bio-action-btn--delete {
+  background: rgba(231, 76, 60, 0.9);
+  color: white;
+}
+
+.mini-profile__bio-action-btn--delete:hover {
+  background: #e74c3c;
+  transform: scale(1.1);
+}
+
+/* Tooltip для кнопок действий */
+.mini-profile__action-tooltip {
+  position: fixed;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.8) 0%, rgba(30, 25, 50, 0.8) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 100000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+}
+
+.mini-profile__action-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(38, 30, 55, 0.8);
+}
+
+/* При рендере через JS - всегда видимый */
+div.mini-profile__action-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Discord dropdown меню */
+.mini-profile__discord-menu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.95) 0%, rgba(30, 25, 50, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  z-index: 100001;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  min-width: 160px;
+}
+
+.mini-profile__discord-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.mini-profile__discord-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mini-profile__discord-menu-item svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* Редактор Bio */
+.mini-profile__bio-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.mini-profile__bio-input {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
+  background: #2a2a3e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  color: white;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.mini-profile__bio-input:focus {
+  border-color: rgba(52, 152, 219, 0.5);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.mini-profile__bio-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.mini-profile__bio-editor-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.mini-profile__bio-editor-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.mini-profile__bio-editor-btn--save {
+  background: #2ecc71;
+  color: white;
+}
+
+.mini-profile__bio-editor-btn--save:hover {
+  background: #27ae60;
+  transform: scale(1.05);
+}
+
+.mini-profile__bio-editor-btn--cancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mini-profile__bio-editor-btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Хвостик облака - скрываем старый */
+.mini-profile__bio-tail {
+  display: none;
+}
+
+.mini-profile__bio-text {
+  word-break: break-word;
+}
+
+/* ============================================
+   Info Section (under header)
+   ============================================ */
+.mini-profile__info {
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.mini-profile__name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mini-profile__nickname {
+  font-size: 18px;
+  font-weight: 600;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================
+   Biography Preview - 2 lines with expand
+   ============================================ */
+.mini-profile__biography {
+  position: relative;
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  max-height: 54px; /* ~2 строки */
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mini-profile__biography:hover {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.mini-profile__biography--expanded {
+  max-height: 300px;
+}
+
+/* Ограничение до 6 строк для длинных биографий */
+.mini-profile__biography--expanded.mini-profile__biography--truncated {
+  max-height: none; /* Убираем ограничение с контейнера */
+  overflow: hidden;
+}
+
+/* Ограничиваем высоту текста до 6 строк (line-height 1.6, font-size 12px ≈ 19.2px на строку) */
+.mini-profile__biography--expanded.mini-profile__biography--truncated .mini-profile__biography-text {
+  max-height: 115px; /* ~6 строк */
+  overflow: hidden;
+}
+
+.mini-profile__biography-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+  word-break: break-word;
+}
+
+/* Жирный текст */
+.mini-profile__biography-text strong {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 1);
+}
+
+/* Курсив */
+.mini-profile__biography-text em {
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Зачёркнутый */
+.mini-profile__biography-text s {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Ссылки */
+.mini-profile__biography-link {
+  color: #5865f2;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.mini-profile__biography-link:hover {
+  color: #7289da;
+  text-decoration: underline;
+}
+
+/* Цитаты */
+.mini-profile__biography-quote {
+  display: block;
+  padding-left: 10px;
+  border-left: 3px solid rgba(88, 101, 242, 0.6);
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+  margin: 4px 0;
+}
+
+/* Градиент затухания для обрезанного текста */
+.mini-profile__biography-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(30, 30, 30, 0.95)
+  );
+  pointer-events: none;
+  border-radius: 0 0 8px 8px;
+}
+
+.mini-profile__biography--expanded .mini-profile__biography-fade {
+  display: none;
+}
+
+/* Кнопка "Показать полностью" — появляется если > 6 строк */
+.mini-profile__biography-full-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 6px;
+  color: #a78bfa;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.mini-profile__biography-full-btn:hover {
+  background: rgba(139, 92, 246, 0.3);
+  border-color: rgba(139, 92, 246, 0.5);
+  color: #c4b5fd;
+}
+
+/* Discord Icon (рядом с хэштегом, размер как хэштег) */
+.mini-profile__discord-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  background: rgba(88, 101, 242, 0.25);
+  border: 1px solid rgba(88, 101, 242, 0.5);
+  border-radius: 12px;
+  color: #7aa2f7;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  margin-left: 0;
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.2);
+  cursor: pointer;
+}
+
+.mini-profile__discord-icon:hover {
+  background: rgba(88, 101, 242, 0.4);
+  border-color: rgba(88, 101, 242, 0.7);
+  color: #9ec5fe;
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(88, 101, 242, 0.4);
+}
+
+.mini-profile__discord-icon svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* Meta row: Clan + Status */
+.mini-profile__meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Clan */
+.mini-profile__clan {
+  font-size: 12px;
+  color: rgba(155, 89, 182, 0.9);
+  font-weight: 500;
+  padding: 2px 8px;
+  background: rgba(155, 89, 182, 0.15);
+  border-radius: 4px;
+}
+
+/* Online Status */
+.mini-profile__status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.mini-profile__status-icon {
+  font-size: 8px;
+}
+
+/* ============================================
+   Achievements - Clash Royale Shield Style with Crown & Wings
+   ============================================ */
+.mini-profile__achievements {
+  display: flex;
+  justify-content: flex-start !important;
+  gap: 21px;
+  padding: 14px 16px 12px;
+}
+
+.mini-profile__achievement {
+  position: relative;
+  width: 41px;
+  height: 60px;
+  cursor: help;
+  transition: transform 0.3s ease;
+  /* Shield shape using clip-path */
+  --shield-clip: polygon(50% 0%, 100% 12%, 100% 70%, 50% 100%, 0% 70%, 0% 12%);
+}
+
+.mini-profile__achievement:hover {
+  transform: scale(1.08) translateY(-4px);
+}
+
+/* Shield wrapper */
+.mini-profile__achievement-shield {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  width: 41px;
+  height: 46px;
+  filter: 
+    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 0 10px var(--achievement-glow));
+  transition: filter 0.3s ease;
+}
+
+.mini-profile__achievement:hover .mini-profile__achievement-shield {
+  filter: 
+    drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 25px var(--achievement-glow));
+}
+
+/* Wings - скрыты */
+.mini-profile__achievement-wing {
+  display: none;
+}
+
+.mini-profile__achievement-wing--left {
+  display: none;
+}
+
+.mini-profile__achievement-wing--right {
+  display: none;
+}
+
+.mini-profile__achievement:hover .mini-profile__achievement-wing--left {
+  display: none;
+}
+
+.mini-profile__achievement:hover .mini-profile__achievement-wing--right {
+  transform: translateY(-35%) translateX(3px) rotate(8deg);
+  opacity: 1;
+}
+
+/* Crown — выразительная золотая корона */
+.mini-profile__achievement-crown {
+  position: absolute;
+  width: 28px;
+  height: 16px;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  filter: 
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 8px rgba(255, 215, 0, 0.6))
+    drop-shadow(0 0 16px rgba(255, 165, 0, 0.4));
+  transition: all 0.3s ease;
+  animation: crownGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes crownGlow {
+  0% {
+    filter: 
+      drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 0 8px rgba(255, 215, 0, 0.5))
+      drop-shadow(0 0 12px rgba(255, 165, 0, 0.3));
+  }
+  100% {
+    filter: 
+      drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 0 14px rgba(255, 215, 0, 0.8))
+      drop-shadow(0 0 24px rgba(255, 165, 0, 0.5));
+  }
+}
+
+.mini-profile__achievement:hover .mini-profile__achievement-crown {
+  transform: translateX(-50%) translateY(-3px) scale(1.15);
+  filter: 
+    drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5)) 
+    drop-shadow(0 0 20px rgba(255, 215, 0, 0.9))
+    drop-shadow(0 0 30px rgba(255, 165, 0, 0.6));
+  animation: none;
+}
+
+/* Ribbon / Stand */
+.mini-profile__achievement-ribbon {
+  position: absolute;
+  width: 29px;
+  height: 12px;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: -1;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+
+/* Rarity-based visibility */
+.mini-profile__achievement--common .mini-profile__achievement-crown,
+.mini-profile__achievement--rare .mini-profile__achievement-crown {
+  display: none;
+}
+
+.mini-profile__achievement--epic .mini-profile__achievement-crown {
+  opacity: 0.75;
+  transform: translateX(-50%) scale(0.9);
+}
+
+.mini-profile__achievement--common .mini-profile__achievement-wing,
+.mini-profile__achievement--rare .mini-profile__achievement-wing {
+  opacity: 0.35;
+  transform: translateY(-35%) scale(0.75);
+}
+
+.mini-profile__achievement--epic .mini-profile__achievement-wing {
+  opacity: 0.7;
+}
+
+.mini-profile__achievement--common .mini-profile__achievement-ribbon,
+.mini-profile__achievement--rare .mini-profile__achievement-ribbon {
+  opacity: 0.6;
+}
+
+/* Legendary достижение — особый эффект шиммера */
+.mini-profile__achievement--legendary {
+  --achievement-glow: rgba(255, 215, 0, 0.8);
+}
+
+/* Контейнер для шиммера поверх щита */
+.mini-profile__achievement--legendary .mini-profile__achievement-shield {
+  position: relative;
+  filter: 
+    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 0 15px rgba(255, 215, 0, 0.6))
+    drop-shadow(0 0 30px rgba(255, 165, 0, 0.3));
+}
+
+.mini-profile__achievement--legendary:hover .mini-profile__achievement-shield {
+  filter: 
+    drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6))
+    drop-shadow(0 0 25px rgba(255, 215, 0, 0.8))
+    drop-shadow(0 0 40px rgba(255, 165, 0, 0.5));
+}
+
+/* Шиммер эффект через overlay на ring */
+.mini-profile__achievement--legendary .mini-profile__achievement-ring {
+  overflow: hidden;
+}
+
+.mini-profile__achievement--legendary .mini-profile__achievement-ring::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: legendaryShimmer 2s ease-in-out infinite;
+  z-index: 100;
+}
+
+@keyframes legendaryShimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 150%;
+  }
+}
+
+/* Outer golden frame - 3D metallic border */
+.mini-profile__achievement-ring {
+  position: absolute;
+  inset: 0;
+  clip-path: var(--shield-clip);
+  background: 
+    linear-gradient(
+      165deg,
+      #fff7cc 0%,
+      #ffe566 8%,
+      #ffd700 15%,
+      #ffb800 25%,
+      #e6a200 40%,
+      #cc8800 55%,
+      #a67c00 70%,
+      #cc9900 85%,
+      #ffcc00 95%,
+      #ffe066 100%
+    );
+  z-index: 0;
+}
+
+/* Gold frame highlight - top shine effect */
+.mini-profile__achievement-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  clip-path: var(--shield-clip);
+  background: 
+    /* Bright top highlight */
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.9) 0%,
+      rgba(255, 255, 255, 0.5) 15%,
+      rgba(255, 255, 200, 0.2) 30%,
+      transparent 50%
+    ),
+    /* Edge shine */
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.3) 5%,
+      transparent 10%,
+      transparent 90%,
+      rgba(255, 255, 255, 0.2) 95%,
+      transparent 100%
+    );
+}
+
+/* Gold frame inner edge - darker gold for depth */
+.mini-profile__achievement-ring::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  clip-path: var(--shield-clip);
+  background: linear-gradient(
+    170deg,
+    #ffdd44 0%,
+    #eebb00 20%,
+    #cc9900 50%,
+    #aa7700 80%,
+    #ddaa00 100%
+  );
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.4);
+}
+
+/* Inner shield with colored background - crystal/gem effect */
+.mini-profile__achievement-inner {
+  position: absolute;
+  inset: 3px;
+  clip-path: var(--shield-clip);
+  background: 
+    /* Bright top highlight - crystal shine */
+    linear-gradient(
+      150deg,
+      rgba(255, 255, 255, 0.8) 0%,
+      rgba(255, 255, 255, 0.4) 15%,
+      transparent 40%
+    ),
+    /* Central glow */
+    radial-gradient(
+      ellipse 80% 60% at 50% 35%,
+      color-mix(in srgb, var(--achievement-color) 90%, white) 0%,
+      transparent 70%
+    ),
+    /* Main vibrant color gradient */
+    linear-gradient(
+      175deg,
+      color-mix(in srgb, var(--achievement-color) 70%, white) 0%,
+      color-mix(in srgb, var(--achievement-color) 95%, white) 20%,
+      var(--achievement-color) 40%,
+      color-mix(in srgb, var(--achievement-color) 85%, black) 70%,
+      color-mix(in srgb, var(--achievement-color) 60%, black) 100%
+    );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* Inner gem facet lines - crystal cuts */
+.mini-profile__achievement-inner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: 
+    /* Strong center highlight line */
+    linear-gradient(90deg, transparent 46%, rgba(255, 255, 255, 0.25) 50%, transparent 54%),
+    /* Diamond facets */
+    linear-gradient(135deg, transparent 35%, rgba(255, 255, 255, 0.15) 48%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.15) 52%, transparent 65%),
+    linear-gradient(45deg, transparent 35%, rgba(255, 255, 255, 0.15) 48%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.15) 52%, transparent 65%),
+    /* Horizontal accent */
+    linear-gradient(180deg, transparent 55%, rgba(255, 255, 255, 0.1) 60%, transparent 65%);
+  pointer-events: none;
+}
+
+/* Bottom shadow and depth inside shield */
+.mini-profile__achievement-inner::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(0, 0, 0, 0.2) 40%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.mini-profile__achievement-icon {
+  font-size: 16px;
+  filter: 
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.9))
+    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  z-index: 2;
+  position: relative;
+}
+
+/* ============================================
+   Game Stats - Favorite Games List
+   ============================================ */
+.mini-profile__games {
+  width: 100%;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.mini-profile__games-title {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.mini-profile__game {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.mini-profile__game:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.mini-profile__game-icon {
+  font-size: 18px;
+  width: 28px;
+  text-align: center;
+}
+
+.mini-profile__game-name {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+}
+
+.mini-profile__game-time {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+/* ============================================
+   Footer / Actions
+   ============================================ */
+.mini-profile__footer {
+  padding: 12px 16px 16px;
+}
+
+.mini-profile__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mini-profile__action-btn {
+  width: 100%;
+  justify-content: center;
+  border-radius: 8px;
+  font-weight: 600;
+  padding: 12px 16px;
+}
+
+/* Edit Profile Button (purple gradient like reference) */
+.mini-profile__action-btn--edit {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  transition: all 0.2s;
+}
+
+.mini-profile__action-btn--edit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+/* Кнопка "Открыть полный профиль" */
+.mini-profile__full-profile-btn {
+  width: 100%;
+  padding: 10px 16px;
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mini-profile__full-profile-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.mini-profile__full-profile-btn svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s;
+}
+
+.mini-profile__full-profile-btn:hover svg {
+  transform: translateX(2px);
+}
+
+/* Статус ожидания заявки */
+.mini-profile__pending-status {
+  width: 100%;
+  text-align: center;
+  padding: 12px 16px;
+  background: rgba(241, 196, 15, 0.1);
+  border: 1px solid rgba(241, 196, 15, 0.2);
+  border-radius: 8px;
+  color: rgba(241, 196, 15, 0.9);
+  font-size: 14px;
+}
+
+/* Mobile Styles */
+@media (max-width: 480px) {
+  .mini-profile {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto !important;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .mini-profile__header {
+    padding: 20px 16px 16px;
+    min-height: 110px;
+  }
+
+  .mini-profile__nickname-row .mini-profile__nickname {
+    font-size: 14px;
+  }
+
+  .mini-profile__info {
+    padding: 0 20px 12px;
+  }
+
+  .mini-profile__nickname {
+    font-size: 18px;
+    max-width: 100%;
+  }
+
+  .mini-profile__header-actions {
+    top: 12px;
+    right: 12px;
+  }
+
+  .mini-profile__more-btn,
+  .mini-profile__friend-btn,
+  .mini-profile__friend-badge {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+
+  .mini-profile__status-indicator {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+  }
+
+  .mini-profile__status-selector {
+    min-width: 140px;
+  }
+
+  .mini-profile__bio-bubble {
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+
+  .mini-profile__achievement {
+    width: 37px;
+    height: 53px;
+  }
+
+  .mini-profile__achievement-shield {
+    width: 37px;
+    height: 40px;
+    top: 9px;
+  }
+
+  .mini-profile__achievement-icon {
+    font-size: 14px;
+  }
+
+  .mini-profile__achievements {
+    gap: 16px;
+  }
+
+  .mini-profile__achievement-crown {
+    width: 21px;
+    height: 12px;
+  }
+
+  .mini-profile__achievement-wing {
+    width: 14px;
+    height: 25px;
+  }
+
+  .mini-profile__achievement-ribbon {
+    width: 25px;
+    height: 10px;
+    bottom: 7px;
+  }
+
+  .mini-profile__games {
+    padding: 16px 20px;
+  }
+
+  .mini-profile__game {
+    padding: 10px 14px;
+  }
+
+  .mini-profile__footer {
+    padding: 16px 20px 24px;
+  }
+
+  /* Safe area для iPhone */
+  .mini-profile__footer {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}

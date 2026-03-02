@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Button from "../ui/Button";
+import AvatarFrame from "../ui/AvatarFrame";
+import StyledNickname from "../ui/StyledNickname";
 import AliasSettingsModal from "./AliasSettingsModal";
 import AliasRulesModal from "./AliasRulesModal";
 import CyberRunner from "./CyberRunner";
@@ -10,7 +12,19 @@ import { useAuth } from "../../context/AuthContext";
 import { GAME_IDS } from "../../context/SettingsContext";
 import BatteryModeButton from "../ui/BatteryModeButton";
 import useIsMobile from "../../hooks/useIsMobile";
+import { ClickablePlayer } from "../friends";
 import "./AliasRoomScreen.css";
+
+// Преобразование nicknameStyle в формат для StyledNickname
+function toNicknameCustomization(style) {
+  if (!style) return null;
+  return {
+    nicknameColorType: style.colorType,
+    nicknameCustomColor: style.customColor,
+    nicknameGradient: style.gradient,
+    nicknameGlow: style.glow
+  };
+}
 
 function formatTimer(seconds) {
   if (seconds == null) return "--";
@@ -50,10 +64,11 @@ export default function AliasRoomScreen({
   reviewTimeRemaining,
   actions,
   cyberLeaderboard,
-  setCyberLeaderboard
+  setCyberLeaderboard,
+  socket
 }) {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, customization } = useAuth();
   const isMobile = useIsMobile();
   
   const [showSettings, setShowSettings] = useState(false);
@@ -327,13 +342,15 @@ export default function AliasRoomScreen({
               onClick={() => navigate("/profile")}
               title="Профиль"
             >
-              {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="alias-header-profile__avatar" />
-              ) : (
-                <span className="alias-header-profile__placeholder">
-                  {(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}
-                </span>
-              )}
+              <AvatarFrame size="s" frameSlug={customization?.frameAll}>
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="alias-header-profile__avatar" />
+                ) : (
+                  <span className="alias-header-profile__placeholder">
+                    {(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}
+                  </span>
+                )}
+              </AvatarFrame>
             </button>
           ) : (
             <button 
@@ -495,13 +512,15 @@ export default function AliasRoomScreen({
                           className={`alias-member ${m.id === meId ? "alias-member--me" : ""} ${m.isReady ? "alias-member--ready" : ""} ${m.id === room.currentExplainerId ? "alias-member--explainer" : ""} ${isDisconnected ? "alias-member--disconnected" : ""} ${isLeft ? "alias-member--left" : ""}`}
                         >
                           <div className="alias-member__avatar-wrapper">
-                            {m.avatarUrl ? (
-                              <img src={m.avatarUrl} alt="" className="alias-member__avatar" />
-                            ) : (
-                              <span className="alias-member__avatar-placeholder">
-                                {m.name[0]?.toUpperCase() || "?"}
-                              </span>
-                            )}
+                            <AvatarFrame size="s" frameSlug={m.frameSlug}>
+                              {m.avatarUrl ? (
+                                <img src={m.avatarUrl} alt="" className="alias-member__avatar" />
+                              ) : (
+                                <span className="alias-member__avatar-placeholder">
+                                  {m.name[0]?.toUpperCase() || "?"}
+                                </span>
+                              )}
+                            </AvatarFrame>
                             {/* Статус-точка: зелёная = онлайн, красная = отключён */}
                             <div className={`alias-member__status-dot ${isDisconnected ? "offline" : "online"}`} />
                             {/* Плавающая корона для ведущего */}
@@ -509,7 +528,22 @@ export default function AliasRoomScreen({
                           </div>
                           <div className="alias-member__info">
                             <span className="alias-member__name">
-                              {m.name}
+                              {m.visitorId ? (
+                                <ClickablePlayer
+                                  odlerId={m.visitorId}
+                                  odlerNickname={m.name}
+                                  avatar={m.avatarUrl}
+                                  frameSlug={m.frameSlug}
+                                  nicknameStyle={m.nicknameStyle}
+                                  relationshipStatus={m.id === meId ? "self" : "none"}
+                                  socket={socket}
+                                  disabled={!m.visitorId}
+                                >
+                                  <StyledNickname name={m.name} customization={toNicknameCustomization(m.nicknameStyle)} />
+                                </ClickablePlayer>
+                              ) : (
+                                <StyledNickname name={m.name} customization={toNicknameCustomization(m.nicknameStyle)} />
+                              )}
                               {m.id === meId && <span className="alias-member__you">(вы)</span>}
                             </span>
                           </div>
@@ -569,14 +603,33 @@ export default function AliasRoomScreen({
             <div className="alias-spectators__title">👀 Наблюдатели</div>
             {players.filter(p => !p.teamId).map(p => (
               <div key={p.id} className="alias-spectator">
-                {p.avatarUrl ? (
-                  <img src={p.avatarUrl} alt="" className="alias-spectator__avatar" />
-                ) : (
-                  <span className="alias-spectator__avatar-placeholder">
-                    {p.name[0]?.toUpperCase() || "?"}
-                  </span>
-                )}
-                <span>{p.name}</span>
+                <AvatarFrame size="xs" frameSlug={p.frameSlug}>
+                  {p.avatarUrl ? (
+                    <img src={p.avatarUrl} alt="" className="alias-spectator__avatar" />
+                  ) : (
+                    <span className="alias-spectator__avatar-placeholder">
+                      {p.name[0]?.toUpperCase() || "?"}
+                    </span>
+                  )}
+                </AvatarFrame>
+                <span>
+                  {p.visitorId ? (
+                    <ClickablePlayer
+                      odlerId={p.visitorId}
+                      odlerNickname={p.name}
+                      avatar={p.avatarUrl}
+                      frameSlug={p.frameSlug}
+                      nicknameStyle={p.nicknameStyle}
+                      relationshipStatus={p.id === meId ? "self" : "none"}
+                      socket={socket}
+                      disabled={!p.visitorId}
+                    >
+                      <StyledNickname name={p.name} customization={toNicknameCustomization(p.nicknameStyle)} />
+                    </ClickablePlayer>
+                  ) : (
+                    <StyledNickname name={p.name} customization={toNicknameCustomization(p.nicknameStyle)} />
+                  )}
+                </span>
                 {p.id === meId && <span className="alias-spectator__tag">(Вы)</span>}
               </div>
             ))}
@@ -622,7 +675,7 @@ export default function AliasRoomScreen({
                                   {explainer.name[0]?.toUpperCase() || "?"}
                                 </span>
                               )}
-                              <span className="alias-next-explainer-card__name">{explainer.name}</span>
+                              <span className="alias-next-explainer-card__name"><StyledNickname name={explainer.name} customization={toNicknameCustomization(explainer.nicknameStyle)} /></span>
                             </>
                           ) : "...";
                         })()}
@@ -646,7 +699,7 @@ export default function AliasRoomScreen({
                           <>
                             <span className="alias-mobile-ready-block__label">Объясняет:</span>
                             <span className="alias-mobile-ready-block__name">
-                              {players.find(p => p.id === room.currentExplainerId)?.name || "..."}
+                              {(() => { const p = players.find(p => p.id === room.currentExplainerId); return p ? <StyledNickname name={p.name} customization={toNicknameCustomization(p.nicknameStyle)} /> : "..."; })()}
                             </span>
                           </>
                         )}
@@ -689,7 +742,7 @@ export default function AliasRoomScreen({
                   Ход: <strong>{currentTeam?.name}</strong>
                 </div>
                 <div className="alias-turn-explainer">
-                  Объясняет: <strong>{currentExplainer?.name}</strong>
+                  Объясняет: <strong>{currentExplainer ? <StyledNickname name={currentExplainer.name} customization={toNicknameCustomization(currentExplainer.nicknameStyle)} /> : "..."}</strong>
                 </div>
               </div>
 
@@ -1044,7 +1097,7 @@ export default function AliasRoomScreen({
                                   {explainer.name[0]?.toUpperCase() || "?"}
                                 </span>
                               )}
-                              <span className="alias-next-explainer-card__name">{explainer.name}</span>
+                              <span className="alias-next-explainer-card__name"><StyledNickname name={explainer.name} customization={toNicknameCustomization(explainer.nicknameStyle)} /></span>
                             </>
                           ) : "...";
                         })()}

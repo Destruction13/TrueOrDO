@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { SettingsProvider } from "./context/SettingsContext";
 import { LofiPlayerProvider } from "./context/LofiPlayerContext";
+import { SocialProvider } from "./components/social";
 import RoutesRoot from "./RoutesRoot";
 import LofiPlayer from "./components/ui/LofiPlayer";
 import "./styles/index.css";
@@ -13,10 +14,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <BrowserRouter>
       <SettingsProvider>
         <AuthProvider>
-          <LofiPlayerProvider>
-            <RoutesRoot />
-            <LofiPlayer />
-          </LofiPlayerProvider>
+          <SocialProvider>
+            <LofiPlayerProvider>
+              <RoutesRoot />
+              <LofiPlayer />
+            </LofiPlayerProvider>
+          </SocialProvider>
         </AuthProvider>
       </SettingsProvider>
     </BrowserRouter>

@@ -139,7 +139,7 @@ function createWordDeck() {
   return shuffleInPlace([...WORDS_SOURCE]);
 }
 
-function createRoom(hostName, hostAvatarUrl, visitorId) {
+function createRoom(hostName, hostAvatarUrl, visitorId, hostFrameSlug, hostNicknameStyle) {
   const code = generateRoomCode();
   const playerId = `ep_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -183,6 +183,8 @@ function createRoom(hostName, hostAvatarUrl, visitorId) {
         id: playerId,
         name: hostName,
         avatarUrl: hostAvatarUrl,
+        frameSlug: hostFrameSlug || null,
+        nicknameStyle: hostNicknameStyle || null, // { colorType, customColor, gradient: { cssValue }, glow: { cssValue } }
         visitorId: visitorId || null,
         connectionStatus: "online",
         joinedAt: new Date(),
@@ -269,7 +271,7 @@ function popWord(room) {
   return word ? hyphenateWord(word) : null;
 }
 
-function joinRoom(code, name, avatarUrl, visitorId) {
+function joinRoom(code, name, avatarUrl, visitorId, frameSlug, nicknameStyle) {
   const room = getRoom(code);
   if (!room) return { error: "Комната не найдена" };
 
@@ -283,6 +285,8 @@ function joinRoom(code, name, avatarUrl, visitorId) {
       existing.connectionStatus = "online";
       existing.lastSeen = new Date();
       if (avatarUrl !== undefined) existing.avatarUrl = avatarUrl;
+      if (frameSlug !== undefined) existing.frameSlug = frameSlug;
+      if (nicknameStyle !== undefined) existing.nicknameStyle = nicknameStyle;
       // Обновляем имя при переподключении, если передано новое
       if (name) {
         const takenNames = room.players
@@ -313,6 +317,8 @@ function joinRoom(code, name, avatarUrl, visitorId) {
     id: playerId,
     name: finalName,
     avatarUrl,
+    frameSlug: frameSlug || null,
+    nicknameStyle: nicknameStyle || null, // { colorType, customColor, gradient: { cssValue }, glow: { cssValue } }
     visitorId: visitorId || null,
     connectionStatus: "online",
     joinedAt: new Date(),
@@ -414,6 +420,8 @@ function buildRoomState(room, meId) {
       tableCleared: room.tableCleared || false,
       // Статус паузы
       isPaused,
+      // Время начала игры для счётчика на клиенте (сохраняется при переподключении)
+      gameStartedAt: room.gameStartedAt || null,
       createdAt: room.createdAt,
       updatedAt: room.updatedAt,
     },
@@ -444,9 +452,12 @@ function buildRoomState(room, meId) {
       id: p.id,
       name: p.name,
       avatarUrl: p.avatarUrl || null,
+      frameSlug: p.frameSlug || null,
+      nicknameStyle: p.nicknameStyle || null,
       connectionStatus: p.connectionStatus || "online",
       joinedAt: p.joinedAt,
       lastSeen: p.lastSeen,
+      visitorId: p.visitorId || null,
     })),
   };
 }
@@ -517,6 +528,7 @@ function resetGame(code, actorId) {
   room.tableCleared = false;
   room.resultsShownAt = null;
   room.roundHistory = []; // Сброс истории раундов
+  room.gameStartedAt = null; // Сброс времени начала игры
 
   // Полный сброс: создаём новые колоды эмоций и слов
   room.emotionDeck = createEmotionDeck();
@@ -634,6 +646,11 @@ function startGame(code, actorId, nowMs = Date.now()) {
   room.phase = "submit";
   room.round = (room.round || 0) + 1;
   room.leaderId = room.leaderId || room.hostId;
+  
+  // Запоминаем время начала игры для статистики
+  if (!room.gameStartedAt) {
+    room.gameStartedAt = nowMs;
+  }
 
   // round init
   room.currentWord = popWord(room);

@@ -1,6 +1,6 @@
 import { Routes, Route, useLocation } from "react-router-dom";
 import App from "./App";
-import { LandingPage, GamesPage, TruthOrDarePage, AliasPage, CodenamesPage, EmotionalPage } from "./pages";
+import { LandingPage, GamesPage, TruthOrDarePage, AliasPage, CodenamesPage, EmotionalPage, PricingPage } from "./pages";
 import AuthModalRoute from "./AuthModalRoute";
 
 export default function RoutesRoot() {
@@ -32,6 +32,9 @@ export default function RoutesRoot() {
         {/* Emotional - с опциональным кодом комнаты */}
         <Route path="/emotional" element={<EmotionalPage />} />
         <Route path="/emotional/:roomCode" element={<EmotionalPage />} />
+
+        {/* Pricing - страница покупки VIP/PRO */}
+        <Route path="/pricing" element={<PricingPage />} />
 
         {/* Full-page fallbacks if user opens these routes directly */}
         <Route path="/login" element={<App />} />

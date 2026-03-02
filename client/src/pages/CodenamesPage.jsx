@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import CodenamesShaderBackground from "../components/codenames/CodenamesShaderBackground";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, getOrCreateGlobalVisitorId } from "../context/AuthContext";
 import { useSettings, GAME_IDS } from "../context/SettingsContext";
 import CodenamesJoinScreen from "../components/codenames/CodenamesJoinScreen";
 import CodenamesRoomScreen from "../components/codenames/CodenamesRoomScreen";
@@ -19,16 +19,9 @@ const SESSION_KEYS = {
 };
 
 function getOrCreateVisitorId() {
-  try {
-    let visitorId = localStorage.getItem(SESSION_KEYS.VISITOR_ID);
-    if (!visitorId) {
-      visitorId = "cv_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
-      localStorage.setItem(SESSION_KEYS.VISITOR_ID, visitorId);
-    }
-    return visitorId;
-  } catch {
-    return "cv_" + Math.random().toString(36).substring(2);
-  }
+  // Используем глобальный visitorId (с префиксом u_) для всех пользователей
+  // Это позволяет привязывать статистику к аккаунту
+  return getOrCreateGlobalVisitorId();
 }
 
 function saveSession(playerId, roomCode, playerName) {
@@ -82,7 +75,7 @@ export default function CodenamesPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { roomCode: urlRoomCode } = useParams();
-  const { user } = useAuth();
+  const { user, customization } = useAuth();
   const { isShadersDisabled } = useSettings();
   
   const [connected, setConnected] = useState(false);
@@ -129,18 +122,34 @@ export default function CodenamesPage() {
     };
   }, []);
 
-  // Синхронизация профиля при изменении user
+  // Синхронизация профиля при изменении user или customization
   useEffect(() => {
     if (user && gameState && meId) {
       const me = gameState.players?.find(p => p.id === meId);
-      if (me && (me.name !== user.nickname || me.avatarUrl !== user.avatarUrl)) {
+      if (!me) return;
+      
+      // Формируем nicknameStyle из customization
+      const nicknameStyle = customization ? {
+        colorType: customization.nicknameColorType,
+        customColor: customization.nicknameCustomColor,
+        gradient: customization.nicknameGradient,
+        glow: customization.nicknameGlow
+      } : null;
+      
+      const needsUpdate = 
+        me.name !== user.nickname || 
+        me.avatarUrl !== user.avatarUrl ||
+        JSON.stringify(me.nicknameStyle) !== JSON.stringify(nicknameStyle);
+      
+      if (needsUpdate) {
         socket.emit("codenames:player:update_profile", {
           nickname: user.nickname,
-          avatarUrl: user.avatarUrl
+          avatarUrl: user.avatarUrl,
+          nicknameStyle
         });
       }
     }
-  }, [user?.nickname, user?.avatarUrl, gameState, meId]);
+  }, [user?.nickname, user?.avatarUrl, customization, gameState, meId]);
 
   useEffect(() => {
     socket.connect();
@@ -223,7 +232,7 @@ export default function CodenamesPage() {
     const handleUrlJoin = () => {
       if (urlRoomCode) {
         if (user?.nickname) {
-          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl);
+          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl, customization?.frameAll);
         } else {
           setPendingJoinCode(urlRoomCode);
           setIsRestoring(false);
@@ -233,13 +242,14 @@ export default function CodenamesPage() {
       }
     };
 
-    const joinRoomDirect = (code, name, avatarUrl) => {
+    const joinRoomDirect = (code, name, avatarUrl, frameSlug) => {
       const visitorId = getOrCreateVisitorId();
       socket.emit("codenames:room:join", { 
         code, 
         name, 
         visitorId,
-        avatarUrl 
+        avatarUrl,
+        frameSlug 
       }, (res) => {
         if (res?.ok) {
           setGameState(res.state);
@@ -390,9 +400,9 @@ export default function CodenamesPage() {
   };
 
   const actions = useMemo(() => ({
-    createRoom: async (name, avatarUrl) => {
+    createRoom: async (name, avatarUrl, frameSlug) => {
       const visitorId = getOrCreateVisitorId();
-      const res = await emitWithAck("codenames:room:create", { name, visitorId, avatarUrl });
+      const res = await emitWithAck("codenames:room:create", { name, visitorId, avatarUrl, frameSlug });
       const result = handleAck(res);
       if (result.ok) {
         setGameState(result.state);
@@ -402,9 +412,9 @@ export default function CodenamesPage() {
       }
       return result;
     },
-    joinRoom: async (name, code, avatarUrl) => {
+    joinRoom: async (name, code, avatarUrl, frameSlug) => {
       const visitorId = getOrCreateVisitorId();
-      const res = await emitWithAck("codenames:room:join", { name, code, visitorId, avatarUrl });
+      const res = await emitWithAck("codenames:room:join", { name, code, visitorId, avatarUrl, frameSlug });
       const result = handleAck(res);
       if (result.ok) {
         setGameState(result.state);
@@ -487,6 +497,7 @@ export default function CodenamesPage() {
           onCreate={actions.createRoom}
           onJoin={actions.joinRoom}
           user={user}
+          customization={customization}
           onProfile={() => navigate("/profile")}
           onLogin={() => navigate("/login", { state: { backgroundLocation: location } })}
           onClearError={() => setError("")}
@@ -510,6 +521,7 @@ export default function CodenamesPage() {
         actions={actions}
         isPaused={isPaused}
         cardPokes={cardPokes}
+        socket={socket}
       />
     </div>
   );

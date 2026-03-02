@@ -1,0 +1,131 @@
+/* RainbowButton — кнопка с радужной анимированной границей */
+
+.rainbow-button {
+  position: relative;
+  padding: 2px;
+  border: none;
+  border-radius: 0.75rem;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  width: 100%;
+}
+
+/* Радужный градиент */
+.rainbow-button__gradient {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    #ff0080,
+    #ff8c00,
+    #40e0d0,
+    #7b68ee,
+    #ff0080
+  );
+  background-size: 300% 100%;
+  animation: rainbow-shift 3s linear infinite;
+  z-index: -2;
+}
+
+@keyframes rainbow-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 300% 50%;
+  }
+}
+
+/* Внутренний фон (тёмный) */
+.rainbow-button__inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-radius: calc(0.75rem - 2px);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: background 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
+/* Hover — показать больше градиента */
+.rainbow-button:hover .rainbow-button__inner {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+}
+
+/* Glow эффект при hover */
+.rainbow-button::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: inherit;
+  filter: blur(12px);
+  opacity: 0;
+  z-index: -3;
+  transition: opacity 0.3s ease;
+}
+
+.rainbow-button:hover::after {
+  opacity: 0.5;
+}
+
+/* Loading state */
+.rainbow-button--loading {
+  cursor: wait;
+}
+
+.rainbow-button__loader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rainbow-button__spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Disabled state */
+.rainbow-button--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.rainbow-button--disabled .rainbow-button__gradient {
+  animation-play-state: paused;
+}
+
+.rainbow-button--disabled:hover .rainbow-button__inner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+.rainbow-button--disabled::after {
+  display: none;
+}
+
+/* Мобильная адаптация */
+@media (max-width: 480px) {
+  .rainbow-button__inner {
+    padding: 0.875rem 1.25rem;
+    font-size: 0.9375rem;
+  }
+}

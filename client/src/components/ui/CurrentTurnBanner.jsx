@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import AvatarFrame from "./AvatarFrame";
 import "./CurrentTurnBanner.css";
 
 /**
@@ -28,17 +29,19 @@ export default function CurrentTurnBanner({ player }) {
         </div>
         <span className="current-turn-banner__label">Сейчас ходит</span>
         <div className="current-turn-banner__player">
-          {player.avatarUrl ? (
-            <img 
-              src={player.avatarUrl} 
-              alt={player.name}
-              className="current-turn-banner__avatar"
-            />
-          ) : (
-            <div className="current-turn-banner__avatar-placeholder">
-              {initial}
-            </div>
-          )}
+          <AvatarFrame size="s" frameSlug={player.frameSlug}>
+            {player.avatarUrl ? (
+              <img 
+                src={player.avatarUrl} 
+                alt={player.name}
+                className="current-turn-banner__avatar"
+              />
+            ) : (
+              <div className="current-turn-banner__avatar-placeholder">
+                {initial}
+              </div>
+            )}
+          </AvatarFrame>
           <span className="current-turn-banner__name">{player.name}</span>
         </div>
       </div>

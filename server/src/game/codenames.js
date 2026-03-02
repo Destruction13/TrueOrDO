@@ -218,7 +218,7 @@ function generateBoard(startingTeam = TEAMS.RED) {
 // ═══════════════════════════════════════════════════════════════════════════
 const codenamesRooms = new Map(); // code -> room state
 
-function createRoom(hostName, hostAvatarUrl, visitorId) {
+function createRoom(hostName, hostAvatarUrl, visitorId, hostFrameSlug, hostNicknameStyle) {
   const code = generateRoomCode();
   const playerId = `cp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const startingTeam = Math.random() < 0.5 ? TEAMS.RED : TEAMS.BLUE;
@@ -261,6 +261,8 @@ function createRoom(hostName, hostAvatarUrl, visitorId) {
       id: playerId,
       name: hostName,
       avatarUrl: hostAvatarUrl,
+      frameSlug: hostFrameSlug || null,
+      nicknameStyle: hostNicknameStyle || null, // { colorType, customColor, gradient: { cssValue }, glow: { cssValue } }
       visitorId,
       team: null,
       role: null, // "captain" | "operative" | "spectator" | null
@@ -288,7 +290,7 @@ function deleteRoom(code) {
 // GAME ACTIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function joinRoom(code, name, avatarUrl, visitorId) {
+function joinRoom(code, name, avatarUrl, visitorId, frameSlug, nicknameStyle) {
   const room = getRoom(code);
   if (!room) return { error: "Комната не найдена" };
 
@@ -299,6 +301,9 @@ function joinRoom(code, name, avatarUrl, visitorId) {
   if (player) {
     player.connectionStatus = "online";
     player.lastSeen = new Date();
+    if (avatarUrl !== undefined) player.avatarUrl = avatarUrl;
+    if (frameSlug !== undefined) player.frameSlug = frameSlug;
+    if (nicknameStyle !== undefined) player.nicknameStyle = nicknameStyle;
     return { room, playerId: player.id, reconnected: true };
   }
 
@@ -311,6 +316,8 @@ function joinRoom(code, name, avatarUrl, visitorId) {
     id: playerId,
     name: finalName,
     avatarUrl,
+    frameSlug: frameSlug || null,
+    nicknameStyle: nicknameStyle || null, // { colorType, customColor, gradient: { cssValue }, glow: { cssValue } }
     visitorId,
     team: null,
     role: null,
@@ -528,6 +535,9 @@ function startGame(code, playerId) {
   room.hintHistory = [];
   room.cardVotes = {};
   room.pendingCard = null;
+  
+  // Запоминаем время начала игры для статистики
+  room.gameStartedAt = Date.now();
 
   room.log.push({
     type: "game_start",
@@ -1593,9 +1603,12 @@ function buildRoomState(room, forPlayerId = null) {
         id: p.id,
         name: p.name,
         avatarUrl: p.avatarUrl,
+        frameSlug: p.frameSlug || null,
+        nicknameStyle: p.nicknameStyle || null,
         team: p.team,
         role: p.role,
-        connectionStatus: p.connectionStatus
+        connectionStatus: p.connectionStatus,
+        visitorId: p.visitorId || null
       })),
     hintHistory: room.hintHistory || [],
     log: room.log.slice(-20) // Последние 20 записей

@@ -17,6 +17,7 @@ import ActiveTaskCard from "./ui/ActiveTaskCard";
 import TaskReport from "./ui/TaskReport";
 import RulesModal from "./ui/RulesModal";
 import CustomDecisionModal from "./ui/CustomDecisionModal";
+import AvatarFrame from "./ui/AvatarFrame";
 import { useAuth } from "../context/AuthContext";
 import { GAME_IDS } from "../context/SettingsContext";
 import BatteryModeButton from "./ui/BatteryModeButton";
@@ -46,9 +47,10 @@ function RoomScreen({
   reelItems,
   isPaused,
   actions,
+  socket,
 }) {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, customization } = useAuth();
   
   const { room, players, round, content } = roomState;
   const [categoryReady, setCategoryReady] = useState(false);
@@ -398,13 +400,15 @@ function RoomScreen({
               onClick={() => navigate("/profile")}
               title="Профиль"
             >
-              {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="room-header-profile__avatar" />
-              ) : (
-                <span className="room-header-profile__placeholder">
-                  {(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}
-                </span>
-              )}
+              <AvatarFrame size="s" frameSlug={customization?.frameAll}>
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="room-header-profile__avatar" />
+                ) : (
+                  <span className="room-header-profile__placeholder">
+                    {(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}
+                  </span>
+                )}
+              </AvatarFrame>
             </button>
           ) : (
             <button 
@@ -440,6 +444,7 @@ function RoomScreen({
                   isExecuting={Boolean(round && phase !== "complete" && round.currentPlayerId === player.id)}
                   showKickButton={isHost && player.id !== meId}
                   onKick={actions.kickPlayer}
+                  socket={socket}
                 />
               ))}
             </AnimatePresence>
@@ -783,6 +788,7 @@ function RoomScreen({
                 taskText={round.finalText}
                 executorName={currentPlayer?.name}
                 executorAvatar={currentPlayer?.avatarUrl}
+                executorFrameSlug={currentPlayer?.frameSlug}
                 result={round.result}
                 isTruth={isTruth}
                 isVisible={true}

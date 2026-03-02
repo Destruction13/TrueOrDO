@@ -1,0 +1,1667 @@
+/* ============================================
+   FullProfileSidebar — Левая колонка профиля
+   Структура как в MiniProfile
+   ============================================ */
+
+.full-profile-sidebar {
+  background: linear-gradient(180deg, rgba(30, 30, 50, 0.95) 0%, rgba(20, 20, 35, 0.98) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 58, 237, 0.3) transparent;
+}
+
+.full-profile-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.full-profile-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.full-profile-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 3px;
+}
+
+/* ============================================
+   Баннер профиля
+   ============================================ */
+.full-profile-sidebar__banner {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.full-profile-sidebar__banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.full-profile-sidebar__banner-default {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #0d0d1a 0%, #1a1a3e 50%, #0f0f2a 100%);
+}
+
+/* ============================================
+   Header: Аватар слева, Bio справа (как MiniProfile)
+   ============================================ */
+.full-profile-sidebar__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 12px 16px 12px;
+  position: relative;
+  overflow: visible;
+  min-height: 120px;
+  margin-top: -70px;
+}
+
+/* Левая колонка: аватар */
+.full-profile-sidebar__left-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  margin-left: -8px;
+}
+
+.full-profile-sidebar__avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.full-profile-sidebar__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.full-profile-sidebar__avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3498db, #9b59b6);
+  color: white;
+  font-size: 32px;
+  font-weight: 600;
+  border-radius: 50%;
+}
+
+/* Правая колонка: Bio облако 
+   Верхняя граница Bio на уровне центра аватара */
+.full-profile-sidebar__right-column {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  padding-left: 0;
+  padding-top: 42px;
+  overflow: visible;
+  position: relative;
+  height: 60px;
+}
+
+/* ============================================
+   Облако статуса "о себе" (Bio bubble — копия из MiniProfile)
+   Всегда absolute чтобы не терять позицию при анимации
+   ============================================ */
+.full-profile-sidebar__bio-bubble {
+  position: absolute;
+  top: 42px;
+  left: 0;
+  right: 0;
+  padding: 12px 14px;
+  background: #3a3a4a;
+  border-radius: 16px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.5;
+  cursor: default;
+  margin-left: -3px;
+  overflow: visible;
+  z-index: 1;
+  transition: background 0.3s ease, box-shadow 0.3s ease, z-index 0s 0.3s;
+}
+
+/* Текст Bio - ограничен 2 строками по умолчанию, с плавным раскрытием */
+.full-profile-sidebar__bio-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-height: 42px; /* ~2 строки при line-height 1.5 и font-size 13px */
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Большой кружок — сливается с верхней частью Bio (с севера) */
+.full-profile-sidebar__bio-bubble::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: -9px;
+  width: 20px;
+  height: 20px;
+  background: #3a3a4a;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+}
+
+/* Маленький кружок — диагонально вверх-влево от большого, к аватару */
+.full-profile-sidebar__bio-bubble::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: -15px;
+  width: 10px;
+  height: 10px;
+  background: #3a3a4a;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+}
+
+/* При наведении Bio раскрывается вниз поверх других элементов */
+.full-profile-sidebar__bio-bubble:hover,
+.full-profile-sidebar__bio-bubble--expanded {
+  background: #454558;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: background 0.3s ease, box-shadow 0.3s ease, z-index 0s 0s;
+}
+
+/* При наведении текст плавно раскрывается с задержкой 0.3с */
+.full-profile-sidebar__bio-bubble:hover .full-profile-sidebar__bio-text,
+.full-profile-sidebar__bio-bubble--expanded .full-profile-sidebar__bio-text {
+  max-height: 300px; /* достаточно для ~10 строк */
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.3s;
+}
+
+/* При уходе курсора текст сворачивается без задержки */
+.full-profile-sidebar__bio-bubble:not(:hover):not(.full-profile-sidebar__bio-bubble--expanded) .full-profile-sidebar__bio-text {
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.full-profile-sidebar__bio-bubble:hover::before,
+.full-profile-sidebar__bio-bubble--expanded::before,
+.full-profile-sidebar__bio-bubble:hover::after,
+.full-profile-sidebar__bio-bubble--expanded::after {
+  background: #454558;
+}
+
+/* Пустой статус (placeholder) */
+.full-profile-sidebar__bio-bubble--empty {
+  cursor: pointer;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: rgba(58, 58, 74, 0.5);
+}
+
+.full-profile-sidebar__bio-bubble--empty:hover {
+  background: rgba(58, 58, 74, 0.8);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.full-profile-sidebar__bio-text--placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Кнопки редактирования и удаления Bio (Discord-style) */
+.full-profile-sidebar__bio-actions {
+  position: absolute;
+  top: -12px;
+  right: -4px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.full-profile-sidebar__bio-action-btn {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.full-profile-sidebar__bio-action-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.full-profile-sidebar__bio-action-btn--edit {
+  background: rgba(52, 152, 219, 0.9);
+  color: white;
+}
+
+.full-profile-sidebar__bio-action-btn--edit:hover {
+  background: #3498db;
+  transform: scale(1.1);
+}
+
+.full-profile-sidebar__bio-action-btn--delete {
+  background: rgba(231, 76, 60, 0.9);
+  color: white;
+}
+
+.full-profile-sidebar__bio-action-btn--delete:hover {
+  background: #e74c3c;
+  transform: scale(1.1);
+}
+
+/* Tooltip для кнопок действий */
+.full-profile-sidebar__action-tooltip {
+  position: fixed;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.8) 0%, rgba(30, 25, 50, 0.8) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 100000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+}
+
+.full-profile-sidebar__action-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(38, 30, 55, 0.8);
+}
+
+/* При рендере через JS (createPortal) - всегда видимый */
+div.full-profile-sidebar__action-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Discord dropdown меню */
+.full-profile-sidebar__discord-menu {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.95) 0%, rgba(30, 25, 50, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  z-index: 100001;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  min-width: 160px;
+}
+
+.full-profile-sidebar__discord-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.full-profile-sidebar__discord-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.full-profile-sidebar__discord-menu-item svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* ============================================
+   Индикатор статуса онлайн (копия из MiniProfile)
+   Wrapper 100px, внутренний аватар 84px, отступ 8px с каждой стороны
+   ============================================ */
+.full-profile-sidebar__status-indicator {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid #1a1a2e;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.full-profile-sidebar__status-indicator--clickable {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.full-profile-sidebar__status-indicator--clickable:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* Overlay для закрытия селектора статуса */
+.full-profile-sidebar__status-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: transparent;
+}
+
+/* Контейнер селектора статуса - абсолютно позиционирован внутри header */
+.full-profile-sidebar__status-selector-container {
+  position: absolute;
+  top: 115px;
+  left: 16px;
+  z-index: 10000;
+}
+
+/* ============================================
+   Селектор статуса (dropdown)
+   ============================================ */
+.full-profile-sidebar__status-selector {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100%);
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
+
+.full-profile-sidebar__status-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.full-profile-sidebar__status-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.full-profile-sidebar__status-option.active {
+  background: rgba(124, 58, 237, 0.2);
+}
+
+.full-profile-sidebar__status-option-icon {
+  font-size: 14px;
+}
+
+.full-profile-sidebar__status-option-label {
+  flex: 1;
+  text-align: left;
+}
+
+.full-profile-sidebar__status-option-check {
+  color: #2ecc71;
+  font-weight: 600;
+}
+
+/* ============================================
+   TagBadge с копированием (копия из MiniProfile)
+   ============================================ */
+.full-profile-sidebar__tag-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(157, 78, 221, 0.3) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.5);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  letter-spacing: 0.5px;
+  color: #a8b4ff;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Tooltip для хэштега */
+.full-profile-sidebar__tag-tooltip {
+  position: fixed;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.8) 0%, rgba(30, 25, 50, 0.8) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 100000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+}
+
+.full-profile-sidebar__tag-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(38, 30, 55, 0.8);
+}
+
+/* При рендере через JS (createPortal) - всегда видимый */
+div.full-profile-sidebar__tag-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.full-profile-sidebar__tag-badge:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.5) 0%, rgba(157, 78, 221, 0.5) 100%);
+  border-color: rgba(157, 78, 221, 0.7);
+  color: #fff;
+  transform: scale(1.08);
+  text-shadow: 0 0 12px rgba(157, 78, 221, 0.8);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4),
+              0 0 20px rgba(157, 78, 221, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.full-profile-sidebar__tag-badge:active {
+  transform: scale(0.95);
+  box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
+}
+
+.full-profile-sidebar__copy-tooltip {
+  position: fixed;
+  z-index: 10010;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ============================================
+   Никнейм секция (отдельный блок под header — копия из MiniProfile)
+   ============================================ */
+.full-profile-sidebar__nickname-section {
+  padding: 0 20px 16px;
+}
+
+.full-profile-sidebar__nickname-row {
+  padding: 0 0 4px 8px;
+  margin-top: -4px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.full-profile-sidebar__nickname {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Контейнер для никнейма с обрезкой */
+.full-profile-sidebar__nickname-wrapper {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Длинный никнейм (>12 символов) - обрезка с ... */
+.full-profile-sidebar__nickname-row--long .full-profile-sidebar__nickname-wrapper {
+  max-width: 140px;
+}
+
+.full-profile-sidebar__nickname-row--long .full-profile-sidebar__nickname-wrapper .full-profile-sidebar__nickname {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Контейнер для бейджиков */
+.full-profile-sidebar__nickname-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+/* При раскрытом состоянии (JS управление) - раскрываем никнейм */
+.full-profile-sidebar__nickname-row--expanded .full-profile-sidebar__nickname-wrapper {
+  max-width: 100%;
+}
+
+.full-profile-sidebar__nickname-row--expanded .full-profile-sidebar__nickname-wrapper .full-profile-sidebar__nickname {
+  text-overflow: clip;
+}
+
+/* Бейджики смещаются под никнейм при раскрытом состоянии */
+.full-profile-sidebar__nickname-row--expanded {
+  flex-wrap: wrap;
+}
+
+.full-profile-sidebar__nickname-row--expanded .full-profile-sidebar__nickname-badges {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* Бейджи уровня, премиума и игры */
+.full-profile-sidebar__badges {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.full-profile-sidebar__level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid var(--badge-color, rgba(255, 255, 255, 0.2));
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--badge-color, rgba(255, 255, 255, 0.8));
+  transition: all 0.2s;
+}
+
+.full-profile-sidebar__level-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--badge-color) 40%, transparent);
+}
+
+.full-profile-sidebar__premium-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(241, 196, 15, 0.2) 0%, rgba(243, 156, 18, 0.15) 100%);
+  border: 1px solid rgba(241, 196, 15, 0.4);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f1c40f;
+  text-shadow: 0 0 8px rgba(241, 196, 15, 0.4);
+  animation: premium-glow 2s ease-in-out infinite;
+}
+
+@keyframes premium-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(241, 196, 15, 0.2); }
+  50% { box-shadow: 0 0 16px rgba(241, 196, 15, 0.4); }
+}
+
+.full-profile-sidebar__game-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, var(--game-color, #9b59b6) 0%, color-mix(in srgb, var(--game-color, #9b59b6) 70%, black) 100%);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* Строка статуса */
+.full-profile-sidebar__status-line {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.full-profile-sidebar__status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.full-profile-sidebar__in-game {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.full-profile-sidebar__in-game strong {
+  color: #a855f7;
+}
+
+.full-profile-sidebar__join-game-btn {
+  margin-left: 6px;
+  padding: 2px 8px;
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: 4px;
+  color: #a855f7;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.full-profile-sidebar__join-game-btn:hover {
+  background: rgba(124, 58, 237, 0.3);
+  transform: translateX(2px);
+}
+
+/* ============================================
+   Discord Icon (рядом с никнеймом, размер как хэштег)
+   ============================================ */
+.full-profile-sidebar__discord-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  background: rgba(88, 101, 242, 0.25);
+  border: 1px solid rgba(88, 101, 242, 0.5);
+  border-radius: 12px;
+  color: #7aa2f7;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  margin-left: 0;
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.2);
+  cursor: pointer;
+}
+
+.full-profile-sidebar__discord-icon:hover {
+  background: rgba(88, 101, 242, 0.4);
+  border-color: rgba(88, 101, 242, 0.7);
+  color: #9ec5fe;
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(88, 101, 242, 0.4);
+}
+
+.full-profile-sidebar__discord-icon svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================
+   Кнопки действий (компактные, Discord-style)
+   ============================================ */
+.full-profile-sidebar__actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 16px;
+  margin-top: -6px;
+  flex-wrap: wrap;
+}
+
+.full-profile-sidebar__edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.6) 0%, rgba(30, 25, 50, 0.6) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.full-profile-sidebar__edit-btn:hover {
+  background: linear-gradient(135deg, rgba(55, 45, 80, 0.7) 0%, rgba(40, 35, 65, 0.7) 100%);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+.full-profile-sidebar__edit-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.full-profile-sidebar__action-btn {
+  flex: 1;
+  min-width: 80px;
+  font-size: 13px !important;
+  padding: 8px 16px !important;
+  border-radius: 4px !important;
+}
+
+/* Кнопка "Сообщение" — как на референсе */
+.full-profile-sidebar__message-btn {
+  width: 100%;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, 
+    rgba(139, 92, 246, 0.6) 0%,
+    rgba(124, 58, 237, 0.5) 50%,
+    rgba(109, 40, 217, 0.6) 100%
+  );
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.full-profile-sidebar__message-btn:hover {
+  background: linear-gradient(135deg, 
+    rgba(139, 92, 246, 0.75) 0%,
+    rgba(124, 58, 237, 0.65) 50%,
+    rgba(109, 40, 217, 0.75) 100%
+  );
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+}
+
+/* ============================================
+   Секция Биография
+   ============================================ */
+.full-profile-sidebar__biography-section {
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.full-profile-sidebar__biography-header {
+  margin-bottom: 8px;
+}
+
+.full-profile-sidebar__biography-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.full-profile-sidebar__biography-hint {
+  display: block;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 2px;
+}
+
+.full-profile-sidebar__biography-edit-btn {
+  position: relative;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 12px;
+  transition: color 0.2s ease;
+  border-radius: 4px;
+}
+
+.full-profile-sidebar__biography-edit-btn:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.full-profile-sidebar__biography-display {
+  min-height: 20px;
+}
+
+.full-profile-sidebar__biography-content {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.full-profile-sidebar__biography-content strong {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.full-profile-sidebar__biography-content em {
+  font-style: italic;
+}
+
+.full-profile-sidebar__biography-content s {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.full-profile-sidebar__biography-content .bio-quote {
+  display: block;
+  padding-left: 10px;
+  border-left: 2px solid rgba(139, 92, 246, 0.6);
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+  margin: 4px 0;
+}
+
+.full-profile-sidebar__biography-content .bio-link {
+  color: #8b5cf6;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.full-profile-sidebar__biography-content .bio-link:hover {
+  color: #a78bfa;
+  text-decoration: underline;
+}
+
+.full-profile-sidebar__biography-empty {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+/* ============================================
+   Редактор биографии (Bio Editor)
+   ============================================ */
+.bio-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bio-editor__input-wrapper {
+  position: relative;
+}
+
+.bio-editor__toolbar {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}
+
+.bio-editor__toolbar-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bio-editor__toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.bio-editor__toolbar-btn--active {
+  background: rgba(139, 92, 246, 0.3);
+  color: #a78bfa;
+}
+
+.bio-editor__toolbar-btn strong {
+  font-weight: 700;
+}
+
+.bio-editor__toolbar-btn em {
+  font-style: italic;
+}
+
+.bio-editor__toolbar-btn s {
+  text-decoration: line-through;
+}
+
+/* Кнопка эмодзи — справа сверху, текст обтекает её */
+.bio-editor__emoji-trigger {
+  float: right;
+  width: 28px;
+  height: 28px;
+  margin: 4px 4px 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 5;
+  flex-shrink: 0;
+}
+
+.bio-editor__emoji-trigger:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.05);
+}
+
+.bio-editor__emoji-picker {
+  position: absolute;
+  top: 40px;
+  right: 6px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 8px;
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+  max-width: 220px;
+}
+
+.bio-editor__emoji-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bio-editor__emoji-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.15);
+}
+
+.bio-editor__textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  padding-bottom: 24px;
+  background: #2a2a3e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: white;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.bio-editor__textarea:focus {
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+.bio-editor__textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* WYSIWYG contenteditable редактор */
+.bio-editor__contenteditable {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  padding-bottom: 24px;
+  background: #2a2a3e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: white;
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+  font-family: inherit;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.bio-editor__contenteditable:focus {
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+.bio-editor__contenteditable:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+.bio-editor__contenteditable strong {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.bio-editor__contenteditable em {
+  font-style: italic;
+}
+
+.bio-editor__contenteditable s {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.bio-editor__char-count {
+  position: absolute;
+  bottom: 6px;
+  right: 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+
+.bio-editor__preview-section {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 60px;
+}
+
+.bio-editor__preview-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.bio-editor__preview {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.bio-editor__preview strong {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.bio-editor__preview em {
+  font-style: italic;
+}
+
+.bio-editor__preview s {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.bio-editor__preview .bio-quote {
+  display: block;
+  padding-left: 10px;
+  border-left: 2px solid rgba(139, 92, 246, 0.6);
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+  margin: 4px 0;
+}
+
+.bio-editor__preview .bio-link {
+  color: #8b5cf6;
+  text-decoration: none;
+}
+
+.bio-editor__preview-empty {
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+
+.bio-editor__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.bio-editor__action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.bio-editor__action-btn--save {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+}
+
+.bio-editor__action-btn--save:hover {
+  background: rgba(46, 204, 113, 0.3);
+}
+
+.bio-editor__action-btn--close {
+  background: rgba(150, 150, 150, 0.2);
+  color: #aaa;
+}
+
+.bio-editor__action-btn--close:hover {
+  background: rgba(150, 150, 150, 0.3);
+  color: #ccc;
+}
+
+/* ============================================
+   Действия с профилем (Игнорировать, Заблокировать, Пожаловаться)
+   ============================================ */
+.full-profile-sidebar__profile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.full-profile-sidebar__profile-action-btn {
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.full-profile-sidebar__profile-action-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.full-profile-sidebar__profile-action-btn--danger:hover {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
+
+.full-profile-sidebar__profile-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   Модальное окно жалобы
+   ============================================ */
+.full-profile-sidebar__report-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.full-profile-sidebar__report-modal {
+  background: #1e1e2e;
+  border-radius: 12px;
+  padding: 20px;
+  width: 320px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.full-profile-sidebar__report-modal h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.full-profile-sidebar__report-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: #2a2a3e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: white;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.full-profile-sidebar__report-select:focus {
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.full-profile-sidebar__report-comment {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  background: #2a2a3e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: white;
+  font-size: 13px;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  margin-bottom: 16px;
+}
+
+.full-profile-sidebar__report-comment:focus {
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.full-profile-sidebar__report-comment::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.full-profile-sidebar__report-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.full-profile-sidebar__report-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.full-profile-sidebar__report-btn--cancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.full-profile-sidebar__report-btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.full-profile-sidebar__report-btn--submit {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.full-profile-sidebar__report-btn--submit:hover {
+  background: #c0392b;
+}
+
+.full-profile-sidebar__report-btn--submit:disabled {
+  background: rgba(231, 76, 60, 0.5);
+  cursor: not-allowed;
+}
+
+/* ============================================
+   Редактор Bio (как в MiniProfile — inline в правой колонке)
+   ============================================ */
+.full-profile-sidebar__bio-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.full-profile-sidebar__bio-input {
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
+  background: #2a2a3e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  color: white;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.full-profile-sidebar__bio-input:focus {
+  border-color: rgba(52, 152, 219, 0.5);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.full-profile-sidebar__bio-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.full-profile-sidebar__bio-editor-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.full-profile-sidebar__bio-editor-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.full-profile-sidebar__bio-editor-btn--save {
+  background: rgba(46, 204, 113, 0.9);
+  color: white;
+}
+
+.full-profile-sidebar__bio-editor-btn--save:hover {
+  background: #2ecc71;
+  transform: scale(1.1);
+}
+
+.full-profile-sidebar__bio-editor-btn--cancel {
+  background: rgba(231, 76, 60, 0.9);
+  color: white;
+}
+
+.full-profile-sidebar__bio-editor-btn--cancel:hover {
+  background: #e74c3c;
+  transform: scale(1.1);
+}
+
+/* ============================================
+   Секции информации
+   ============================================ */
+.full-profile-sidebar__section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+/* Member since */
+.full-profile-sidebar__member-since {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.full-profile-sidebar__dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.full-profile-sidebar__date-item {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.full-profile-sidebar__date-item.premium {
+  color: #f1c40f;
+}
+
+/* ============================================
+   Роли
+   ============================================ */
+.full-profile-sidebar__roles {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.full-profile-sidebar__roles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.full-profile-sidebar__role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.full-profile-sidebar__role-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--role-color, #7c3aed);
+}
+
+/* ============================================
+   Заметка
+   ============================================ */
+.full-profile-sidebar__note {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.full-profile-sidebar__note-hint {
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.full-profile-sidebar__note-content {
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 60px;
+}
+
+.full-profile-sidebar__note-content:hover {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.full-profile-sidebar__note-edit textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(124, 58, 237, 0.5);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #fff;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.full-profile-sidebar__note-edit textarea:focus {
+  outline: none;
+  border-color: #7c3aed;
+}
+
+.full-profile-sidebar__note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.full-profile-sidebar__note-actions button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.full-profile-sidebar__note-actions button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.full-profile-sidebar__note-actions button.save {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
+.full-profile-sidebar__note-actions button.save:hover {
+  transform: translateY(-1px);
+}
+
+/* ============================================
+   Responsive — Tablet
+   ============================================ */
+@media (max-width: 768px) {
+  .full-profile-sidebar {
+    padding: 20px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    max-height: none;
+  }
+
+  .full-profile-sidebar__header {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .full-profile-sidebar__avatar-section {
+    padding-top: 0;
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .full-profile-sidebar__bio-cloud {
+    position: static;
+    max-width: 100%;
+    margin-bottom: 16px;
+  }
+
+  .full-profile-sidebar__bio-cloud-tail {
+    display: none;
+  }
+
+  .full-profile-sidebar__user-info {
+    text-align: left;
+    align-items: flex-start;
+  }
+
+  .full-profile-sidebar__actions {
+    justify-content: flex-start;
+  }
+
+  /* Скрываем менее важные секции на планшете */
+  .full-profile-sidebar__section--roles,
+  .full-profile-sidebar__section--note {
+    display: none;
+  }
+}
+
+/* ============================================
+   Responsive — Mobile
+   ============================================ */
+@media (max-width: 480px) {
+  .full-profile-sidebar {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .full-profile-sidebar__header {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .full-profile-sidebar__avatar-section {
+    width: 100%;
+  }
+
+  .full-profile-sidebar__user-info {
+    text-align: center;
+    align-items: center;
+  }
+
+  .full-profile-sidebar__nickname {
+    font-size: 20px;
+  }
+
+  .full-profile-sidebar__actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .full-profile-sidebar__actions button {
+    flex: 1;
+  }
+
+  .full-profile-sidebar__section--dates {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

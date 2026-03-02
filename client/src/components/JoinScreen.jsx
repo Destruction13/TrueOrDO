@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import Button from "./ui/Button";
 import PulseButton from "./ui/PulseButton";
 import BatteryModeButton from "./ui/BatteryModeButton";
+import AvatarFrame from "./ui/AvatarFrame";
+import StyledNickname from "./ui/StyledNickname";
 import { GAME_IDS } from "../context/SettingsContext";
 import TextShimmer from "./alias/TextShimmer";
 import RulesModal from "./ui/RulesModal";
 
-function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLogin, onClearError, initialCode, onBackToGames }) {
+function JoinScreen({ connected, error, onCreate, onJoin, user, customization, onProfile, onLogin, onClearError, initialCode, onBackToGames }) {
   const [createName, setCreateName] = useState("");
   const [joinName, setJoinName] = useState("");
   const [joinCode, setJoinCode] = useState(initialCode || "");
@@ -38,7 +40,7 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
       return;
     }
     setLoading(true);
-    await onCreate(effectiveCreateName, user?.avatarUrl);
+    await onCreate(effectiveCreateName, user?.avatarUrl, customization?.frameAll);
     setLoading(false);
   };
 
@@ -48,7 +50,7 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
       return;
     }
     setLoading(true);
-    await onJoin(effectiveJoinName, joinCode.trim().toUpperCase(), user?.avatarUrl);
+    await onJoin(effectiveJoinName, joinCode.trim().toUpperCase(), user?.avatarUrl, customization?.frameAll);
     setLoading(false);
   };
 
@@ -87,14 +89,18 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
               <div className="field-info">
                 <span>Играете как</span>
                 <div className="field-user">
-                  {user.avatarUrl ? (
-                    <img src={user.avatarUrl} alt="" className="field-user__avatar" />
-                  ) : (
-                    <span className="field-user__avatar-placeholder">
-                      {user.nickname[0].toUpperCase()}
-                    </span>
-                  )}
-                  <span className="field-user__name">{user.nickname}</span>
+                  <AvatarFrame size="xs" frameSlug={customization?.frameAll}>
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} alt="" className="field-user__avatar" />
+                    ) : (
+                      <span className="field-user__avatar-placeholder">
+                        {user.nickname[0].toUpperCase()}
+                      </span>
+                    )}
+                  </AvatarFrame>
+                  <span className="field-user__name">
+                    <StyledNickname name={user.nickname} customization={customization} />
+                  </span>
                 </div>
               </div>
             ) : (
@@ -145,14 +151,21 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
       <div className="user-header">
         {user ? (
           <button className="user-header__profile" onClick={onProfile} type="button">
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="user-header__avatar" />
-            ) : (
-              <span className="user-header__avatar-placeholder">
-                {(user.nickname || user.email)?.[0]?.toUpperCase() || "?"}
-              </span>
-            )}
-            <span className="user-header__name">{user.nickname || user.email}</span>
+            <AvatarFrame size="xs" frameSlug={customization?.frameAll}>
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="user-header__avatar" />
+              ) : (
+                <span className="user-header__avatar-placeholder">
+                  {(user.nickname || user.email)?.[0]?.toUpperCase() || "?"}
+                </span>
+              )}
+            </AvatarFrame>
+            <span className="user-header__name">
+              <StyledNickname 
+                name={user.nickname || user.email} 
+                customization={customization}
+              />
+            </span>
           </button>
         ) : (
           <Button variant="ghost" size="sm" onClick={onLogin}>
@@ -208,14 +221,18 @@ function JoinScreen({ connected, error, onCreate, onJoin, user, onProfile, onLog
             <div className="field-info">
               <span>Играете как</span>
               <div className="field-user">
-                {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="" className="field-user__avatar" />
-                ) : (
-                  <span className="field-user__avatar-placeholder">
-                    {user.nickname[0].toUpperCase()}
-                  </span>
-                )}
-                <span className="field-user__name">{user.nickname}</span>
+                <AvatarFrame size="xs" frameSlug={customization?.frameAll}>
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="" className="field-user__avatar" />
+                  ) : (
+                    <span className="field-user__avatar-placeholder">
+                      {user.nickname[0].toUpperCase()}
+                    </span>
+                  )}
+                </AvatarFrame>
+                <span className="field-user__name">
+                  <StyledNickname name={user.nickname} customization={customization} />
+                </span>
               </div>
             </div>
           ) : (

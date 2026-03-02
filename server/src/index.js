@@ -14,6 +14,7 @@ const { getWheelData, pickWheel1, pickWheel2, pickWheel2ForChaos, pickTruthQuest
 const { PrismaSessionStore } = require("./auth/session-store");
 const { createAuthRouter } = require("./auth/routes");
 const { createOAuthRouter } = require("./auth/oauth");
+const { createSubscriptionRouter, registerUserSocket, unregisterUserSocket } = require("./subscription/routes");
 const {
   getDefaultAliasSettings,
   normalizeAliasSettings,
@@ -50,6 +51,24 @@ const {
 } = require("./game/alias-turn-helpers");
 
 const { checkAndUpdateAliasTurn, getNextFullTeamAndExplainer } = require("./game/alias-check-turn");
+
+const {
+  recordTodRoundComplete,
+  recordTodGameComplete,
+  recordTodChaosEscape,
+  recordTodRedemption,
+  recordAliasTurnComplete,
+  recordAliasGameComplete,
+  recordEmotionalRoundComplete,
+  recordEmotionalGameComplete,
+  recordCodenamesRoundComplete,
+  recordCodenamesGameComplete,
+  unlockAchievementByEvent,
+  updateUserStatsById,
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅ)
+  recordPlayerJoin,
+  recordPlayerLeave
+} = require("./game/stats");
 
 const {
   TEAMS: CODENAMES_TEAMS,
@@ -100,6 +119,7 @@ const {
 const {
   normalizeName: normalizeEmotionalName,
   createRoom: createEmotionalRoom,
+  getRoom: getEmotionalRoom,
   joinRoom: joinEmotionalRoom,
   leaveRoom: leaveEmotionalRoom,
   disconnectPlayer: disconnectEmotionalPlayer,
@@ -128,9 +148,91 @@ const {
   buildRoomState: buildEmotionalRoomState
 } = require("./game/emotional");
 
-// Codenames timer management - обрабатывает hint -> overtime -> guess -> end
+// Social Module (Friends, Blocking)
+const {
+  sendFriendRequest,
+  acceptFriendRequest,
+  rejectFriendRequest,
+  cancelFriendRequest,
+  removeFriend,
+  getFriends,
+  getPendingRequests,
+  getSentRequests,
+  getPendingRequestsCount,
+  blockUser,
+  unblockUser,
+  getBlockedUsers,
+  getFriendshipStatus,
+  searchUsers,
+  getPublicProfile,
+} = require("./social/friends");
+
+// Messages Module (Private Chats)
+const {
+  getOrCreateConversation,
+  getConversations,
+  deleteConversation,
+  sendMessage,
+  getMessages,
+  getMessagesByPartner,
+  markAsRead,
+  getUnreadCount,
+  sendGameInvite,
+} = require("./social/messages");
+
+// Profile Module (Full Profile)
+const {
+  registerProfileHandlers,
+  recordActivity,
+} = require("./social/profile");
+
+// Activity Module (Discord-style activity tracking)
+const {
+  startSession: startActivitySession,
+  endSession: endActivitySession,
+  updateSessionPlayers,
+  getCurrentActivity,
+  getFullActivityData,
+  registerActivityHandlers,
+  activeSessions,
+  GAMES_MAP: ACTIVITY_GAMES_MAP
+} = require("./social/activity");
+
+// Clans Module
+const {
+  createClan,
+  deleteClan,
+  updateClan,
+  updateClanAvatar,
+  getClan,
+  getUserClan,
+  searchClans,
+  getPopularClans,
+  joinClan,
+  leaveClan,
+  kickMember,
+  getClanMembers,
+  requestJoinClan,
+  acceptClanRequest,
+  rejectClanRequest,
+  cancelClanRequest,
+  getClanRequests,
+  getMyClanRequests,
+  promoteMember,
+  demoteMember,
+  transferLeadership,
+  sendClanMessage,
+  getClanMessages,
+  deleteClanMessage,
+  reportClan,
+  getClanReports,
+  resolveReport,
+  REPORT_REASONS,
+} = require("./social/clans");
+
+// Codenames timer management - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ hint -> overtime -> guess -> end
 function startCodenamesTimer(roomCode, durationSeconds, io) {
-  // Очищаем предыдущий таймер если есть
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
   stopCodenamesTimer(roomCode);
   
   const intervalId = setInterval(() => {
@@ -142,7 +244,7 @@ function startCodenamesTimer(roomCode, durationSeconds, io) {
     
     const now = Date.now();
     
-    // Проверяем фазу hint - если истекла и подсказки нет, переключаемся в overtime
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ hint - пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ overtime
     if (room.timerPhase === "hint" && room.hintTimerEndsAt && now >= room.hintTimerEndsAt && !room.currentHint) {
       const result = switchCodenamesOvertime(roomCode);
       if (result.room) {
@@ -156,7 +258,7 @@ function startCodenamesTimer(roomCode, durationSeconds, io) {
       return;
     }
     
-    // Проверяем общий таймер (guessTimerEndsAt) - если истёк, завершаем ход
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (guessTimerEndsAt) - пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
     if (room.guessTimerEndsAt && now >= room.guessTimerEndsAt) {
       stopCodenamesTimer(roomCode);
       
@@ -170,13 +272,13 @@ function startCodenamesTimer(roomCode, durationSeconds, io) {
         });
         io.to(`codenames:${roomCode}`).emit("codenames:turn:timeout");
         
-        // Запускаем новый таймер для следующего хода
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         if (result.startTimer && result.timerDuration) {
           startCodenamesTimer(roomCode, result.timerDuration, io);
         }
       }
     }
-  }, 500); // Проверяем чаще для более точного переключения
+  }, 500); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   
   codenamesTimers.set(roomCode, { intervalId });
 }
@@ -200,7 +302,7 @@ function startEmotionalTimer(roomCode) {
       return;
     }
 
-    // Если игра на паузе — пропускаем тик таймера
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (isEmotionalGamePaused(roomCode)) {
       return;
     }
@@ -218,7 +320,7 @@ function startEmotionalTimer(roomCode) {
       return;
     }
 
-    // Reveal: 2 секунды лежат рубашкой вниз, затем раскрываем по одной слева направо каждые 0.5с.
+    // Reveal: 2 пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ 0.5пїЅ.
     if (room.phase === "reveal") {
       const startedAt = room.revealStartedAt || nowMs;
       const waitMs = 2000;
@@ -230,7 +332,7 @@ function startEmotionalTimer(roomCode) {
       const table = Array.isArray(room.table) ? room.table : [];
       const targetCount = Math.max(0, Math.min(table.length, shouldRevealCount));
 
-      // Отмечаем раскрытые слоты (сохраняем уже раскрытые)
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
       if (!room.revealedSlotIds) room.revealedSlotIds = {};
       let changed = false;
       for (let i = 0; i < targetCount; i++) {
@@ -242,23 +344,23 @@ function startEmotionalTimer(roomCode) {
         }
       }
 
-      // Когда все раскрыты — переходим в vote
+      // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ vote
       const allRevealed = table.length > 0 && Object.keys(room.revealedSlotIds).length >= table.length;
       if (allRevealed) {
-        // Ставим метку времени один раз, чтобы не прерывать анимацию последнего переворота появлением таймера.
+        // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
         if (!room.allRevealedAt) {
           room.allRevealedAt = nowMs;
           changed = true;
         }
 
-        // Переходим в vote только через 1 секунду после раскрытия всех карт.
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ vote пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ 1 пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ.
         if (room.allRevealedAt && nowMs - room.allRevealedAt >= 1000) {
           advanceEmotionalRevealToVote(room, nowMs);
           changed = true;
         }
       }
 
-      // Важно: state sync делаем только если что-то изменилось, чтобы не спамить 2 раза в секунду.
+      // пїЅпїЅпїЅпїЅпїЅ: state sync пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ-пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2 пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
       if (changed) {
         room.players.forEach((p) => {
           const socketId = emotionalPlayerSockets.get(p.id);
@@ -272,6 +374,54 @@ function startEmotionalTimer(roomCode) {
 
     if (canFinalizeEmotionalVote(room, nowMs)) {
       finalizeEmotionalRound(room);
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+      const leaderId = room.leaderId;
+      const leaderSlot = room.table?.find(s => s.playerId === leaderId);
+      const leaderSlotId = leaderSlot?.slotId;
+      
+      (async () => {
+        for (const player of room.players) {
+          if (player.id === leaderId) continue;
+          if (!player.visitorId) continue;
+          
+          const votedSlotId = room.votes?.[player.id];
+          if (votedSlotId) {
+            const guessedCorrectly = votedSlotId === leaderSlotId;
+            try {
+              await recordEmotionalRoundComplete(player.visitorId, guessedCorrectly, io);
+            } catch (e) {
+              console.error("[Stats] Emotional round error (timer):", e);
+            }
+          }
+        }
+        
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ
+        if (room.status === "ended") {
+          const targetScore = room.settings?.targetScore ?? 15;
+          const winnerPlayerIds = Object.entries(room.scores || {})
+            .filter(([, score]) => score >= targetScore)
+            .map(([playerId]) => playerId);
+          const winnerSet = new Set(winnerPlayerIds);
+          
+          // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+          const gameStartedAt = room.gameStartedAt;
+          const timePlayed = gameStartedAt ? Math.floor((Date.now() - gameStartedAt) / 1000) : 0;
+          
+          console.log("[Stats] Emotional game ended (timer) - gameStartedAt:", gameStartedAt, "timePlayed:", timePlayed);
+          
+          for (const player of room.players) {
+            if (!player.visitorId) continue;
+            const won = winnerSet.has(player.id);
+            try {
+              await recordEmotionalGameComplete(player.visitorId, won, io, timePlayed);
+            } catch (e) {
+              console.error("[Stats] Emotional game complete error (timer):", e);
+            }
+          }
+        }
+      })();
+      
       room.players.forEach((p) => {
         const socketId = emotionalPlayerSockets.get(p.id);
         if (socketId) {
@@ -281,7 +431,7 @@ function startEmotionalTimer(roomCode) {
       return;
     }
 
-    // Итерация 10: очистка стола через 5 секунд после показа результатов
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ 10: пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ 5 пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (room.phase === "results" && room.resultsShownAt && !room.tableCleared) {
       const elapsedMs = nowMs - room.resultsShownAt;
       if (elapsedMs >= 5000) {
@@ -298,13 +448,13 @@ function startEmotionalTimer(roomCode) {
       }
     }
 
-    // Автопродолжение: запуск следующего раунда через 5 секунд после очистки стола
-    // Устанавливаем autoAdvanceAt сразу при очистке стола (в том же тике)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ 5 пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ autoAdvanceAt пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (пїЅ пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ)
     if (room.phase === "results" && room.tableCleared && room.settings?.autoAdvance && !room.autoAdvanceAt) {
-      room.autoAdvanceAt = nowMs + 5000; // 5 секунд после очистки стола
+      room.autoAdvanceAt = nowMs + 5000; // 5 пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     }
     
-    // Проверяем, пора ли запускать следующий раунд
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     if (room.phase === "results" && room.autoAdvanceAt && nowMs >= room.autoAdvanceAt) {
       const result = startEmotionalNextRound(roomCode, room.hostId, nowMs);
       room.autoAdvanceAt = null;
@@ -319,7 +469,7 @@ function startEmotionalTimer(roomCode) {
       }
     }
 
-    // Автопродолжение для no_contest: запускаем следующий раунд через 5 секунд
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ no_contest: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ 5 пїЅпїЅпїЅпїЅпїЅпїЅ
     if (room.phase === "no_contest" && room.settings?.autoAdvance && !room.autoAdvanceAt) {
       room.autoAdvanceAt = nowMs + 5000;
     }
@@ -360,7 +510,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 const app = express();
 
-// Trust proxy для корректной работы за reverse proxy (Cloudflare, nginx и т.д.)
+// Trust proxy пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ reverse proxy (Cloudflare, nginx пїЅ пїЅ.пїЅ.)
 app.set("trust proxy", 1);
 
 // ===========================================================================
@@ -375,7 +525,7 @@ app.use(cookieParser());
 
 // Session store
 const sessionStore = new PrismaSessionStore(prisma, {
-  ttl: 7 * 24 * 60 * 60 * 1000 // 7 дней
+  ttl: 7 * 24 * 60 * 60 * 1000 // 7 пїЅпїЅпїЅпїЅ
 });
 
 // Session middleware
@@ -389,7 +539,7 @@ const sessionMiddleware = session({
     httpOnly: true,
     secure: IS_PRODUCTION,
     sameSite: IS_PRODUCTION ? "strict" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 дней
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 пїЅпїЅпїЅпїЅ
   }
 });
 
@@ -416,7 +566,7 @@ app.get("/api/wheels", (req, res) => {
 // OAuth routes (Discord, Google)
 app.use("/api", createOAuthRouter(prisma));
 
-// Auth routes подключаются после создания io (см. ниже)
+// Auth routes пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ io (пїЅпїЅ. пїЅпїЅпїЅпїЅ)
 
 // ===========================================================================
 // STATIC FILES (Client)
@@ -425,7 +575,7 @@ const clientDist = path.join(__dirname, "..", "..", "client", "dist");
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
   app.get("*", (req, res, next) => {
-    // Не перехватываем API и uploads
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ API пїЅ uploads
     if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
       return next();
     }
@@ -442,37 +592,75 @@ const io = new Server(server, {
     origin: CLIENT_ORIGIN,
     credentials: true
   },
-  // Быстрое обнаружение disconnect (по умолчанию pingInterval=25000, pingTimeout=20000)
-  pingInterval: 5000,  // Пинг каждые 5 секунд
-  pingTimeout: 3000    // Таймаут ответа 3 секунды
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ disconnect (пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ pingInterval=25000, pingTimeout=20000)
+  pingInterval: 5000,  // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ 5 пїЅпїЅпїЅпїЅпїЅпїЅ
+  pingTimeout: 3000    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ 3 пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 });
 
-// Auth routes (после создания io)
+// Auth routes (пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ io)
 app.use("/api", createAuthRouter(prisma, sessionStore, io));
 
-// Интеграция session с Socket.IO
+// Subscription routes (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ io пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ real-time пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+app.use("/api/subscription", createSubscriptionRouter(prisma, io));
+
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ session пїЅ Socket.IO
 io.use((socket, next) => {
   sessionMiddleware(socket.request, {}, next);
 });
 
-// Добавляем userId в socket.data если авторизован
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ userId пїЅ socket.data пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 io.use((socket, next) => {
   const session = socket.request.session;
   if (session && session.userId) {
     socket.data.userId = session.userId;
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    registerUserSocket(session.userId, socket.id);
   }
   next();
 });
 
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ visitorId пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+io.on("connection", (socket) => {
+  socket.on("user:bind:visitorId", async (visitorId, ack) => {
+    if (!socket.data.userId || !visitorId) {
+      return ack?.({ error: "Not authenticated or no visitorId" });
+    }
+    try {
+      await prisma.user.update({
+        where: { id: socket.data.userId },
+        data: { visitorId }
+      });
+      console.log("[User] Bound visitorId", visitorId, "to user", socket.data.userId);
+      ack?.({ ok: true });
+    } catch (err) {
+      console.error("[User] Failed to bind visitorId:", err);
+      ack?.({ error: "Failed to bind visitorId" });
+    }
+  });
+});
+
+// РћР±СЂР°Р±РѕС‚РєР° РѕС‚РєР»СЋС‡РµРЅРёСЏ Рё СѓРґР°Р»РµРЅРёСЏ СЃРѕРєРµС‚Р° РЅР° СѓСЂРѕРІРЅРµ РїРѕРґРїРёСЃРєРё
+io.on("connection", (socket) => {
+  socket.on("disconnect", () => {
+    if (socket.data.userId) {
+      unregisterUserSocket(socket.data.userId, socket.id);
+      // End activity session when user disconnects
+      endActivitySession(socket.data.userId).catch(e => console.error("[Activity] End session error:", e));
+    }
+  });
+});
+
 const makeRoomCode = customAlphabet(ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH);
 const roomTimers = new Map();
-const votingTimers = new Map(); // Отдельные таймеры для голосования
-const taskAcceptTimers = new Map(); // Таймеры на принятие задания (pending)
-const taskAcceptStartTimeouts = new Map(); // roomId -> timeoutId (отложенный старт таймера принятия)
+const votingTimers = new Map(); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+const taskAcceptTimers = new Map(); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (pending)
+const taskAcceptStartTimeouts = new Map(); // roomId -> timeoutId (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
 const wheel2SpinMeta = new Map(); // roundId -> { startedAtMs, durationMs }
 const wheel1SpinMeta = new Map(); // roundId -> { startedAtMs, durationMs }
-const pausedRooms = new Map(); // Состояние паузы для комнат: { isPaused, remainingWhenPaused, roundId }
+const pausedRooms = new Map(); // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ: { isPaused, remainingWhenPaused, roundId }
 const playerSockets = new Map();
+const userSockets = new Map(); // Map<userId, socketId> for friends notifications
 
 // Emotional (in-memory)
 const emotionalPlayerSockets = new Map(); // playerId -> socketId
@@ -487,8 +675,46 @@ setInterval(() => {
   }
 }, 60_000);
 
-const VOTING_TIME_SECONDS = 30; // Время на голосование
-const TASK_ACCEPT_TIME_SECONDS = 30; // Время на принятие задания
+const VOTING_TIME_SECONDS = 30; // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+const TASK_ACCEPT_TIME_SECONDS = 30; // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+
+// Helper function to track game activity session
+async function trackGameSession(socket, gameType, roomCode) {
+  let userId = socket.data.userId;
+  const visitorId = socket.data.visitorId;
+  
+  console.log(`[Activity] trackGameSession called: gameType=${gameType}, roomCode=${roomCode}, userId=${userId}, visitorId=${visitorId}`);
+  
+  // Р•СЃР»Рё userId РЅРµ СѓСЃС‚Р°РЅРѕРІР»РµРЅ, РїРѕРїСЂРѕР±СѓРµРј РїРѕР»СѓС‡РёС‚СЊ РµРіРѕ С‡РµСЂРµР· visitorId
+  if (!userId && visitorId) {
+    try {
+      const user = await prisma.user.findFirst({
+        where: { visitorId: visitorId },
+        select: { id: true }
+      });
+      if (user) {
+        userId = user.id;
+        socket.data.userId = userId; // РЎРѕС…СЂР°РЅСЏРµРј РґР»СЏ Р±СѓРґСѓС‰РёС… РІС‹Р·РѕРІРѕРІ
+        console.log(`[Activity] Found userId ${userId} by visitorId ${visitorId}`);
+      } else {
+        console.log(`[Activity] No user found for visitorId ${visitorId}`);
+      }
+    } catch (e) {
+      console.error(`[Activity] Error finding user by visitorId:`, e);
+    }
+  }
+  
+  if (userId) {
+    try {
+      await startActivitySession(userId, gameType, roomCode);
+      console.log(`[Activity] Started ${gameType} session for user ${userId} in room ${roomCode}`);
+    } catch (e) {
+      console.error(`[Activity] ${gameType} session start error:`, e);
+    }
+  } else {
+    console.log(`[Activity] No userId available, skipping session tracking`);
+  }
+}
 
 function getDefaultSettings() {
   return {
@@ -637,7 +863,7 @@ async function buildRoomState(roomId) {
       )
     : { approve: 0, report: 0, total: 0 };
 
-  // Определяем игрока, чей сейчас ход (только активные, не left/disconnected)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ left/disconnected)
   const turnIndex = settings.turnIndex || 0;
   const activePlayers = players.filter((p) => p.connectionStatus === "online");
   const currentTurnPlayerId = activePlayers.length > 0 
@@ -653,7 +879,10 @@ async function buildRoomState(roomId) {
       currentTurnPlayerId,
       turnIndex
     },
-    players,
+    players: players.map(p => ({
+      ...p,
+      nicknameStyle: p.nicknameStyle ? JSON.parse(p.nicknameStyle) : null
+    })),
     round: serializeRound(round, spin, voteCounts, round ? wheel2SpinMeta.get(round.id) : null),
     content: getWheelData()
   };
@@ -687,7 +916,7 @@ async function emitRoomState(roomId) {
 }
 
 function selectNextPlayer(players, startIndex, allowDisqualified) {
-  // Фильтруем только активных игроков (online, не left)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (online, пїЅпїЅ left)
   const activePlayers = players.filter((p) => p.connectionStatus !== "left");
   if (!activePlayers.length) {
     return null;
@@ -697,14 +926,14 @@ function selectNextPlayer(players, startIndex, allowDisqualified) {
   for (let offset = 0; offset < total; offset += 1) {
     const idx = (safeIndex + offset) % total;
     const candidate = activePlayers[idx];
-    // Пропускаем disconnected игроков — ход переходит к следующему
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ disconnected пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (candidate.connectionStatus === "disconnected") {
       continue;
     }
     // Status can be "active", "shamed", or "chaos" - all playable
     return { player: candidate, nextIndex: (idx + 1) % total };
   }
-  // Если все активные игроки disconnected — возвращаем первого
+  // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ disconnected пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   return { player: activePlayers[safeIndex], nextIndex: (safeIndex + 1) % total };
 }
 
@@ -714,10 +943,10 @@ function stopTimer(roomId) {
     clearInterval(entry.intervalId);
     roomTimers.delete(roomId);
   }
-  // Также очищаем состояние паузы при остановке таймера
+  // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   const wasPaused = pausedRooms.has(roomId);
   pausedRooms.delete(roomId);
-  // Уведомляем клиентов о снятии паузы, если игра была на паузе
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
   if (wasPaused) {
     io.to(roomId).emit("game:paused", { isPaused: false });
   }
@@ -729,7 +958,7 @@ function pauseTimer(roomId) {
     return false;
   }
   
-  // Останавливаем интервал, но сохраняем оставшееся время
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
   clearInterval(entry.intervalId);
   pausedRooms.set(roomId, {
     isPaused: true,
@@ -738,7 +967,7 @@ function pauseTimer(roomId) {
   });
   roomTimers.delete(roomId);
   
-  // Уведомляем клиентов о паузе
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ
   io.to(roomId).emit("game:paused", { isPaused: true });
   return true;
 }
@@ -752,10 +981,10 @@ async function resumeTimer(roomId) {
   const { remainingWhenPaused, roundId } = pauseState;
   pausedRooms.delete(roomId);
   
-  // Уведомляем клиентов о снятии паузы
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
   io.to(roomId).emit("game:paused", { isPaused: false });
   
-  // Запускаем таймер напрямую (без вызова stopTimer, чтобы не сбросить состояние)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ stopTimer, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
   const timerState = { intervalId: null, roundId, remaining: remainingWhenPaused };
   
   io.to(roomId).emit("round:timer_tick", { roundId, remaining: timerState.remaining });
@@ -811,14 +1040,14 @@ async function endTimer(roomId, roundId, reason) {
   io.to(roomId).emit("round:timer_end", { roundId, reason });
   await emitRoomState(roomId);
   
-  // Запускаем таймер голосования
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   await startVotingTimer(roomId, roundId);
   
   await maybeFinalizeVote(roomId, roundId);
 }
 
 // =============================================================================
-// Таймер принятия задания (30 секунд) — чтобы игра не зависала на pending
+// пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (30 пїЅпїЅпїЅпїЅпїЅпїЅ) пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ pending
 // =============================================================================
 
 function stopTaskAcceptTimer(roomId) {
@@ -830,7 +1059,7 @@ function stopTaskAcceptTimer(roomId) {
 }
 
 async function startTaskAcceptTimer(roomId, roundId, seconds = TASK_ACCEPT_TIME_SECONDS) {
-  // если был запланирован отложенный старт — очищаем
+  // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   const pendingStart = taskAcceptStartTimeouts.get(roomId);
   if (pendingStart) {
     clearTimeout(pendingStart);
@@ -893,8 +1122,8 @@ async function endTaskAcceptTimer(roomId, roundId, reason) {
     return;
   }
 
-  // По истечении времени автоматически считаем, что игрок отказался.
-  // Это предотвращает зависание всей комнаты.
+  // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
+  // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
   if (round.currentPlayerId) {
     await applyStrike(round.currentPlayerId, roomId);
   }
@@ -917,7 +1146,7 @@ async function endTaskAcceptTimer(roomId, roundId, reason) {
 }
 
 // ===========================================================================
-// Таймер голосования (30 секунд)
+// пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (30 пїЅпїЅпїЅпїЅпїЅпїЅ)
 // ===========================================================================
 
 function stopVotingTimer(roomId) {
@@ -959,7 +1188,7 @@ async function endVotingTimer(roomId, roundId) {
   
   console.log("[Voting Timer] Time expired for round:", roundId);
   
-  // Принудительно завершаем голосование по текущим результатам
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   await finalizeVoteByTimeout(roomId, roundId);
 }
 
@@ -990,23 +1219,23 @@ async function finalizeVoteByTimeout(roomId, roundId) {
 
   console.log("[Vote Timeout] Vote counts:", counts, "Eligible:", eligibleCount);
 
-  // Определяем результат по имеющимся голосам
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   const threshold = getMajorityThreshold(eligibleCount);
-  let result = "approved"; // По умолчанию засчитываем если нет большинства репортов
+  let result = "approved"; // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   
   if (counts.report >= threshold) {
     result = "report";
   } else if (counts.approve >= threshold) {
     result = "approved";
   } else if (counts.total > 0) {
-    // Если есть голоса, но нет большинства — решаем по большинству имеющихся
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (counts.report > counts.approve) {
       result = "report";
     } else {
-      result = "approved"; // При равенстве или большинстве approve — засчитываем
+      result = "approved"; // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ approve пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     }
   }
-  // Если никто не проголосовал — засчитываем (approved)
+  // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (approved)
 
   console.log("[Vote Timeout] Finalizing with result:", result);
 
@@ -1025,6 +1254,15 @@ async function finalizeVoteByTimeout(roomId, roundId) {
     await updatePlayerProgress(round.currentPlayerId, roomId, wasReported);
     if (result === "approved") {
       await updatePlayerStreak(round.currentPlayerId, roomId, round.mode);
+    }
+    
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    try {
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      const roundDuration = round.startedAt ? Math.floor((Date.now() - new Date(round.startedAt).getTime()) / 1000) : 0;
+      await recordTodRoundComplete(round.currentPlayerId, round.mode, result === "approved", io, roundDuration);
+    } catch (err) {
+      console.error("[Stats] Error recording ToD round (timeout):", err);
     }
   }
 
@@ -1143,6 +1381,14 @@ async function updatePlayerProgress(playerId, roomId, wasReported) {
           console.log("[Progress] Chaos -> Active transition, strikes now:", newStrikes);
         }
         statusChanged = true;
+        
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        try {
+          await recordTodChaosEscape(playerId, io);
+          console.log("[Stats] Recorded chaos escape for player:", playerId);
+        } catch (e) {
+          console.error("[Stats] Error recording chaos escape:", e);
+        }
       }
     } else {
       console.log("[Progress] Chaos player was reported, no progress");
@@ -1164,6 +1410,14 @@ async function updatePlayerProgress(playerId, roomId, wasReported) {
         newStrikes = 0;
         statusChanged = true;
         console.log("[Progress] Shamed -> Active transition, strikes reset to 0");
+        
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        try {
+          await recordTodRedemption(playerId, io);
+          console.log("[Stats] Recorded redemption for player:", playerId);
+        } catch (e) {
+          console.error("[Stats] Error recording redemption:", e);
+        }
       }
     }
   } else {
@@ -1311,7 +1565,7 @@ async function maybeFinalizeVote(roomId, roundId) {
     return;
   }
 
-  // Все проголосовали — останавливаем таймер голосования
+  // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   stopVotingTimer(roomId);
 
   const threshold = getMajorityThreshold(eligibleCount);
@@ -1342,6 +1596,15 @@ async function maybeFinalizeVote(roomId, roundId) {
     if (result === "approved") {
       await updatePlayerStreak(round.currentPlayerId, roomId, round.mode);
     }
+    
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    try {
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      const roundDuration = round.startedAt ? Math.floor((Date.now() - new Date(round.startedAt).getTime()) / 1000) : 0;
+      await recordTodRoundComplete(round.currentPlayerId, round.mode, result === "approved", io, roundDuration);
+    } catch (err) {
+      console.error("[Stats] Error recording ToD round:", err);
+    }
   }
 
   // Advance turn to next player
@@ -1356,23 +1619,41 @@ async function maybeFinalizeVote(roomId, roundId) {
   await emitRoomState(roomId);
 }
 
-// Таймеры автовыхода из комнат (5 часов)
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (5 пїЅпїЅпїЅпїЅпїЅ)
 const roomAutoLeaveTimers = new Map();
-const ROOM_AUTO_LEAVE_MS = 5 * 60 * 60 * 1000; // 5 часов
+const ROOM_AUTO_LEAVE_MS = 5 * 60 * 60 * 1000; // 5 пїЅпїЅпїЅпїЅпїЅ
 
-// Вспомогательная функция для выхода из всех комнат перед присоединением к новой
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ
 async function leaveAllRooms(socket) {
-  // Выход из Truth or Dare
+  console.log("[leaveAllRooms] Called for socket:", socket.id, 
+    "tod:", socket.data.roomId, socket.data.playerId,
+    "alias:", socket.data.aliasRoomId, socket.data.aliasPlayerId,
+    "emotional:", socket.data.emotionalRoomCode, socket.data.emotionalPlayerId,
+    "codenames:", socket.data.codenamesRoomCode, socket.data.codenamesPlayerId,
+    "visitorId:", socket.data.visitorId);
+    
+  // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ Truth or Dare
   if (socket.data.roomId && socket.data.playerId) {
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;
     try {
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ visitorId пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      const playerData = await prisma.player.findUnique({
+        where: { id: playerId },
+        select: { visitorId: true }
+      });
+      
       await prisma.player.update({
         where: { id: playerId },
         data: { connectionStatus: "left", lastSeen: new Date() }
       });
       playerSockets.delete(playerId);
       socket.leave(roomId);
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ
+      if (playerData?.visitorId) {
+        recordPlayerLeave(playerData.visitorId, "tod", io);
+      }
       
       const state = await buildRoomState(roomId);
       io.to(roomId).emit("player:list", state.players);
@@ -1384,7 +1665,7 @@ async function leaveAllRooms(socket) {
     socket.data.playerId = null;
   }
 
-  // Выход из Alias
+  // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ Alias
   if (socket.data.aliasRoomId && socket.data.aliasPlayerId) {
     const roomId = socket.data.aliasRoomId;
     const playerId = socket.data.aliasPlayerId;
@@ -1392,8 +1673,13 @@ async function leaveAllRooms(socket) {
       const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
       const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
       const oldTeamId = player?.teamId;
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ
+      if (player?.visitorId) {
+        recordPlayerLeave(player.visitorId, "alias", io);
+      }
 
-      // Передача хоста
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
       if (room && room.hostId === playerId) {
         const remainingPlayers = await prisma.aliasPlayer.findMany({
           where: { roomId, id: { not: playerId } },
@@ -1430,13 +1716,23 @@ async function leaveAllRooms(socket) {
     socket.data.aliasPlayerId = null;
   }
 
-  // Выход из Emotional — используем disconnect вместо leave, чтобы сохранить карты
-  // Leave будет вызван только явно через emotional:room:leave
+  // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ Emotional пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ disconnect пїЅпїЅпїЅпїЅпїЅпїЅ leave, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
+  // Leave пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ emotional:room:leave
   if (socket.data.emotionalRoomCode && socket.data.emotionalPlayerId) {
     const roomCode = socket.data.emotionalRoomCode;
     const playerId = socket.data.emotionalPlayerId;
     try {
-      // Используем disconnectPlayer вместо leaveRoom — карты остаются у игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gameStartedAt пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ fallback пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      const emotionalRoomForTime = getEmotionalRoom(roomCode);
+      const emotionalGameStartedAtForTime = emotionalRoomForTime?.gameStartedAt || null;
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ visitorId пїЅпїЅ socket.data пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ)
+      const emotionalVisitorId = socket.data.visitorId;
+      if (emotionalVisitorId) {
+        recordPlayerLeave(emotionalVisitorId, "emotional", io, emotionalGameStartedAtForTime);
+      }
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ disconnectPlayer пїЅпїЅпїЅпїЅпїЅпїЅ leaveRoom пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const result = disconnectEmotionalPlayer(roomCode, playerId);
       socket.leave(`emotional:${roomCode}`);
       emotionalPlayerSockets.delete(playerId);
@@ -1458,11 +1754,21 @@ async function leaveAllRooms(socket) {
     socket.data.emotionalPlayerId = null;
   }
 
-  // Выход из Codenames
+  // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ Codenames
   if (socket.data.codenamesRoomCode && socket.data.codenamesPlayerId) {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
     try {
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gameStartedAt пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ fallback пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      const codenamesRoomForTime = getCodenamesRoom(roomCode);
+      const codenamesGameStartedAt = codenamesRoomForTime?.gameStartedAt || null;
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ
+      const codenamesVisitorId = socket.data.visitorId;
+      if (codenamesVisitorId) {
+        recordPlayerLeave(codenamesVisitorId, "codenames", io, codenamesGameStartedAt);
+      }
+      
       const result = leaveCodenamesRoom(roomCode, playerId);
       socket.leave(`codenames:${roomCode}`);
       codenamesPlayerSockets.delete(playerId);
@@ -1482,7 +1788,7 @@ async function leaveAllRooms(socket) {
     socket.data.codenamesPlayerId = null;
   }
 
-  // Очищаем таймер автовыхода
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   const timerId = roomAutoLeaveTimers.get(socket.id);
   if (timerId) {
     clearTimeout(timerId);
@@ -1490,9 +1796,9 @@ async function leaveAllRooms(socket) {
   }
 }
 
-// Устанавливает таймер автовыхода из комнаты через 5 часов
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ 5 пїЅпїЅпїЅпїЅпїЅ
 function setAutoLeaveTimer(socket) {
-  // Очищаем предыдущий таймер, если есть
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
   const existingTimerId = roomAutoLeaveTimers.get(socket.id);
   if (existingTimerId) {
     clearTimeout(existingTimerId);
@@ -1501,7 +1807,7 @@ function setAutoLeaveTimer(socket) {
   const timerId = setTimeout(async () => {
     console.log(`Auto-leaving rooms for socket ${socket.id} after 5 hours`);
     await leaveAllRooms(socket);
-    socket.emit("auto:leave", { reason: "timeout", message: "Вы были автоматически отключены после 5 часов бездействия" });
+    socket.emit("auto:leave", { reason: "timeout", message: "пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ 5 пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
     roomAutoLeaveTimers.delete(socket.id);
   }, ROOM_AUTO_LEAVE_MS);
 
@@ -1512,6 +1818,7 @@ io.on("connection", (socket) => {
   socket.on("room:create", async (payload, ack) => {
     const name = normalizeName(payload?.name);
     const visitorId = payload?.visitorId || null;
+    const frameSlug = payload?.frameSlug || null;
     if (!name) {
       if (ack) {
         ack({ ok: false, error: "Name required" });
@@ -1519,17 +1826,38 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Выходим из всех предыдущих комнат перед созданием новой
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     await leaveAllRooms(socket);
     
-    // Получаем avatarUrl из payload или из сессии пользователя
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ avatarUrl, frameSlug пїЅ nicknameStyle пїЅпїЅ payload пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     let avatarUrl = payload?.avatarUrl || null;
-    if (!avatarUrl && socket.data.userId) {
-      const user = await prisma.user.findUnique({
+    let nicknameStyle = null;
+    if (socket.data.userId) {
+      const userData = await prisma.user.findUnique({
         where: { id: socket.data.userId },
-        select: { avatarUrl: true }
+        select: { 
+          avatarUrl: true,
+          customization: { 
+            select: { 
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } }
+            } 
+          } 
+        }
       });
-      avatarUrl = user?.avatarUrl || null;
+      if (!avatarUrl) avatarUrl = userData?.avatarUrl || null;
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ nicknameStyle
+      if (userData?.customization) {
+        const c = userData.customization;
+        nicknameStyle = {
+          colorType: c.nicknameColorType,
+          customColor: c.nicknameCustomColor,
+          gradient: c.nicknameGradient,
+          glow: c.nicknameGlow
+        };
+      }
     }
     
     const code = await generateRoomCode();
@@ -1547,7 +1875,9 @@ io.on("connection", (socket) => {
         roomId: room.id,
         name,
         avatarUrl,
-        visitorId
+        visitorId,
+        frameSlug,
+        nicknameStyle: nicknameStyle ? JSON.stringify(nicknameStyle) : null
       }
     });
     await prisma.room.update({
@@ -1557,9 +1887,16 @@ io.on("connection", (socket) => {
 
     socket.data.roomId = room.id;
     socket.data.playerId = player.id;
+    socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     playerSockets.set(player.id, socket.id);
     socket.join(room.id);
     setAutoLeaveTimer(socket);
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerJoin(visitorId, "tod");
+      trackGameSession(socket, "tod", room.code);
+    }
 
     const state = await buildRoomState(room.id);
     io.to(room.id).emit("player:list", state.players);
@@ -1574,6 +1911,7 @@ io.on("connection", (socket) => {
     const name = normalizeName(payload?.name);
     const code = normalizeName(payload?.code).toUpperCase();
     const visitorId = payload?.visitorId || null;
+    const frameSlug = payload?.frameSlug || null;
     if (!name || !code) {
       if (ack) {
         ack({ ok: false, error: "Name and code required" });
@@ -1581,7 +1919,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Выходим из всех предыдущих комнат перед присоединением
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     await leaveAllRooms(socket);
 
     const room = await prisma.room.findUnique({ where: { code } });
@@ -1592,12 +1930,12 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Проверяем бан-лист
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ-пїЅпїЅпїЅпїЅ
     const settings = normalizeSettings(room.settings);
     const bannedVisitorIds = settings.bannedVisitorIds || [];
     if (visitorId && bannedVisitorIds.includes(visitorId)) {
       if (ack) {
-        ack({ ok: false, error: "banned", message: "Вы были исключены из этой комнаты организатором" });
+        ack({ ok: false, error: "banned", message: "пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       }
       return;
     }
@@ -1606,13 +1944,13 @@ io.on("connection", (socket) => {
       where: { roomId: room.id }
     });
     
-    // Проверяем, есть ли игрок с таким именем со статусом disconnected (реконнект)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ disconnected (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     const disconnectedPlayer = players.find(
       (p) => p.name.toLowerCase() === name.toLowerCase() && p.connectionStatus === "disconnected"
     );
     
     if (disconnectedPlayer) {
-      // Реконнект — восстанавливаем игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const player = await prisma.player.update({
         where: { id: disconnectedPlayer.id },
         data: { 
@@ -1623,11 +1961,12 @@ io.on("connection", (socket) => {
       
       socket.data.roomId = room.id;
       socket.data.playerId = player.id;
+      socket.data.visitorId = player.visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       playerSockets.set(player.id, socket.id);
       socket.join(room.id);
       setAutoLeaveTimer(socket);
       
-      // Уведомляем всех о реконнекте
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       io.to(room.id).emit("player:connection_status", {
         playerId: player.id,
         connectionStatus: "online",
@@ -1638,7 +1977,7 @@ io.on("connection", (socket) => {
       io.to(room.id).emit("player:list", state.players);
       io.to(room.id).emit("room:state", state);
 
-      // Форсируем актуальные значения таймеров только для переподключившегося клиента
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       const activeRound = state?.round;
       if (activeRound?.id) {
         const timer = roomTimers.get(room.id);
@@ -1655,13 +1994,17 @@ io.on("connection", (socket) => {
         }
       }
       
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      recordPlayerJoin(visitorId, "tod");
+      trackGameSession(socket, "tod", room.code);
+      
       if (ack) {
         ack({ ok: true, state, playerId: player.id, reconnected: true });
       }
       return;
     }
     
-    // Считаем только активных игроков (не left) для проверки лимита
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅ left) пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     const activePlayersCount = players.filter((p) => p.connectionStatus !== "left").length;
     if (activePlayersCount >= MAX_PLAYERS) {
       if (ack) {
@@ -1670,20 +2013,41 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Имена занятые только активными игроками (не left)
+    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅ left)
     const takenNames = players
       .filter((p) => p.connectionStatus !== "left")
       .map((player) => player.name.toLowerCase());
     const finalName = makeUniqueName(name, takenNames);
 
-    // Получаем avatarUrl из payload или из сессии пользователя
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ avatarUrl пїЅ nicknameStyle пїЅпїЅ payload пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     let avatarUrl = payload?.avatarUrl || null;
-    if (!avatarUrl && socket.data.userId) {
-      const user = await prisma.user.findUnique({
+    let nicknameStyle = null;
+    if (socket.data.userId) {
+      const userData = await prisma.user.findUnique({
         where: { id: socket.data.userId },
-        select: { avatarUrl: true }
+        select: { 
+          avatarUrl: true,
+          customization: { 
+            select: { 
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } }
+            } 
+          } 
+        }
       });
-      avatarUrl = user?.avatarUrl || null;
+      if (!avatarUrl) avatarUrl = userData?.avatarUrl || null;
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ nicknameStyle
+      if (userData?.customization) {
+        const c = userData.customization;
+        nicknameStyle = {
+          colorType: c.nicknameColorType,
+          customColor: c.nicknameCustomColor,
+          gradient: c.nicknameGradient,
+          glow: c.nicknameGlow
+        };
+      }
     }
 
     const player = await prisma.player.create({
@@ -1692,12 +2056,15 @@ io.on("connection", (socket) => {
         name: finalName,
         avatarUrl,
         visitorId,
+        frameSlug,
+        nicknameStyle: nicknameStyle ? JSON.stringify(nicknameStyle) : null,
         connectionStatus: "online"
       }
     });
 
     socket.data.roomId = room.id;
     socket.data.playerId = player.id;
+    socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     playerSockets.set(player.id, socket.id);
     socket.join(room.id);
     setAutoLeaveTimer(socket);
@@ -1706,13 +2073,19 @@ io.on("connection", (socket) => {
     io.to(room.id).emit("player:list", state.players);
     io.to(room.id).emit("room:state", state);
 
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerJoin(visitorId, "tod");
+      trackGameSession(socket, "tod", room.code);
+    }
+
     if (ack) {
       ack({ ok: true, state, playerId: player.id });
     }
   });
 
   // ---------------------------------------------------------------------------
-  // room:rejoin — Восстановление сессии после F5/переподключения
+  // room:rejoin пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ F5/пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   // ---------------------------------------------------------------------------
   socket.on("room:rejoin", async (payload, ack) => {
     const { playerId, roomCode } = payload || {};
@@ -1726,7 +2099,7 @@ io.on("connection", (socket) => {
     }
 
     try {
-      // Находим комнату по коду
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ
       const room = await prisma.room.findUnique({ where: { code: roomCode.toUpperCase() } });
       if (!room) {
         console.log("[Rejoin] Room not found:", roomCode);
@@ -1736,7 +2109,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Находим игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const player = await prisma.player.findUnique({ where: { id: playerId } });
       if (!player) {
         console.log("[Rejoin] Player not found:", playerId);
@@ -1746,7 +2119,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Проверяем, что игрок принадлежит этой комнате
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       if (player.roomId !== room.id) {
         console.log("[Rejoin] Player does not belong to room:", playerId, room.id);
         if (ack) {
@@ -1755,7 +2128,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Проверяем, что игрок не покинул комнату (left)
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (left)
       if (player.connectionStatus === "left") {
         console.log("[Rejoin] Player has left the room:", playerId);
         if (ack) {
@@ -1764,7 +2137,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Если у игрока уже есть активный сокет — отключаем старый (две вкладки)
+      // пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
       const existingSocketId = playerSockets.get(playerId);
       if (existingSocketId && existingSocketId !== socket.id) {
         const existingSocket = io.sockets.sockets.get(existingSocketId);
@@ -1777,7 +2150,7 @@ io.on("connection", (socket) => {
         }
       }
 
-      // Обновляем статус игрока на online
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ online
       await prisma.player.update({
         where: { id: playerId },
         data: { 
@@ -1786,27 +2159,33 @@ io.on("connection", (socket) => {
         }
       });
 
-      // Привязываем сокет к комнате и игроку
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       socket.data.roomId = room.id;
       socket.data.playerId = player.id;
+      socket.data.visitorId = player.visitorId; // РЎРѕС…СЂР°РЅСЏРµРј РґР»СЏ activity tracking
       playerSockets.set(player.id, socket.id);
       socket.join(room.id);
 
+      // Activity tracking: start session on rejoin
+      if (player.visitorId) {
+        trackGameSession(socket, "tod", room.code);
+      }
+
       console.log("[Rejoin] Success:", player.name, "->", room.code);
 
-      // Уведомляем всех о возвращении игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       io.to(room.id).emit("player:connection_status", {
         playerId: player.id,
         connectionStatus: "online",
         playerName: player.name
       });
 
-      // Отправляем актуальное состояние комнаты
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       const state = await buildRoomState(room.id);
       io.to(room.id).emit("player:list", state.players);
       io.to(room.id).emit("room:state", state);
 
-      // Форсируем актуальные значения таймеров для этого переподключившегося клиента
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       const activeRound = state?.round;
       if (activeRound?.id) {
         const timer = roomTimers.get(room.id);
@@ -1862,7 +2241,7 @@ io.on("connection", (socket) => {
     const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
     let settings = normalizeSettings(room.settings);
     
-    // Определяем, чей сейчас ход (currentTurnPlayer)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ (currentTurnPlayer)
     const players = await prisma.player.findMany({
       where: { roomId: room.id },
       orderBy: { joinedAt: "asc" }
@@ -1877,7 +2256,7 @@ io.on("connection", (socket) => {
     const currentTurnIndex = settings.turnIndex || 0;
     const currentTurnPlayerId = players[currentTurnIndex % players.length]?.id;
     
-    // Проверяем права: только хост или игрок, чей ход, может начать раунд
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     const isHost = ensureHost(room, socket);
     const isCurrentTurnPlayer = socket.data.playerId === currentTurnPlayerId;
     
@@ -1899,8 +2278,8 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // targetPlayerId - это игрок, которому задается вопрос/действие
-    // currentTurnPlayerId - это игрок, чей ход (он выбирает targetPlayer)
+    // targetPlayerId - пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    // currentTurnPlayerId - пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅ (пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ targetPlayer)
     let targetPlayerId = payload?.targetPlayerId || null;
     
     if (!targetPlayerId) {
@@ -1920,10 +2299,10 @@ io.on("connection", (socket) => {
 
     const wantsCustom = Boolean(payload?.customMode);
 
-    // В кастомном режиме нельзя выбирать игрока в ХАОС
+    // пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ
     if (wantsCustom && targetPlayer.status === "chaos") {
       if (ack) {
-        ack({ ok: false, error: "Нельзя выбрать ХАОС в режиме своего задания" });
+        ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       }
       return;
     }
@@ -1931,8 +2310,8 @@ io.on("connection", (socket) => {
     const round = await prisma.round.create({
       data: {
         roomId: room.id,
-        currentPlayerId: targetPlayerId, // Тот, кто выполняет задание
-        turnPlayerId: currentTurnPlayerId, // Тот, чей ход (выбирает)
+        currentPlayerId: targetPlayerId, // пїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        turnPlayerId: currentTurnPlayerId, // пїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
         timerSeconds: settings.timerSeconds || 120,
         phase: "mode",
         taskStatus: "pending",
@@ -1942,6 +2321,14 @@ io.on("connection", (socket) => {
       }
     });
 
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gameStartedAt пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+    if (!room.gameStartedAt) {
+      await prisma.room.update({
+        where: { id: room.id },
+        data: { gameStartedAt: new Date() }
+      });
+    }
+
     io.to(room.id).emit("round:start", {
       roundId: round.id,
       currentPlayerId: round.currentPlayerId,
@@ -1950,7 +2337,7 @@ io.on("connection", (socket) => {
     });
     await emitRoomState(room.id);
 
-    // На всякий случай сбрасываем старый таймер принятия (раунд только создан)
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
     stopTaskAcceptTimer(room.id);
 
     if (ack) {
@@ -2041,7 +2428,7 @@ io.on("connection", (socket) => {
       }
     }
     
-    // Кастомный режим: после выбора Правда/Действие не выдаём задание из базы, а ждём решения автора (взять из базы / задать самому)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ, пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ / пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
     if (round.customMode) {
       await prisma.round.update({
         where: { id: round.id },
@@ -2094,7 +2481,7 @@ io.on("connection", (socket) => {
         }
       });
 
-      // Запускаем таймер ожидания принятия задания
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       await startTaskAcceptTimer(room.id, round.id);
 
       io.to(room.id).emit("spin:final", {
@@ -2299,8 +2686,8 @@ io.on("connection", (socket) => {
       }
     });
 
-    // Запускаем таймер принятия задания НЕ сразу, а после остановки ленты сценариев,
-    // чтобы у всех было ~30 секунд именно с момента появления окна принятия.
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ,
+    // пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ ~30 пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
     const acceptDelayMs = durationMs + 1200;
     scheduleTaskAcceptTimer(room.id, round.id, acceptDelayMs);
 
@@ -2318,7 +2705,7 @@ io.on("connection", (socket) => {
       wheel2ResultPayload.reelItems = reelItems;
     }
 
-    // (meta) дублируем параметры анимации, чтобы клиенты могли синхронизироваться даже при пропущенных событиях
+    // (meta) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const meta = wheel2SpinMeta.get(round.id);
     if (meta) {
       wheel2ResultPayload.startedAtMs = meta.startedAtMs;
@@ -2358,7 +2745,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Решение принимает только автор (turnPlayerId)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (turnPlayerId)
     if (!socket.data.playerId || socket.data.playerId !== round.turnPlayerId) {
       if (ack) ack({ ok: false, error: "Not allowed" });
       return;
@@ -2370,7 +2757,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // на всякий случай останавливаем/отменяем таймер принятия
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     stopTaskAcceptTimer(room.id);
     const pendingStart = taskAcceptStartTimeouts.get(room.id);
     if (pendingStart) {
@@ -2379,7 +2766,7 @@ io.on("connection", (socket) => {
     }
 
     if (decision === "base") {
-      // Возврат к стандартному режиму (в базе)
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅ пїЅпїЅпїЅпїЅ)
       await prisma.round.update({
         where: { id: round.id },
         data: {
@@ -2414,18 +2801,18 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Dare: остаёмся в wheel1, дальше всё как обычно (крутит выполняющий)
+      // Dare: пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ wheel1, пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
       await emitRoomState(room.id);
       if (ack) ack({ ok: true, switchedToBase: true });
       return;
     }
 
-    // decision === "custom": запускаем выполнение сразу (без принятия)
+    // decision === "custom": пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     const author = round.customAuthorPlayerId
       ? await prisma.player.findUnique({ where: { id: round.customAuthorPlayerId } })
       : null;
-    const authorName = author?.name || "игрок";
-    const finalText = `Задание от игрока ${authorName}.`;
+    const authorName = author?.name || "пїЅпїЅпїЅпїЅпїЅ";
+    const finalText = `пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ ${authorName}.`;
 
     await prisma.spin.upsert({
       where: { roundId: round.id },
@@ -2481,7 +2868,7 @@ io.on("connection", (socket) => {
     }
     const room = await prisma.room.findUnique({ where: { id: socket.data.roomId } });
 
-    // если таймер принятия был запланирован на будущее (Dare + лента), а игрок успел принять раньше старта — отменяем план
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (Dare + пїЅпїЅпїЅпїЅпїЅ), пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     const pendingStart = taskAcceptStartTimeouts.get(room?.id);
     if (pendingStart) {
       clearTimeout(pendingStart);
@@ -2513,7 +2900,7 @@ io.on("connection", (socket) => {
 
     const acceptedAt = new Date();
 
-    // Останавливаем таймер принятия (если был)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ)
     stopTaskAcceptTimer(room.id);
 
     await prisma.round.update({
@@ -2709,7 +3096,7 @@ io.on("connection", (socket) => {
   });
 
   // ---------------------------------------------------------------------------
-  // room:leave — Игрок добровольно покидает комнату
+  // room:leave пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   // ---------------------------------------------------------------------------
   socket.on("room:leave", async (payload, ack) => {
     if (!socket.data.roomId || !socket.data.playerId) {
@@ -2721,6 +3108,12 @@ io.on("connection", (socket) => {
 
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;
+    const visitorId = socket.data.visitorId;
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerLeave(visitorId, "tod", io);
+    }
 
     try {
       const room = await prisma.room.findUnique({ where: { id: roomId } });
@@ -2731,7 +3124,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Если игрок сейчас выполняет задание — завершаем раунд
+      // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
       const activeRound = await prisma.round.findFirst({
         where: { roomId, endedAt: null },
         orderBy: { startedAt: "desc" }
@@ -2745,7 +3138,7 @@ io.on("connection", (socket) => {
         io.to(roomId).emit("admin:skip_round", { roundId: activeRound.id });
       }
 
-      // Ставим статус "left" вместо удаления игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ "left" пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const player = await prisma.player.update({
         where: { id: playerId },
         data: { 
@@ -2755,16 +3148,17 @@ io.on("connection", (socket) => {
       });
       playerSockets.delete(playerId);
 
-      // Покидаем socket.io комнату
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ socket.io пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       socket.leave(roomId);
       socket.data.roomId = null;
       socket.data.playerId = null;
+      socket.data.visitorId = null;
 
-      // Проверяем, был ли это хост
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
       const isHost = room.hostId === playerId;
       
       if (isHost) {
-        // Передаём хоста следующему активному игроку (не left)
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅ left)
         const remainingPlayers = await prisma.player.findMany({
           where: { 
             roomId,
@@ -2784,7 +3178,7 @@ io.on("connection", (socket) => {
             newHostName: newHost.name 
           });
         } else {
-          // Все игроки покинули комнату — удаляем её
+          // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ
           stopTimer(roomId);
           await prisma.vote.deleteMany({ where: { round: { roomId } } });
           await prisma.round.deleteMany({ where: { roomId } });
@@ -2793,7 +3187,7 @@ io.on("connection", (socket) => {
         }
       }
 
-      // Уведомляем оставшихся игроков об изменении статуса
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       io.to(roomId).emit("player:connection_status", {
         playerId,
         connectionStatus: "left",
@@ -2812,7 +3206,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Обновление профиля игрока в комнате (никнейм, аватар)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅ)
   socket.on("player:update_profile", async (payload, ack) => {
     await touchPlayer(socket);
     if (!socket.data.roomId || !socket.data.playerId) {
@@ -2820,12 +3214,12 @@ io.on("connection", (socket) => {
       return;
     }
     
-    const { nickname, avatarUrl } = payload || {};
+    const { nickname, avatarUrl, nicknameStyle } = payload || {};
     const roomId = socket.data.roomId;
     const playerId = socket.data.playerId;
     
     try {
-      // Получаем текущего игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const player = await prisma.player.findUnique({
         where: { id: playerId }
       });
@@ -2835,13 +3229,16 @@ io.on("connection", (socket) => {
         return;
       }
       
-      // Обновляем данные игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const updateData = {};
       if (nickname && nickname.trim()) {
         updateData.name = nickname.trim().slice(0, 20);
       }
       if (avatarUrl !== undefined) {
         updateData.avatarUrl = avatarUrl;
+      }
+      if (nicknameStyle !== undefined) {
+        updateData.nicknameStyle = nicknameStyle ? JSON.stringify(nicknameStyle) : null;
       }
       
       if (Object.keys(updateData).length > 0) {
@@ -2850,7 +3247,7 @@ io.on("connection", (socket) => {
           data: updateData
         });
         
-        // Отправляем обновлённое состояние всем в комнате
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         await emitRoomState(roomId);
       }
       
@@ -2903,7 +3300,7 @@ io.on("connection", (socket) => {
       io.to(room.id).emit("admin:skip_round", { roundId: activeRound.id });
     }
 
-    // Добавляем visitorId в бан-лист комнаты
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ visitorId пїЅ пїЅпїЅпїЅ-пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const targetPlayer = await prisma.player.findUnique({ where: { id: targetId } });
     if (targetPlayer?.visitorId) {
       const settings = normalizeSettings(room.settings);
@@ -2923,8 +3320,8 @@ io.on("connection", (socket) => {
     if (targetSocketId) {
       const targetSocket = io.sockets.sockets.get(targetSocketId);
       if (targetSocket) {
-        // Очищаем данные комнаты, но НЕ отключаем сокет
-        // Это позволит кикнутому игроку сразу создать/присоединиться к другой комнате
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
+        // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         targetSocket.leave(socket.data.roomId);
         targetSocket.data.roomId = null;
         targetSocket.data.playerId = null;
@@ -2979,7 +3376,10 @@ io.on("connection", (socket) => {
     const settings = { ...normalizeSettings(room.settings), turnIndex: 0 };
     await prisma.room.update({
       where: { id: room.id },
-      data: { settings: serializeSettings(settings) }
+      data: { 
+        settings: serializeSettings(settings),
+        gameStartedAt: null // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+      }
     });
 
     io.to(room.id).emit("admin:reset_room", { roomId: room.id });
@@ -3065,7 +3465,7 @@ io.on("connection", (socket) => {
   });
 
   // ---------------------------------------------------------------------------
-  // admin:toggle_pause — Поставить/снять паузу (только хост)
+  // admin:toggle_pause пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ)
   // ---------------------------------------------------------------------------
   socket.on("admin:toggle_pause", async (payload, ack) => {
     await touchPlayer(socket);
@@ -3086,13 +3486,13 @@ io.on("connection", (socket) => {
     const isPaused = isRoomPaused(room.id);
     
     if (isPaused) {
-      // Снимаем паузу
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
       await resumeTimer(room.id);
       if (ack) {
         ack({ ok: true, isPaused: false });
       }
     } else {
-      // Ставим на паузу (только если таймер активен)
+      // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
       const timer = roomTimers.get(room.id);
       if (!timer) {
         if (ack) {
@@ -3108,7 +3508,7 @@ io.on("connection", (socket) => {
   });
 
   // ---------------------------------------------------------------------------
-  // room:end — Организатор завершает игру для всех
+  // room:end пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
   // ---------------------------------------------------------------------------
   socket.on("room:end", async (payload, ack) => {
     if (!socket.data.roomId || !socket.data.playerId) {
@@ -3129,7 +3529,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Только хост может завершить игру
+      // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
       if (room.hostId !== socket.data.playerId) {
         if (ack) {
           ack({ ok: false, error: "Host only" });
@@ -3139,16 +3539,16 @@ io.on("connection", (socket) => {
 
       console.log("[Room:End] Host ending game for room:", room.code);
 
-      // Останавливаем таймеры и очищаем состояние паузы
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
       stopTimer(roomId);
       stopVotingTimer(roomId);
       pausedRooms.delete(roomId);
       io.to(roomId).emit("game:paused", { isPaused: false });
 
-      // Уведомляем всех игроков о завершении игры
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
       io.to(roomId).emit("room:ended", { reason: "host_ended" });
 
-      // Отключаем всех игроков от socket.io комнаты и очищаем их данные
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ socket.io пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const players = await prisma.player.findMany({ where: { roomId } });
       for (const player of players) {
         const playerSocketId = playerSockets.get(player.id);
@@ -3163,7 +3563,7 @@ io.on("connection", (socket) => {
         }
       }
 
-      // Удаляем все данные комнаты
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       await prisma.vote.deleteMany({ where: { round: { roomId } } });
       await prisma.round.deleteMany({ where: { roomId } });
       await prisma.player.deleteMany({ where: { roomId } });
@@ -3194,17 +3594,41 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Выходим из всех предыдущих комнат перед созданием новой
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     await leaveAllRooms(socket);
     
-    // Получаем avatarUrl из payload или из сессии пользователя
+    // пїЅпїЅпїЅпїЅ avatarUrl, frameSlug пїЅ nicknameStyle пїЅпїЅ payload пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     let avatarUrl = payload?.avatarUrl || null;
-    if (!avatarUrl && socket.data.userId) {
-      const user = await prisma.user.findUnique({
+    let frameSlug = payload?.frameSlug || null;
+    let nicknameStyle = null;
+    if (socket.data.userId) {
+      const userData = await prisma.user.findUnique({
         where: { id: socket.data.userId },
-        select: { avatarUrl: true }
+        select: { 
+          avatarUrl: true, 
+          customization: { 
+            select: { 
+              frameAll: true,
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } }
+            } 
+          } 
+        }
       });
-      avatarUrl = user?.avatarUrl || null;
+      if (!avatarUrl) avatarUrl = userData?.avatarUrl || null;
+      if (!frameSlug) frameSlug = userData?.customization?.frameAll || null;
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ nicknameStyle
+      if (userData?.customization) {
+        const c = userData.customization;
+        nicknameStyle = {
+          colorType: c.nicknameColorType,
+          customColor: c.nicknameCustomColor,
+          gradient: c.nicknameGradient,
+          glow: c.nicknameGlow
+        };
+      }
     }
     
     const code = await generateAliasRoomCode(prisma);
@@ -3223,6 +3647,8 @@ io.on("connection", (socket) => {
         roomId: room.id,
         name,
         avatarUrl,
+        frameSlug,
+        nicknameStyle: nicknameStyle ? JSON.stringify(nicknameStyle) : null,
         visitorId
       }
     });
@@ -3234,13 +3660,20 @@ io.on("connection", (socket) => {
 
     socket.data.aliasRoomId = room.id;
     socket.data.aliasPlayerId = player.id;
+    socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     aliasPlayerSockets.set(player.id, socket.id);
     socket.join(`alias:${room.id}`);
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerJoin(visitorId, "alias");
+      trackGameSession(socket, "alias", room.code);
+    }
 
     const state = await buildAliasRoomState(prisma, room.id);
     io.to(`alias:${room.id}`).emit("alias:state:sync", state);
 
-    // Синхронизируем текущий лидерборд CyberRunner
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ CyberRunner
     socket.emit("alias:cyber:leaderboard", { leaderboard: getCyberLeaderboard(room.id) });
 
     if (ack) ack({ ok: true, state, playerId: player.id });
@@ -3251,29 +3684,29 @@ io.on("connection", (socket) => {
     const code = normalizeName(payload?.code).toUpperCase();
     const visitorId = payload?.visitorId || null;
     if (!name || !code) {
-      if (ack) ack({ ok: false, error: "Имя и код обязательны" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Выходим из всех предыдущих комнат перед присоединением
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     await leaveAllRooms(socket);
 
     const room = await prisma.aliasRoom.findUnique({ where: { code } });
     if (!room) {
-      if (ack) ack({ ok: false, error: "Комната не найдена" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     const players = await prisma.aliasPlayer.findMany({ where: { roomId: room.id } });
     
-    // Проверяем, есть ли игрок с таким visitorId (реконнект)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ visitorId (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     let player = null;
     if (visitorId) {
       player = players.find(p => p.visitorId === visitorId && p.connectionStatus !== "left");
     }
 
     if (player) {
-      // Реконнект существующего игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       await prisma.aliasPlayer.update({
         where: { id: player.id },
         data: { connectionStatus: "online", lastSeen: new Date() }
@@ -3281,6 +3714,7 @@ io.on("connection", (socket) => {
       
       socket.data.aliasRoomId = room.id;
       socket.data.aliasPlayerId = player.id;
+      socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       aliasPlayerSockets.set(player.id, socket.id);
       socket.join(`alias:${room.id}`);
       setAutoLeaveTimer(socket);
@@ -3290,10 +3724,10 @@ io.on("connection", (socket) => {
       const state = await buildAliasRoomState(prisma, room.id);
       io.to(`alias:${room.id}`).emit("alias:state:sync", state);
 
-      // Синхронизируем текущий лидерборд CyberRunner только для переподключившегося клиента
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ CyberRunner пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       socket.emit("alias:cyber:leaderboard", { leaderboard: getCyberLeaderboard(room.id) });
 
-      // Форсируем актуальные значения таймеров только для переподключившегося клиента
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       const timer = aliasTimers.get(room.id);
       if (timer) {
         socket.emit("alias:timer:tick", { remaining: timer.remaining });
@@ -3304,25 +3738,55 @@ io.on("connection", (socket) => {
         socket.emit("alias:review:tick", { remaining });
       }
       
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      if (visitorId) {
+        recordPlayerJoin(visitorId, "alias");
+      trackGameSession(socket, "alias", room.code);
+      }
+      
       if (ack) ack({ ok: true, state, playerId: player.id, reconnected: true });
       return;
     }
 
-    // Новый игрок
+    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     const takenNames = players.filter(p => p.connectionStatus !== "left").map(p => p.name.toLowerCase());
     const finalName = makeUniqueName(name, takenNames);
 
-    // Получаем avatarUrl из payload или из сессии пользователя
+    // пїЅпїЅпїЅпїЅ avatarUrl, frameSlug пїЅ nicknameStyle пїЅпїЅ payload пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     let avatarUrl = payload?.avatarUrl || null;
-    if (!avatarUrl && socket.data.userId) {
-      const user = await prisma.user.findUnique({
+    let frameSlug = payload?.frameSlug || null;
+    let nicknameStyle = null;
+    if (socket.data.userId) {
+      const userData = await prisma.user.findUnique({
         where: { id: socket.data.userId },
-        select: { avatarUrl: true }
+        select: { 
+          avatarUrl: true, 
+          customization: { 
+            select: { 
+              frameAll: true,
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } }
+            } 
+          } 
+        }
       });
-      avatarUrl = user?.avatarUrl || null;
+      if (!avatarUrl) avatarUrl = userData?.avatarUrl || null;
+      if (!frameSlug) frameSlug = userData?.customization?.frameAll || null;
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ nicknameStyle
+      if (userData?.customization) {
+        const c = userData.customization;
+        nicknameStyle = {
+          colorType: c.nicknameColorType,
+          customColor: c.nicknameCustomColor,
+          gradient: c.nicknameGradient,
+          glow: c.nicknameGlow
+        };
+      }
     }
 
-    // Если игра активна (playing или reviewing), новые игроки становятся наблюдателями
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (playing пїЅпїЅпїЅ reviewing), пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const isGameActive = room.status === "playing" || room.status === "reviewing";
     
     player = await prisma.aliasPlayer.create({
@@ -3330,6 +3794,8 @@ io.on("connection", (socket) => {
         roomId: room.id,
         name: finalName,
         avatarUrl,
+        frameSlug,
+        nicknameStyle: nicknameStyle ? JSON.stringify(nicknameStyle) : null,
         visitorId,
         isSpectator: isGameActive
       }
@@ -3337,6 +3803,7 @@ io.on("connection", (socket) => {
 
     socket.data.aliasRoomId = room.id;
     socket.data.aliasPlayerId = player.id;
+    socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     aliasPlayerSockets.set(player.id, socket.id);
     socket.join(`alias:${room.id}`);
     setAutoLeaveTimer(socket);
@@ -3344,8 +3811,14 @@ io.on("connection", (socket) => {
     const state = await buildAliasRoomState(prisma, room.id);
     io.to(`alias:${room.id}`).emit("alias:state:sync", state);
 
-    // Синхронизируем текущий лидерборд CyberRunner
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ CyberRunner
     socket.emit("alias:cyber:leaderboard", { leaderboard: getCyberLeaderboard(room.id) });
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerJoin(visitorId, "alias");
+      trackGameSession(socket, "alias", room.code);
+    }
 
     if (ack) ack({ ok: true, state, playerId: player.id });
   });
@@ -3370,7 +3843,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Если у игрока уже есть активный сокет — отключаем старый (две вкладки или reconnect)
+    // пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ reconnect)
     const existingSocketId = aliasPlayerSockets.get(playerId);
     if (existingSocketId && existingSocketId !== socket.id) {
       const existingSocket = io.sockets.sockets.get(existingSocketId);
@@ -3383,7 +3856,7 @@ io.on("connection", (socket) => {
       }
     }
 
-    // Обновляем статус на online
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ online
     await prisma.aliasPlayer.update({
       where: { id: playerId },
       data: { connectionStatus: "online", lastSeen: new Date() }
@@ -3391,10 +3864,16 @@ io.on("connection", (socket) => {
 
     socket.data.aliasRoomId = room.id;
     socket.data.aliasPlayerId = player.id;
+    socket.data.visitorId = player.visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     aliasPlayerSockets.set(player.id, socket.id);
     socket.join(`alias:${room.id}`);
 
-    // Уведомляем о реконнекте
+    // Activity tracking: start session on rejoin
+    if (player.visitorId) {
+      trackGameSession(socket, "alias", room.code);
+    }
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     io.to(`alias:${room.id}`).emit("alias:player:reconnected", { 
       playerId: player.id, 
       playerName: player.name 
@@ -3403,10 +3882,10 @@ io.on("connection", (socket) => {
     const state = await buildAliasRoomState(prisma, room.id);
     io.to(`alias:${room.id}`).emit("alias:state:sync", state);
 
-    // Синхронизируем текущий лидерборд CyberRunner только для переподключившегося клиента
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ CyberRunner пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     socket.emit("alias:cyber:leaderboard", { leaderboard: getCyberLeaderboard(room.id) });
 
-    // Форсируем актуальные значения таймеров только для переподключившегося клиента
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const timer = aliasTimers.get(room.id);
     if (timer) {
       socket.emit("alias:timer:tick", { remaining: timer.remaining });
@@ -3428,36 +3907,36 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Проверяем, не идёт ли игра
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     if (room && (room.status === "playing" || room.status === "reviewing")) {
-      if (ack) ack({ ok: false, error: "Нельзя создавать команды во время игры" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Получаем текущего игрока и его старую команду
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
     const oldTeamId = player?.teamId;
 
     const teams = await prisma.aliasTeam.findMany({ where: { roomId } });
-    const teamName = normalizeName(payload?.name) || `Команда ${teams.length + 1}`;
+    const teamName = normalizeName(payload?.name) || `пїЅпїЅпїЅпїЅпїЅпїЅпїЅ ${teams.length + 1}`;
     
     const team = await prisma.aliasTeam.create({
       data: {
         roomId,
         name: teamName,
         turnOrder: teams.length,
-        creatorId: playerId // Сохраняем создателя команды
+        creatorId: playerId // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       }
     });
 
-    // Автоматически добавляем создателя в новую команду
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     await prisma.aliasPlayer.update({
       where: { id: playerId },
       data: { teamId: team.id, explainOrder: 0, isSpectator: false, isReady: false }
     });
 
-    // Удаляем старую команду, если в ней никого не осталось
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (oldTeamId) {
       const remaining = await prisma.aliasPlayer.count({ where: { teamId: oldTeamId } });
       if (remaining === 0) {
@@ -3487,15 +3966,15 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Переименовывать может любой игрок, который состоит в этой команде.
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
     const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
     if (!player || player.roomId !== roomId) {
-      if (ack) ack({ ok: false, error: "Игрок не найден" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     if (player.teamId !== teamId) {
-      if (ack) ack({ ok: false, error: "Переименовать может только участник этой команды" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -3520,10 +3999,10 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Нельзя присоединяться во время игры
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     if (room && (room.status === "playing" || room.status === "reviewing")) {
-      if (ack) ack({ ok: false, error: "Нельзя вступать в команды во время игры" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -3533,7 +4012,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Получаем старую команду игрока
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
     const oldTeamId = player?.teamId;
 
@@ -3544,7 +4023,7 @@ io.on("connection", (socket) => {
       data: { teamId, explainOrder: teamMembers.length, isSpectator: false, isReady: false }
     });
 
-    // Удаляем старую команду, если в ней никого не осталось
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (oldTeamId && oldTeamId !== teamId) {
       const remaining = await prisma.aliasPlayer.count({ where: { teamId: oldTeamId } });
       if (remaining === 0) {
@@ -3555,7 +4034,7 @@ io.on("connection", (socket) => {
     const state = await buildAliasRoomState(prisma, roomId);
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
 
-    // Проверяем, нужно ли передать ход другой команде
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     await checkAndUpdateAliasTurn(prisma, roomId, io);
 
     if (ack) ack({ ok: true });
@@ -3570,7 +4049,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Запрет выхода из команды во время игры
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     if (room && room.status === "playing") {
       if (ack) ack({ ok: false, error: "Cannot leave team during game" });
@@ -3580,13 +4059,13 @@ io.on("connection", (socket) => {
     const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
     const oldTeamId = player?.teamId;
 
-    // Переводим игрока в наблюдатели (без команды)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     await prisma.aliasPlayer.update({
       where: { id: playerId },
       data: { teamId: null, isReady: false, isSpectator: true }
     });
 
-    // Удаляем команду только если в ней никого не осталось
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (oldTeamId) {
       const remaining = await prisma.aliasPlayer.count({ where: { teamId: oldTeamId } });
       if (remaining === 0) {
@@ -3597,7 +4076,7 @@ io.on("connection", (socket) => {
     const state = await buildAliasRoomState(prisma, roomId);
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
 
-    // Проверяем, нужно ли передать ход другой команде
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     await checkAndUpdateAliasTurn(prisma, roomId, io);
 
     if (ack) ack({ ok: true });
@@ -3670,10 +4149,10 @@ io.on("connection", (socket) => {
 
     const isReady = payload?.isReady !== false;
     
-    // Проверяем статус комнаты - нельзя готовиться во время просмотра отчёта
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ - пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     if (room?.status === "reviewing") {
-      if (ack) ack({ ok: false, error: "Дождитесь подтверждения отчёта" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -3682,30 +4161,30 @@ io.on("connection", (socket) => {
       data: { isReady }
     });
 
-    // Проверяем, все ли готовы, и если да — определяем следующего объясняющего
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const players = await prisma.aliasPlayer.findMany({ where: { roomId } });
     const teams = await prisma.aliasTeam.findMany({ where: { roomId }, orderBy: { turnOrder: "asc" } });
     
-    // Проверяем что есть команды с минимум 2 игроками
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2 пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const teamsWithEnoughPlayers = teams.filter(t => {
       const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
       return teamPlayers.length >= 2;
     });
     
-    // Определяем следующую команду (с минимум 2 игроками)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2 пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     let nextTeamId = room.currentTeamId;
     if (!nextTeamId && teamsWithEnoughPlayers.length > 0) {
       nextTeamId = teamsWithEnoughPlayers[0].id;
     }
     
-    // Проверяем готовность только игроков активной команды (не всей комнаты)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     const activeTeamPlayers = nextTeamId 
       ? players.filter(p => p.teamId === nextTeamId && p.connectionStatus === "online" && !p.isSpectator)
       : [];
     const allReady = activeTeamPlayers.length >= 2 && activeTeamPlayers.every(p => p.isReady);
     
     if (allReady && teamsWithEnoughPlayers.length > 0 && room.status === "lobby" && !room.currentExplainerId) {
-      // Выбираем первую команду с достаточным количеством игроков и первого объясняющего
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       const { teamId, explainerId } = getNextTeamAndExplainer(teamsWithEnoughPlayers, players, null, null);
       
       if (teamId && explainerId) {
@@ -3735,9 +4214,9 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Нельзя начать новый раунд, пока не подтверждён отчёт предыдущего
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (room.status === "reviewing") {
-      if (ack) ack({ ok: false, error: "Сначала подтвердите отчёт предыдущего раунда" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -3750,14 +4229,14 @@ io.on("connection", (socket) => {
     const teams = await prisma.aliasTeam.findMany({ where: { roomId }, orderBy: { turnOrder: "asc" } });
 
     if (teams.length < 1) {
-      if (ack) ack({ ok: false, error: "Нужна минимум 1 команда" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 1 пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Определяем активную команду (текущую или следующую по очереди)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     let activeTeamId = room.currentTeamId;
     if (!activeTeamId) {
-      // Ищем первую команду с минимум 2 игроками
+      // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2 пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       const firstValidTeam = teams.find(t => {
         const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
         return teamPlayers.length >= 2;
@@ -3766,36 +4245,36 @@ io.on("connection", (socket) => {
     }
 
     if (!activeTeamId) {
-      if (ack) ack({ ok: false, error: "Нет команды с достаточным количеством игроков" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Проверяем, что в активной команде минимум 2 игрока (один объясняет, другой угадывает)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2 пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     const activeTeamPlayers = players.filter(p => p.teamId === activeTeamId && p.connectionStatus === "online" && !p.isSpectator);
     
     if (activeTeamPlayers.length < 2) {
-      if (ack) ack({ ok: false, error: "В команде недостаточно игроков (нужно минимум 2)" });
+      if (ack) ack({ ok: false, error: "пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2)" });
       return;
     }
 
-    // Проверяем готовность только игроков активной команды (не всей комнаты)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     const allReady = activeTeamPlayers.every(p => p.isReady);
     
     if (!allReady) {
-      if (ack) ack({ ok: false, error: "Не все игроки команды готовы" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
     
-    // Список команд с достаточным количеством игроков (для выбора следующей)
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     const teamsWithPlayers = teams.filter(t => {
       const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
       return teamPlayers.length >= 2;
     });
 
-    // Только назначенный объясняющий может начать ход
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
     const startingPlayerId = socket.data.aliasPlayerId;
     if (room.currentExplainerId && room.currentExplainerId !== startingPlayerId) {
-      if (ack) ack({ ok: false, error: "Только объясняющий может начать ход" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ" });
       return;
     }
 
@@ -3811,12 +4290,12 @@ io.on("connection", (socket) => {
       });
     }
 
-    // Используем уже назначенного объясняющего, если он есть
-    // НЕ вызываем getNextTeamAndExplainer здесь, т.к. он уже был вызван в alias:ready:set
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ getNextTeamAndExplainer пїЅпїЅпїЅпїЅпїЅ, пїЅ.пїЅ. пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ alias:ready:set
     let teamId = room.currentTeamId;
     let explainerId = room.currentExplainerId;
 
-    // Если по какой-то причине объясняющий не назначен, назначаем (только из команд с минимум 2 игроками)
+    // пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ-пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2 пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     if (!teamId || !explainerId) {
       const result = getNextTeamAndExplainer(teamsWithPlayers, players, null, null);
       teamId = result.teamId;
@@ -3837,18 +4316,25 @@ io.on("connection", (socket) => {
 
     const turnEndsAt = new Date(Date.now() + settings.turnSeconds * 1000);
 
-    // Очищаем историю предыдущего раунда перед началом нового хода
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     clearRoundHistory(roomId);
 
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gameStartedAt пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+    const updateData = {
+      status: "playing",
+      currentTeamId: teamId,
+      currentExplainerId: explainerId,
+      turnStartedAt: new Date(),
+      turnEndsAt
+    };
+    
+    if (!room.gameStartedAt) {
+      updateData.gameStartedAt = new Date();
+    }
+    
     await prisma.aliasRoom.update({
       where: { id: roomId },
-      data: {
-        status: "playing",
-        currentTeamId: teamId,
-        currentExplainerId: explainerId,
-        turnStartedAt: new Date(),
-        turnEndsAt
-      }
+      data: updateData
     });
 
     // Reset ready status
@@ -3880,7 +4366,7 @@ io.on("connection", (socket) => {
     const state = await buildAliasRoomState(prisma, roomId);
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
     io.to(`alias:${roomId}`).emit("alias:turn:started", { teamId, explainerId, turnEndsAt });
-    // Отправляем пустую историю при старте нового хода
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     io.to(`alias:${roomId}`).emit("alias:history:updated", { history: [] });
 
     // Send word only to explainer
@@ -3898,8 +4384,8 @@ io.on("connection", (socket) => {
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     if (!room) return;
 
-    // Добавляем последнее слово в историю (если было), чтобы можно было отметить его в отчёте
-    // По умолчанию помечаем как не отгаданное, но игроки могут изменить это в отчёте
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ), пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     if (room.currentWordId) {
       const currentWord = await prisma.aliasWord.findUnique({ where: { id: room.currentWordId } });
       if (currentWord) {
@@ -3907,8 +4393,8 @@ io.on("connection", (socket) => {
       }
     }
 
-    // Переходим в статус reviewing (просмотр отчёта)
-    // Проверка победителя будет после подтверждения отчёта
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ reviewing (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     await prisma.aliasRoom.update({
       where: { id: roomId },
       data: {
@@ -3919,24 +4405,24 @@ io.on("connection", (socket) => {
       }
     });
 
-    // Отправляем финальную историю раунда
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     const finalHistory = getRoundHistory(roomId);
     io.to(`alias:${roomId}`).emit("alias:turn:ended", { 
       reason, 
       roundHistory: finalHistory 
     });
 
-    // Запускаем таймер автоподтверждения (60 секунд)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (60 пїЅпїЅпїЅпїЅпїЅпїЅ)
     const REVIEW_TIMEOUT_SECONDS = 60;
     const reviewEndsAt = Date.now() + REVIEW_TIMEOUT_SECONDS * 1000;
     
-    // Останавливаем предыдущий таймер review если есть
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ review пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     const existingReviewTimer = aliasReviewTimers.get(roomId);
     if (existingReviewTimer?.interval) {
       clearInterval(existingReviewTimer.interval);
     }
 
-    // Отправляем тики таймера review каждую секунду
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ review пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const reviewInterval = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((reviewEndsAt - Date.now()) / 1000));
       io.to(`alias:${roomId}`).emit("alias:review:tick", { remaining });
@@ -3944,7 +4430,7 @@ io.on("connection", (socket) => {
       if (remaining <= 0) {
         clearInterval(reviewInterval);
         aliasReviewTimers.delete(roomId);
-        // Автоподтверждение
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         confirmReportInternal(roomId);
       }
     }, 1000);
@@ -3955,9 +4441,9 @@ io.on("connection", (socket) => {
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
   }
 
-  // Функция подтверждения отчёта (вызывается вручную или автоматически)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
   async function confirmReportInternal(roomId) {
-    // Останавливаем таймер review
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ review
     const reviewTimer = aliasReviewTimers.get(roomId);
     if (reviewTimer?.interval) {
       clearInterval(reviewTimer.interval);
@@ -3971,10 +4457,10 @@ io.on("connection", (socket) => {
     const players = await prisma.aliasPlayer.findMany({ where: { roomId } });
     const settings = normalizeAliasSettings(room.settings);
 
-    // Победитель определяется только после того, как все команды отыграют текущий круг.
-    // Поэтому здесь мы либо:
-    // 1) ставим "предварительного" победителя (pendingWinnerTeamId), если цель достигнута впервые,
-    // 2) либо, если круг завершён, выбираем команду с максимальным счётом и завершаем игру.
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ.
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ:
+    // 1) пїЅпїЅпїЅпїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (pendingWinnerTeamId), пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ,
+    // 2) пїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ.
 
     const teamsWithEnoughPlayers = teams.filter(t => {
       const teamPlayers = players.filter(p => p.teamId === t.id && p.connectionStatus === "online" && !p.isSpectator);
@@ -3984,9 +4470,9 @@ io.on("connection", (socket) => {
     const targetReachedTeams = teamsWithEnoughPlayers.filter(t => t.score >= settings.targetScore);
     const pendingWinnerTeamId = settings.pendingWinnerTeamId || null;
 
-    // Если кто-то уже достиг цели, но pendingWinner ещё не установлен — фиксируем первого достигшего.
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ-пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ, пїЅпїЅ pendingWinner пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
     if (!pendingWinnerTeamId && targetReachedTeams.length > 0) {
-      // Выбираем "первого" детерминированно по turnOrder (стабильно).
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ turnOrder (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ).
       const firstReached = [...targetReachedTeams].sort((a, b) => a.turnOrder - b.turnOrder)[0];
       settings.pendingWinnerTeamId = firstReached.id;
       await prisma.aliasRoom.update({
@@ -3995,8 +4481,8 @@ io.on("connection", (socket) => {
       });
     }
 
-    // Если pendingWinner задан, то игра заканчивается только после того,
-    // как отыграет команда с максимальным turnOrder в текущем списке активных команд.
+    // пїЅпїЅпїЅпїЅ pendingWinner пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ,
+    // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ turnOrder пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ.
     if (settings.pendingWinnerTeamId) {
       const lastTurnOrder = Math.max(...teamsWithEnoughPlayers.map(t => t.turnOrder));
       const currentTeam = teamsWithEnoughPlayers.find(t => t.id === room.currentTeamId);
@@ -4019,16 +4505,86 @@ io.on("connection", (socket) => {
           finalScores: teams.map(t => ({ id: t.id, name: t.name, score: t.score }))
         });
 
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ explainer'пїЅ (пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ!)
+        if (room.currentExplainerId) {
+          try {
+            const history = getRoundHistory(roomId) || [];
+            const wordsGuessed = history.filter(w => w.correct === true).length;
+            const wordsSkipped = history.filter(w => w.correct === false).length;
+            
+            const explainerSocketId = aliasPlayerSockets.get(room.currentExplainerId);
+            let explainerUserId = null;
+            if (explainerSocketId) {
+              const explainerSocket = io.sockets.sockets.get(explainerSocketId);
+              explainerUserId = explainerSocket?.data?.userId;
+            }
+            
+            if (explainerUserId) {
+              await updateUserStatsById(explainerUserId, "alias", {
+                customStats: {
+                  wordsGuessed,
+                  wordsSkipped,
+                  turnsPlayed: 1
+                },
+                currentTurn: {
+                  wordsGuessed,
+                  wordsSkipped
+                }
+              }, io);
+              console.log("[Stats] Alias final turn recorded for userId:", explainerUserId, { wordsGuessed, wordsSkipped });
+            } else {
+              await recordAliasTurnComplete(room.currentExplainerId, wordsGuessed, wordsSkipped, io);
+              console.log("[Stats] Alias final turn recorded via playerId:", { explainerId: room.currentExplainerId, wordsGuessed, wordsSkipped });
+            }
+          } catch (err) {
+            console.error("[Stats] Error recording Alias final turn:", err);
+          }
+        }
+
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        const aliasGameStartedAt = room.gameStartedAt;
+        const aliasTimePlayed = aliasGameStartedAt ? Math.floor((Date.now() - new Date(aliasGameStartedAt).getTime()) / 1000) : 0;
+        
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        try {
+          for (const player of players) {
+            const isWinner = player.teamId === winner.id;
+            
+            // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ userId
+            const playerSocketId = aliasPlayerSockets.get(player.id);
+            let playerUserId = null;
+            if (playerSocketId) {
+              const playerSocket = io.sockets.sockets.get(playerSocketId);
+              playerUserId = playerSocket?.data?.userId;
+            }
+            
+            if (playerUserId) {
+              // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ userId
+              await updateUserStatsById(playerUserId, "alias", {
+                gamesPlayed: 1,
+                gamesWon: isWinner ? 1 : 0,
+                timePlayed: aliasTimePlayed
+              }, io);
+              console.log("[Stats] Alias game recorded for userId:", playerUserId, { isWinner, timePlayed: aliasTimePlayed });
+            } else {
+              // Fallback пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
+              await recordAliasGameComplete(player.id, isWinner, io, aliasTimePlayed);
+            }
+          }
+        } catch (err) {
+          console.error("[Stats] Error recording Alias game complete:", err);
+        }
+
         const state = await buildAliasRoomState(prisma, roomId);
         io.to(`alias:${roomId}`).emit("alias:state:sync", state);
 
-        // Очищаем историю раунда
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         clearRoundHistory(roomId);
         return;
       }
     }
 
-    // Определяем следующую команду и объясняющего (только из команд с минимум 2 игроками)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 2 пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     let teamId = null;
     let explainerId = null;
 
@@ -4052,10 +4608,53 @@ io.on("connection", (socket) => {
       nextExplainerId: explainerId 
     });
 
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ explainer'пїЅ
+    if (room.currentExplainerId) {
+      try {
+        const history = getRoundHistory(roomId) || [];
+        const wordsGuessed = history.filter(w => w.correct === true).length;
+        const wordsSkipped = history.filter(w => w.correct === false).length;
+        
+        // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ explainer'пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ userId
+        const explainerSocketId = aliasPlayerSockets.get(room.currentExplainerId);
+        console.log("[Stats Debug] explainerId:", room.currentExplainerId, "socketId:", explainerSocketId);
+        
+        let explainerUserId = null;
+        if (explainerSocketId) {
+          const explainerSocket = io.sockets.sockets.get(explainerSocketId);
+          explainerUserId = explainerSocket?.data?.userId;
+          console.log("[Stats Debug] explainerSocket exists:", !!explainerSocket, "userId:", explainerUserId);
+        }
+        
+        if (explainerUserId) {
+          // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ userId
+          await updateUserStatsById(explainerUserId, "alias", {
+            customStats: {
+              wordsGuessed,
+              wordsSkipped,
+              turnsPlayed: 1
+            },
+            currentTurn: {
+              wordsGuessed,
+              wordsSkipped
+            }
+          }, io);
+          console.log("[Stats] Alias turn recorded for userId:", explainerUserId, { wordsGuessed, wordsSkipped });
+        } else {
+          // Fallback пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ playerId
+          console.log("[Stats] No userId found, using fallback via playerId");
+          await recordAliasTurnComplete(room.currentExplainerId, wordsGuessed, wordsSkipped, io);
+          console.log("[Stats] Alias turn recorded via playerId:", { explainerId: room.currentExplainerId, wordsGuessed, wordsSkipped });
+        }
+      } catch (err) {
+        console.error("[Stats] Error recording Alias turn:", err);
+      }
+    }
+
     const state = await buildAliasRoomState(prisma, roomId);
     io.to(`alias:${roomId}`).emit("alias:state:sync", state);
     
-    // Очищаем историю раунда
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     clearRoundHistory(roomId);
   }
 
@@ -4085,13 +4684,13 @@ io.on("connection", (socket) => {
       data: { score: { increment: 1 } }
     });
 
-    // Получаем текущее слово для записи в историю
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const currentRoom = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     if (currentRoom?.currentWordId) {
       const currentWord = await prisma.aliasWord.findUnique({ where: { id: currentRoom.currentWordId } });
       if (currentWord) {
         addWordToHistory(roomId, currentWord.text, true, room.currentTeamId);
-        // Отправляем обновлённую историю всем игрокам
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         const updatedHistory = getRoundHistory(roomId);
         io.to(`alias:${roomId}`).emit("alias:history:updated", { history: updatedHistory });
       }
@@ -4141,19 +4740,19 @@ io.on("connection", (socket) => {
 
     const settings = normalizeAliasSettings(room.settings);
     
-    // Получаем текущее слово для записи в историю
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (room.currentWordId) {
       const currentWord = await prisma.aliasWord.findUnique({ where: { id: room.currentWordId } });
       if (currentWord) {
         addWordToHistory(roomId, currentWord.text, false, room.currentTeamId);
-        // Отправляем обновлённую историю всем игрокам
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         const updatedHistory = getRoundHistory(roomId);
         io.to(`alias:${roomId}`).emit("alias:history:updated", { history: updatedHistory });
       }
     }
     
     // Apply skip penalty
-    // В режиме "Пропуск -1" очки могут уходить в минус (это часть правил).
+    // пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ -1" пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ).
     if (settings.skipPenalty === -1) {
       await prisma.aliasTeam.update({
         where: { id: room.currentTeamId },
@@ -4221,12 +4820,12 @@ io.on("connection", (socket) => {
     const isPaused = pauseState?.isPaused || false;
     
     if (isPaused) {
-      // Resume - восстанавливаем таймер
+      // Resume - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const { remainingWhenPaused } = pauseState;
       aliasPausedRooms.delete(roomId);
       io.to(`alias:${roomId}`).emit("alias:paused", { isPaused: false });
       
-      // Перезапускаем таймер с оставшимся временем
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       if (remainingWhenPaused > 0 && room.status === "playing") {
         const settings = normalizeAliasSettings(room.settings);
         
@@ -4246,7 +4845,7 @@ io.on("connection", (socket) => {
         aliasTimers.set(roomId, timerState);
       }
     } else {
-      // Pause - останавливаем таймер и сохраняем оставшееся время
+      // Pause - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
       const timer = aliasTimers.get(roomId);
       if (timer) {
         clearInterval(timer.intervalId);
@@ -4279,7 +4878,7 @@ io.on("connection", (socket) => {
     stopAliasTimer(roomId);
     aliasPausedRooms.delete(roomId);
 
-    // Получаем ID команд для сброса индексов объясняющих
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ ID пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const teams = await prisma.aliasTeam.findMany({ where: { roomId }, select: { id: true } });
     resetExplainerIndexes(teams.map(t => t.id));
 
@@ -4308,6 +4907,7 @@ io.on("connection", (socket) => {
         currentWordId: null,
         turnStartedAt: null,
         turnEndsAt: null,
+        gameStartedAt: null, // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         deck: "[]",
         usedWordIds: "[]",
         settings: serializeAliasSettings(currentSettings)
@@ -4317,10 +4917,10 @@ io.on("connection", (socket) => {
     io.to(`alias:${roomId}`).emit("alias:paused", { isPaused: false });
     io.to(`alias:${roomId}`).emit("alias:reset", {});
     
-    // Очищаем историю раунда
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     clearRoundHistory(roomId);
 
-    // Очищаем лидерборд CyberRunner для комнаты
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ CyberRunner пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     clearCyberLeaderboard(roomId);
     io.to(`alias:${roomId}`).emit("alias:cyber:leaderboard", { leaderboard: [] });
     
@@ -4330,11 +4930,11 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Получить историю слов текущего раунда
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
   socket.on("alias:history:get", async (payload, ack) => {
     const roomId = socket.data.aliasRoomId;
     if (!roomId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
     
@@ -4342,30 +4942,30 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true, history });
   });
 
-  // Изменить результат слова в истории (для корректировки очков)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ)
   socket.on("alias:history:update", async (payload, ack) => {
     const roomId = socket.data.aliasRoomId;
     const { index, correct } = payload || {};
     
     if (!roomId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
     
     if (typeof index !== "number" || typeof correct !== "boolean") {
-      if (ack) ack({ ok: false, error: "Неверные параметры" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
     
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     if (!room) {
-      if (ack) ack({ ok: false, error: "Комната не найдена" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
     
     const history = getRoundHistory(roomId);
     if (index < 0 || index >= history.length) {
-      if (ack) ack({ ok: false, error: "Неверный индекс" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
     
@@ -4375,16 +4975,16 @@ io.on("connection", (socket) => {
       return;
     }
     
-    // Обновляем историю
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     updateWordInHistory(roomId, index, correct);
     
-    // Корректируем очки команды (используем сохранённый teamId раунда, а не текущий)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ teamId пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     const roundTeamId = getRoundTeamId(roomId) || room.currentTeamId;
     const team = await prisma.aliasTeam.findUnique({ where: { id: roundTeamId } });
     if (team) {
       const settings = normalizeAliasSettings(room.settings);
 
-      // В зависимости от режима, "false" (пропуск) означает либо 0 очков, либо -1 очко.
+      // пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, "false" (пїЅпїЅпїЅпїЅпїЅпїЅпїЅ) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ 0 пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ -1 пїЅпїЅпїЅпїЅ.
       const pointsForWord = (isCorrect) => {
         if (isCorrect) return 1;
         return settings.skipPenalty === -1 ? -1 : 0;
@@ -4393,7 +4993,7 @@ io.on("connection", (socket) => {
       const scoreDelta = pointsForWord(correct) - pointsForWord(oldCorrect);
       const nextScore = team.score + scoreDelta;
 
-      // В обычном режиме отрицательные очки не допускаем.
+      // пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
       const newScore = settings.skipPenalty === -1 ? nextScore : Math.max(0, nextScore);
 
       await prisma.aliasTeam.update({
@@ -4421,20 +5021,20 @@ io.on("connection", (socket) => {
     const { score } = payload || {};
 
     if (!roomId || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // На всякий случай защищаемся от NaN и отрицательных значений
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ NaN пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (typeof score !== "number" || !Number.isFinite(score) || score <= 0) {
-      if (ack) ack({ ok: false, error: "Неверный score" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ score" });
       return;
     }
 
     try {
       const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
       if (!player) {
-        if (ack) ack({ ok: false, error: "Игрок не найден" });
+        if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
         return;
       }
 
@@ -4446,24 +5046,24 @@ io.on("connection", (socket) => {
       if (ack) ack({ ok: true, leaderboard });
     } catch (error) {
       console.error("alias:cyber:score error:", error);
-      if (ack) ack({ ok: false, error: "Не удалось обновить лидерборд" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
     }
   });
 
-  // Подтверждение отчёта (ручное)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ)
   socket.on("alias:report:confirm", async (payload, ack) => {
     const roomId = socket.data.aliasRoomId;
     
     if (!roomId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
     
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
 
-    // Делаем операцию идемпотентной: если отчёт уже не в reviewing,
-    // значит он уже подтверждён (вручную или автотаймером).
-    // Не возвращаем ошибку, чтобы избежать "ложных" ошибок при гонках/двойном клике.
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅ пїЅ reviewing,
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ).
+    // пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ "пїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.
     if (!room || room.status !== "reviewing") {
       if (ack) ack({ ok: true, alreadyConfirmed: true });
       return;
@@ -4476,17 +5076,23 @@ io.on("connection", (socket) => {
   socket.on("alias:room:leave", async (payload, ack) => {
     const roomId = socket.data.aliasRoomId;
     const playerId = socket.data.aliasPlayerId;
+    const visitorId = socket.data.visitorId;
     
     if (!roomId || !playerId) {
       if (ack) ack({ ok: true });
       return;
     }
 
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerLeave(visitorId, "alias", io);
+    }
+
     const room = await prisma.aliasRoom.findUnique({ where: { id: roomId } });
     const player = await prisma.aliasPlayer.findUnique({ where: { id: playerId } });
     const oldTeamId = player?.teamId;
 
-    // Передача хоста следующему игроку, если выходит хост
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     if (room && room.hostId === playerId) {
       const remainingPlayers = await prisma.aliasPlayer.findMany({
         where: { roomId, id: { not: playerId } },
@@ -4503,7 +5109,7 @@ io.on("connection", (socket) => {
       }
     }
 
-    // ПОЛНОСТЬЮ УДАЛЯЕМ игрока из базы при выходе
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     await prisma.aliasPlayer.delete({ where: { id: playerId } });
 
     // Auto-delete empty teams
@@ -4517,6 +5123,7 @@ io.on("connection", (socket) => {
     socket.leave(`alias:${roomId}`);
     socket.data.aliasRoomId = null;
     socket.data.aliasPlayerId = null;
+    socket.data.visitorId = null;
     aliasPlayerSockets.delete(playerId);
 
     const state = await buildAliasRoomState(prisma, roomId);
@@ -4525,19 +5132,19 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Обновление профиля игрока Alias в комнате (никнейм, аватар)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ Alias пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅ, nicknameStyle)
   socket.on("alias:player:update_profile", async (payload, ack) => {
     if (!socket.data.aliasRoomId || !socket.data.aliasPlayerId) {
       if (ack) ack({ ok: false, error: "Not in room" });
       return;
     }
     
-    const { nickname, avatarUrl } = payload || {};
+    const { nickname, avatarUrl, nicknameStyle } = payload || {};
     const roomId = socket.data.aliasRoomId;
     const playerId = socket.data.aliasPlayerId;
     
     try {
-      // Получаем текущего игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const player = await prisma.aliasPlayer.findUnique({
         where: { id: playerId }
       });
@@ -4547,13 +5154,16 @@ io.on("connection", (socket) => {
         return;
       }
       
-      // Обновляем данные игрока
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       const updateData = {};
       if (nickname && nickname.trim()) {
         updateData.name = nickname.trim().slice(0, 20);
       }
       if (avatarUrl !== undefined) {
         updateData.avatarUrl = avatarUrl;
+      }
+      if (nicknameStyle !== undefined) {
+        updateData.nicknameStyle = nicknameStyle ? JSON.stringify(nicknameStyle) : null;
       }
       
       if (Object.keys(updateData).length > 0) {
@@ -4562,7 +5172,7 @@ io.on("connection", (socket) => {
           data: updateData
         });
         
-        // Отправляем обновлённое состояние всем в комнате
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         const state = await buildAliasRoomState(prisma, roomId);
         io.to(`alias:${roomId}`).emit("alias:state:sync", state);
       }
@@ -4575,6 +5185,1926 @@ io.on("connection", (socket) => {
   });
 
   // ===========================================================================
+  // ===========================================================================
+  // FRIENDS & SOCIAL EVENTS
+  // ===========================================================================
+
+  // Register user socket for friends notifications
+  socket.on("friends:register", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    userSockets.set(userId, socket.id);
+    
+    // Update online status
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { 
+          onlineStatus: "online",
+          lastSeenAt: new Date()
+        }
+      });
+
+      // Notify friends about online status
+      const friendships = await prisma.friendship.findMany({
+        where: { friendId: userId },
+        select: { userId: true }
+      });
+      for (const f of friendships) {
+        const friendSocketId = userSockets.get(f.userId);
+        if (friendSocketId) {
+          io.to(friendSocketId).emit("friends:status:update", {
+            userId,
+            onlineStatus: "online"
+          });
+        }
+      }
+
+      // Get pending requests count
+      const pendingCount = await getPendingRequestsCount(prisma, userId);
+      
+      if (ack) ack({ ok: true, pendingCount });
+    } catch (e) {
+      console.error("[friends:register] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Get friends list
+  socket.on("friends:list", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { filter, search } = payload || {};
+    const result = await getFriends(prisma, userId, { filter, search });
+    
+    if (ack) ack(result);
+  });
+
+  // Send friend request
+  socket.on("friends:request:send", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { targetUserId } = payload || {};
+    if (!targetUserId) {
+      if (ack) ack({ ok: false, error: "Target user required" });
+      return;
+    }
+
+    const result = await sendFriendRequest(prisma, userId, targetUserId);
+    
+    if (result.success && result.request) {
+      // Notify target user about new request
+      const targetSocketId = userSockets.get(targetUserId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("friends:request:received", {
+          request: {
+            id: result.request.id,
+            sender: result.request.sender,
+            createdAt: result.request.createdAt
+          }
+        });
+      }
+    }
+    
+    if (ack) ack(result);
+  });
+
+  // Accept friend request
+  socket.on("friends:request:accept", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { requestId } = payload || {};
+    if (!requestId) {
+      if (ack) ack({ ok: false, error: "Request ID required" });
+      return;
+    }
+
+    const result = await acceptFriendRequest(prisma, userId, requestId);
+    
+    if (result.success && result.friend) {
+      // Notify the sender that their request was accepted
+      const senderSocketId = userSockets.get(result.friend.id);
+      if (senderSocketId) {
+        // Get current user info to send to friend
+        const currentUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            nickname: true,
+            avatarUrl: true,
+            frameSlug: true,
+            nicknameStyle: true,
+            onlineStatus: true,
+            level: true
+          }
+        });
+        io.to(senderSocketId).emit("friends:request:accepted", {
+          friend: currentUser
+        });
+      }
+    }
+    
+    if (ack) ack(result);
+  });
+
+  // Reject friend request
+  socket.on("friends:request:reject", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { requestId } = payload || {};
+    if (!requestId) {
+      if (ack) ack({ ok: false, error: "Request ID required" });
+      return;
+    }
+
+    const result = await rejectFriendRequest(prisma, userId, requestId);
+    if (ack) ack(result);
+  });
+
+  // Cancel sent friend request
+  socket.on("friends:request:cancel", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { requestId } = payload || {};
+    if (!requestId) {
+      if (ack) ack({ ok: false, error: "Request ID required" });
+      return;
+    }
+
+    const result = await cancelFriendRequest(prisma, userId, requestId);
+    if (ack) ack(result);
+  });
+
+  // Remove friend
+  socket.on("friends:remove", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { friendId } = payload || {};
+    if (!friendId) {
+      if (ack) ack({ ok: false, error: "Friend ID required" });
+      return;
+    }
+
+    const result = await removeFriend(prisma, userId, friendId);
+    
+    if (result.success) {
+      // Notify the removed friend
+      const friendSocketId = userSockets.get(friendId);
+      if (friendSocketId) {
+        io.to(friendSocketId).emit("friends:removed", { byUserId: userId });
+      }
+    }
+    
+    if (ack) ack(result);
+  });
+
+  // Get pending requests (incoming)
+  socket.on("friends:requests:pending", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const result = await getPendingRequests(prisma, userId);
+    if (ack) ack(result);
+  });
+
+  // Get sent requests (outgoing)
+  socket.on("friends:requests:sent", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const result = await getSentRequests(prisma, userId);
+    if (ack) ack(result);
+  });
+
+  // Block user
+  socket.on("friends:block", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { targetUserId: targetId } = payload || {};
+    if (!targetId) {
+      if (ack) ack({ ok: false, error: "Target user required" });
+      return;
+    }
+
+    try {
+      // Resolve targetId to actual userId (might be visitorId)
+      let resolvedTargetId = targetId;
+      let targetUser = await prisma.user.findUnique({
+        where: { id: targetId },
+        select: { id: true }
+      });
+      if (!targetUser) {
+        targetUser = await prisma.user.findFirst({
+          where: { visitorId: targetId },
+          select: { id: true }
+        });
+        if (targetUser) {
+          resolvedTargetId = targetUser.id;
+        } else {
+          if (ack) ack({ ok: false, error: "User not found" });
+          return;
+        }
+      }
+
+      const result = await blockUser(prisma, userId, resolvedTargetId);
+      if (ack) ack(result);
+    } catch (e) {
+      console.error("[friends:block] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Unblock user
+  socket.on("friends:unblock", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { targetUserId: targetId } = payload || {};
+    if (!targetId) {
+      if (ack) ack({ ok: false, error: "Target user required" });
+      return;
+    }
+
+    try {
+      // Resolve targetId to actual userId (might be visitorId)
+      let resolvedTargetId = targetId;
+      let targetUser = await prisma.user.findUnique({
+        where: { id: targetId },
+        select: { id: true }
+      });
+      if (!targetUser) {
+        targetUser = await prisma.user.findFirst({
+          where: { visitorId: targetId },
+          select: { id: true }
+        });
+        if (targetUser) {
+          resolvedTargetId = targetUser.id;
+        } else {
+          if (ack) ack({ ok: false, error: "User not found" });
+          return;
+        }
+      }
+
+      const result = await unblockUser(prisma, userId, resolvedTargetId);
+      if (ack) ack(result);
+    } catch (e) {
+      console.error("[friends:unblock] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Get blocked users list
+  socket.on("friends:blocked:list", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const result = await getBlockedUsers(prisma, userId);
+    if (ack) ack(result);
+  });
+
+  // Get friendship status with another user
+  socket.on("friends:status", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { targetUserId } = payload || {};
+    if (!targetUserId) {
+      if (ack) ack({ ok: false, error: "Target user required" });
+      return;
+    }
+
+    const status = await getFriendshipStatus(prisma, userId, targetUserId);
+    if (ack) ack({ ok: true, ...status });
+  });
+
+  // Search users
+  socket.on("friends:search", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { query, limit } = payload || {};
+    const result = await searchUsers(prisma, userId, query, limit);
+    if (ack) ack(result);
+  });
+
+  // Get public profile of another user
+  socket.on("social:profile:get", async (payload, ack) => {
+    const viewerId = socket.data.userId; // РјРѕР¶РµС‚ Р±С‹С‚СЊ null РґР»СЏ РіРѕСЃС‚РµР№
+    const { targetUserId } = payload || {};
+    
+    if (!targetUserId) {
+      if (ack) ack({ ok: false, error: "Target user ID required" });
+      return;
+    }
+
+    const result = await getPublicProfile(prisma, viewerId, targetUserId);
+    if (ack) ack(result);
+  });
+
+  // Update bio (status) for current user
+  socket.on("social:bio:set", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ success: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { bio } = payload || {};
+    
+    // Validate bio length (max 80 characters)
+    const sanitizedBio = (bio || "").trim().slice(0, 80);
+
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { bio: sanitizedBio },
+      });
+      
+      if (ack) ack({ success: true });
+    } catch (e) {
+      console.error("[social:bio:set] error:", e);
+      if (ack) ack({ success: false, error: "Failed to update bio" });
+    }
+  });
+
+  // Set user biography (long text for profile section)
+  socket.on("social:biography:set", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ success: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { biography } = payload || {};
+    
+    // Validate biography length (max 500 characters)
+    const sanitizedBiography = (biography || "").trim().slice(0, 500);
+
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { biography: sanitizedBiography },
+      });
+      
+      if (ack) ack({ success: true });
+    } catch (e) {
+      console.error("[social:biography:set] error:", e);
+      if (ack) ack({ success: false, error: "Failed to update biography" });
+    }
+  });
+
+  // Set Discord ID manually (for users who registered via Google/email)
+  socket.on("social:discord:set", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ success: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { discordId } = payload || {};
+    
+    // Validate Discord ID format (17-19 digit number)
+    const sanitizedDiscordId = (discordId || "").trim();
+    
+    if (sanitizedDiscordId && !/^\d{17,19}$/.test(sanitizedDiscordId)) {
+      if (ack) ack({ success: false, error: "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ Discord ID. Р”РѕР»Р¶РµРЅ СЃРѕРґРµСЂР¶Р°С‚СЊ 17-19 С†РёС„СЂ." });
+      return;
+    }
+
+    try {
+      // Check if this Discord ID is already used by another user
+      if (sanitizedDiscordId) {
+        const existingUser = await prisma.user.findFirst({
+          where: { 
+            discordId: sanitizedDiscordId,
+            id: { not: userId }
+          }
+        });
+        
+        if (existingUser) {
+          if (ack) ack({ success: false, error: "Р­С‚РѕС‚ Discord ID СѓР¶Рµ РїСЂРёРІСЏР·Р°РЅ Рє РґСЂСѓРіРѕРјСѓ Р°РєРєР°СѓРЅС‚Сѓ" });
+          return;
+        }
+      }
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { discordId: sanitizedDiscordId || null },
+      });
+      
+      if (ack) ack({ success: true, discordId: sanitizedDiscordId || null });
+    } catch (e) {
+      console.error("[social:discord:set] error:", e);
+      if (ack) ack({ success: false, error: "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ Discord ID" });
+    }
+  });
+
+  // Set Discord Username manually
+  socket.on("social:discord:set-username", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ success: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { discordUsername } = payload || {};
+    
+    // Sanitize username - remove @ if present, trim whitespace
+    const sanitizedUsername = (discordUsername || "").trim().replace(/^@/, "");
+    
+    // Validate Discord username format (2-32 characters, lowercase letters, numbers, dots, underscores)
+    if (sanitizedUsername && !/^[a-z0-9_.]{2,32}$/i.test(sanitizedUsername)) {
+      if (ack) ack({ success: false, error: "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ Discord Р»РѕРіРёРЅР°" });
+      return;
+    }
+
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { discordUsername: sanitizedUsername || null },
+      });
+
+      if (ack) ack({ success: true, discordUsername: sanitizedUsername || null });
+    } catch (e) {
+      console.error("[social:discord:set-username] error:", e);
+      if (ack) ack({ success: false, error: "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ Discord Р»РѕРіРёРЅ" });
+    }
+  });
+
+  // ===========================================================================
+  // FULL PROFILE EVENTS (games, widgets, activity, notes)
+  // ===========================================================================
+  
+  // Register profile handlers from profile.js module
+  registerProfileHandlers(socket, io);
+  registerActivityHandlers(socket, io);
+
+  // ===========================================================================
+  // IGNORE EVENTS
+  // ===========================================================================
+
+  // Add user to ignore list
+  socket.on("social:ignore:add", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { targetUserId: targetId } = payload || {};
+    if (!targetId) {
+      if (ack) ack({ ok: false, error: "Target user ID required" });
+      return;
+    }
+
+    try {
+      // Resolve targetId to actual userId (might be visitorId)
+      let resolvedTargetId = targetId;
+      let targetUser = await prisma.user.findUnique({
+        where: { id: targetId },
+        select: { id: true }
+      });
+      if (!targetUser) {
+        targetUser = await prisma.user.findFirst({
+          where: { visitorId: targetId },
+          select: { id: true }
+        });
+        if (targetUser) {
+          resolvedTargetId = targetUser.id;
+        } else {
+          if (ack) ack({ ok: false, error: "User not found" });
+          return;
+        }
+      }
+
+      if (userId === resolvedTargetId) {
+        if (ack) ack({ ok: false, error: "Cannot ignore yourself" });
+        return;
+      }
+
+      const existing = await prisma.ignoredUser.findUnique({
+        where: { userId_ignoredId: { userId, ignoredId: resolvedTargetId } }
+      });
+
+      if (existing) {
+        if (ack) ack({ ok: false, error: "User already ignored" });
+        return;
+      }
+
+      await prisma.ignoredUser.create({
+        data: { userId, ignoredId: resolvedTargetId }
+      });
+
+      if (ack) ack({ ok: true });
+    } catch (e) {
+      console.error("[social:ignore:add] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Remove user from ignore list
+  socket.on("social:ignore:remove", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { targetUserId } = payload || {};
+    if (!targetUserId) {
+      if (ack) ack({ ok: false, error: "Target user ID required" });
+      return;
+    }
+
+    try {
+      await prisma.ignoredUser.deleteMany({
+        where: { userId, ignoredId: targetUserId }
+      });
+      if (ack) ack({ ok: true });
+    } catch (e) {
+      console.error("[social:ignore:remove] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Get ignored users list
+  socket.on("social:ignore:list", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    try {
+      const ignoredUsers = await prisma.ignoredUser.findMany({
+        where: { userId },
+        include: {
+          ignored: {
+            select: {
+              id: true,
+              nickname: true,
+              avatarUrl: true,
+              frameSlug: true,
+              nicknameStyle: true
+            }
+          }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      if (ack) ack({
+        ok: true,
+        users: ignoredUsers.map(i => ({
+          ...i.ignored,
+          nicknameStyle: i.ignored.nicknameStyle ? JSON.parse(i.ignored.nicknameStyle) : null,
+          ignoredAt: i.createdAt
+        }))
+      });
+    } catch (e) {
+      console.error("[social:ignore:list] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Check if user is ignored
+  socket.on("social:ignore:check", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { targetUserId } = payload || {};
+    if (!targetUserId) {
+      if (ack) ack({ ok: false, error: "Target user ID required" });
+      return;
+    }
+
+    try {
+      const ignored = await prisma.ignoredUser.findUnique({
+        where: { userId_ignoredId: { userId, ignoredId: targetUserId } }
+      });
+      if (ack) ack({ ok: true, isIgnored: !!ignored });
+    } catch (e) {
+      console.error("[social:ignore:check] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // ===========================================================================
+  // PROFILE REPORT EVENTS
+  // ===========================================================================
+
+  // Report user profile
+  socket.on("social:profile:report", async (payload, ack) => {
+    const reporterId = socket.data.userId;
+    if (!reporterId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { targetUserId: targetId, reason, comment } = payload || {};
+    if (!targetId || !reason) {
+      if (ack) ack({ ok: false, error: "Target user ID and reason required" });
+      return;
+    }
+
+    const validReasons = ["offensive_avatar", "offensive_nickname", "offensive_bio", "spam", "other"];
+    if (!validReasons.includes(reason)) {
+      if (ack) ack({ ok: false, error: "Invalid reason" });
+      return;
+    }
+
+    try {
+      // Resolve targetId to actual userId (might be visitorId)
+      let resolvedTargetId = targetId;
+      let targetUser = await prisma.user.findUnique({
+        where: { id: targetId },
+        select: { id: true }
+      });
+      if (!targetUser) {
+        targetUser = await prisma.user.findFirst({
+          where: { visitorId: targetId },
+          select: { id: true }
+        });
+        if (targetUser) {
+          resolvedTargetId = targetUser.id;
+        } else {
+          if (ack) ack({ ok: false, error: "User not found" });
+          return;
+        }
+      }
+
+      if (reporterId === resolvedTargetId) {
+        if (ack) ack({ ok: false, error: "Cannot report yourself" });
+        return;
+      }
+
+      // Check for existing pending report
+      const existingReport = await prisma.profileReport.findFirst({
+        where: { reporterId, targetId: resolvedTargetId, status: "pending" }
+      });
+
+      if (existingReport) {
+        if (ack) ack({ ok: false, error: "You already reported this profile" });
+        return;
+      }
+
+      // Create report
+      await prisma.profileReport.create({
+        data: { reporterId, targetId: resolvedTargetId, reason, comment: comment || null }
+      });
+
+      // Count pending reports
+      const pendingReportsCount = await prisma.profileReport.count({
+        where: { targetId: resolvedTargetId, status: "pending" }
+      });
+
+      console.log(`[ProfileReport] User ${resolvedTargetId} has ${pendingReportsCount} pending reports`);
+
+      // If 5+ reports - block profile
+      if (pendingReportsCount >= 5) {
+        const blockedUser = await prisma.user.update({
+          where: { id: resolvedTargetId },
+          data: {
+            profileWarnings: { increment: 1 },
+            profileBlockedAt: new Date()
+          },
+          select: { email: true, nickname: true, profileWarnings: true }
+        });
+
+        // Mark all pending reports as actioned
+        await prisma.profileReport.updateMany({
+          where: { targetId: resolvedTargetId, status: "pending" },
+          data: { status: "actioned", reviewedAt: new Date() }
+        });
+
+        console.log(`[ProfileReport] User ${resolvedTargetId} profile BLOCKED (${pendingReportsCount} reports)`);
+
+        // Send in-app notification
+        const targetSocketId = userSockets.get(resolvedTargetId);
+        if (targetSocketId) {
+          io.to(targetSocketId).emit("notifications:new", {
+            type: "profile_warning",
+            title: "Attention!",
+            message: "Your profile received multiple reports. Please edit your profile to continue playing.",
+            action: { type: "link", url: "/profile" },
+            createdAt: new Date().toISOString()
+          });
+
+          io.to(targetSocketId).emit("profile:blocked", {
+            reason: "reports",
+            message: "Your profile is blocked due to reports. Edit your profile to continue."
+          });
+        }
+
+        // Send email notification
+        try {
+          const { sendEmail } = require("./auth/email");
+          const baseUrl = process.env.APP_BASE_URL || "http://localhost:5173";
+          await sendEmail({
+            to: targetUser.email,
+            subject: "Profile Edit Required - True or Do",
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h1>Profile Edit Required</h1>
+                <p>Hello, ${targetUser.nickname || "player"}!</p>
+                <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                  <p><strong>Your profile in True or Do has received multiple reports from other users.</strong></p>
+                  <p>Please review and edit your profile (avatar, nickname, bio) according to community guidelines.</p>
+                </div>
+                <p><strong>Game access is restricted until you edit your profile.</strong></p>
+                <p style="text-align: center; margin: 30px 0;">
+                  <a href="${baseUrl}/profile" style="display: inline-block; padding: 12px 24px; background: linear-gradient(120deg, #2ee6ff, #7cff6b); color: #041018; text-decoration: none; border-radius: 25px; font-weight: bold;">Edit Profile</a>
+                </p>
+                <p style="font-size: 12px; color: #666;">True or Do Team</p>
+              </div>
+            `,
+            text: `Profile Edit Required\n\nYour profile has received multiple reports. Please edit your profile at ${baseUrl}/profile\n\nTrue or Do Team`
+          });
+          console.log(`[ProfileReport] Email sent to ${targetUser.email}`);
+        } catch (emailError) {
+          console.error("[ProfileReport] Failed to send email:", emailError);
+        }
+      }
+
+      if (ack) ack({ ok: true });
+    } catch (e) {
+      console.error("[social:profile:report] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // ===========================================================================
+  // MESSAGES EVENTS (Private Chats)
+  // ===========================================================================
+
+  // Get list of conversations
+  socket.on("messages:conversations", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { limit, offset } = payload || {};
+    const result = await getConversations(prisma, userId, { limit, offset });
+    if (ack) ack(result);
+  });
+
+  // Get messages from a conversation
+  socket.on("messages:history", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { conversationId, partnerId, limit, before, after } = payload || {};
+
+    let result;
+    if (conversationId) {
+      result = await getMessages(prisma, userId, conversationId, { limit, before, after });
+    } else if (partnerId) {
+      result = await getMessagesByPartner(prisma, userId, partnerId, { limit, before, after });
+    } else {
+      result = { success: false, error: "conversationId or partnerId required" };
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Send a message
+  socket.on("messages:send", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { receiverId, content, type = "text", metadata } = payload || {};
+
+    if (!receiverId || !content) {
+      if (ack) ack({ success: false, error: "receiverId and content required" });
+      return;
+    }
+
+    const result = await sendMessage(prisma, userId, receiverId, content, type, metadata);
+
+    if (result.success) {
+      // Notify receiver in real-time
+      const receiverSocketId = userSockets.get(receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("messages:received", {
+          message: result.message,
+          conversationId: result.conversationId,
+          senderId: userId,
+        });
+      }
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Mark messages as read
+  socket.on("messages:read", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { conversationId } = payload || {};
+
+    if (!conversationId) {
+      if (ack) ack({ success: false, error: "conversationId required" });
+      return;
+    }
+
+    const result = await markAsRead(prisma, userId, conversationId);
+
+    if (result.success && result.count > 0) {
+      // Get conversation to find partner
+      const conv = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { participant1Id: true, participant2Id: true },
+      });
+
+      if (conv) {
+        const partnerId = conv.participant1Id === userId ? conv.participant2Id : conv.participant1Id;
+        const partnerSocketId = userSockets.get(partnerId);
+
+        // Notify sender that messages were read
+        if (partnerSocketId) {
+          io.to(partnerSocketId).emit("messages:read:confirmed", {
+            conversationId,
+            readBy: userId,
+            count: result.count,
+          });
+        }
+      }
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Get unread messages count
+  socket.on("messages:unread:count", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const count = await getUnreadCount(prisma, userId);
+    if (ack) ack({ success: true, count });
+  });
+
+  // Delete conversation
+  socket.on("messages:conversation:delete", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { conversationId } = payload || {};
+
+    if (!conversationId) {
+      if (ack) ack({ success: false, error: "conversationId required" });
+      return;
+    }
+
+    const result = await deleteConversation(prisma, userId, conversationId);
+    if (ack) ack(result);
+  });
+
+  // Send game invite via message
+  socket.on("messages:game:invite", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { receiverId, gameType, roomCode } = payload || {};
+
+    if (!receiverId || !gameType || !roomCode) {
+      if (ack) ack({ success: false, error: "receiverId, gameType, and roomCode required" });
+      return;
+    }
+
+    const result = await sendGameInvite(prisma, userId, receiverId, gameType, roomCode);
+
+    if (result.success) {
+      // Notify receiver
+      const receiverSocketId = userSockets.get(receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("messages:received", {
+          message: result.message,
+          conversationId: result.conversationId,
+          senderId: userId,
+        });
+        // Also send special game invite notification
+        io.to(receiverSocketId).emit("game:invite:received", {
+          from: userId,
+          gameType,
+          roomCode,
+          message: result.message,
+        });
+      }
+    }
+
+    if (ack) ack(result);
+  });
+
+  // ===========================================================================
+  // CLANS EVENTS
+  // ===========================================================================
+
+  // Create a clan (VIP/PRO only)
+  socket.on("clans:create", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { name, tag, description, type } = payload || {};
+
+    if (!name) {
+      if (ack) ack({ success: false, error: "name required" });
+      return;
+    }
+
+    const result = await createClan(prisma, userId, { name, tag, description, type });
+    if (ack) ack(result);
+  });
+
+  // Delete a clan (leader only)
+  socket.on("clans:delete", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    const result = await deleteClan(prisma, userId, clanId);
+    if (ack) ack(result);
+  });
+
+  // Update clan info
+  socket.on("clans:update", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, name, tag, description, type } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    const result = await updateClan(prisma, userId, clanId, { name, tag, description, type });
+    if (ack) ack(result);
+  });
+
+  // Update clan avatar
+  socket.on("clans:avatar:update", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, avatarUrl } = payload || {};
+
+    if (!clanId || !avatarUrl) {
+      if (ack) ack({ success: false, error: "clanId and avatarUrl required" });
+      return;
+    }
+
+    const result = await updateClanAvatar(prisma, userId, clanId, avatarUrl);
+    if (ack) ack(result);
+  });
+
+  // Get clan info
+  socket.on("clans:get", async (payload, ack) => {
+    const userId = socket.data.userId;
+    const { clanId } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    const result = await getClan(prisma, clanId, userId);
+    if (ack) ack(result);
+  });
+
+  // Get user's clan
+  socket.on("clans:my", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const result = await getUserClan(prisma, userId);
+    if (ack) ack(result);
+  });
+
+  // Search clans
+  socket.on("clans:search", async (payload, ack) => {
+    const { query, limit, offset } = payload || {};
+    const result = await searchClans(prisma, query, { limit, offset });
+    if (ack) ack(result);
+  });
+
+  // Get popular clans
+  socket.on("clans:popular", async (payload, ack) => {
+    const { limit } = payload || {};
+    const result = await getPopularClans(prisma, limit);
+    if (ack) ack(result);
+  });
+
+  // Join an open clan
+  socket.on("clans:join", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    const result = await joinClan(prisma, userId, clanId);
+
+    if (result.success) {
+      // Join Socket.IO room for clan chat
+      socket.join(`clan:${clanId}`);
+      // Notify clan members about new member
+      socket.to(`clan:${clanId}`).emit("clans:member:joined", {
+        clanId,
+        member: result.membership,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Leave clan
+  socket.on("clans:leave", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const result = await leaveClan(prisma, userId);
+
+    if (result.success) {
+      // Leave Socket.IO room
+      socket.leave(`clan:${result.clanId}`);
+      // Notify clan members
+      socket.to(`clan:${result.clanId}`).emit("clans:member:left", {
+        clanId: result.clanId,
+        userId,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Kick member from clan
+  socket.on("clans:member:kick", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, targetUserId } = payload || {};
+
+    if (!clanId || !targetUserId) {
+      if (ack) ack({ success: false, error: "clanId and targetUserId required" });
+      return;
+    }
+
+    const result = await kickMember(prisma, userId, targetUserId, clanId);
+
+    if (result.success) {
+      // Notify the kicked user
+      const kickedSocketId = userSockets.get(targetUserId);
+      if (kickedSocketId) {
+        io.to(kickedSocketId).emit("clans:kicked", { clanId });
+        // Remove from Socket.IO room
+        const kickedSocket = io.sockets.sockets.get(kickedSocketId);
+        if (kickedSocket) {
+          kickedSocket.leave(`clan:${clanId}`);
+        }
+      }
+      // Notify clan members
+      io.to(`clan:${clanId}`).emit("clans:member:kicked", {
+        clanId,
+        kickedUserId: targetUserId,
+        kickedBy: userId,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Get clan members
+  socket.on("clans:members", async (payload, ack) => {
+    const { clanId, limit, offset } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    const result = await getClanMembers(prisma, clanId, { limit, offset });
+    if (ack) ack(result);
+  });
+
+  // Request to join a closed clan
+  socket.on("clans:request:send", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, message } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    const result = await requestJoinClan(prisma, userId, clanId, message);
+
+    if (result.success && result.request) {
+      // Notify clan leaders/moderators about new request
+      io.to(`clan:${clanId}`).emit("clans:request:received", {
+        clanId,
+        request: result.request,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Accept clan request
+  socket.on("clans:request:accept", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { requestId } = payload || {};
+
+    if (!requestId) {
+      if (ack) ack({ success: false, error: "requestId required" });
+      return;
+    }
+
+    const result = await acceptClanRequest(prisma, userId, requestId);
+
+    if (result.success) {
+      // Notify the accepted user
+      const acceptedSocketId = userSockets.get(result.userId);
+      if (acceptedSocketId) {
+        io.to(acceptedSocketId).emit("clans:request:accepted", {
+          clanId: result.clanId,
+          membership: result.membership,
+        });
+        // Add user to clan room
+        const acceptedSocket = io.sockets.sockets.get(acceptedSocketId);
+        if (acceptedSocket) {
+          acceptedSocket.join(`clan:${result.clanId}`);
+        }
+      }
+      // Notify clan members about new member
+      io.to(`clan:${result.clanId}`).emit("clans:member:joined", {
+        clanId: result.clanId,
+        member: result.membership,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Reject clan request
+  socket.on("clans:request:reject", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { requestId } = payload || {};
+
+    if (!requestId) {
+      if (ack) ack({ success: false, error: "requestId required" });
+      return;
+    }
+
+    const result = await rejectClanRequest(prisma, userId, requestId);
+
+    if (result.success) {
+      // Notify the rejected user
+      const rejectedSocketId = userSockets.get(result.userId);
+      if (rejectedSocketId) {
+        io.to(rejectedSocketId).emit("clans:request:rejected", {
+          clanId: result.clanId,
+        });
+      }
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Cancel own clan request
+  socket.on("clans:request:cancel", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { requestId } = payload || {};
+
+    if (!requestId) {
+      if (ack) ack({ success: false, error: "requestId required" });
+      return;
+    }
+
+    const result = await cancelClanRequest(prisma, userId, requestId);
+    if (ack) ack(result);
+  });
+
+  // Get clan requests (for leaders/moderators)
+  socket.on("clans:requests", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, status } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    const result = await getClanRequests(prisma, userId, clanId, { status });
+    if (ack) ack(result);
+  });
+
+  // Get my pending clan requests
+  socket.on("clans:requests:my", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const result = await getMyClanRequests(prisma, userId);
+    if (ack) ack(result);
+  });
+
+  // Promote member to moderator (leader only, VIP/PRO required)
+  socket.on("clans:member:promote", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, targetUserId } = payload || {};
+
+    if (!clanId || !targetUserId) {
+      if (ack) ack({ success: false, error: "clanId and targetUserId required" });
+      return;
+    }
+
+    const result = await promoteMember(prisma, userId, targetUserId, clanId);
+
+    if (result.success) {
+      // Notify clan members about role change
+      io.to(`clan:${clanId}`).emit("clans:member:role:changed", {
+        clanId,
+        member: result.member,
+        newRole: "moderator",
+        changedBy: userId,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Demote moderator to member (leader only)
+  socket.on("clans:member:demote", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, targetUserId } = payload || {};
+
+    if (!clanId || !targetUserId) {
+      if (ack) ack({ success: false, error: "clanId and targetUserId required" });
+      return;
+    }
+
+    const result = await demoteMember(prisma, userId, targetUserId, clanId);
+
+    if (result.success) {
+      // Notify clan members about role change
+      io.to(`clan:${clanId}`).emit("clans:member:role:changed", {
+        clanId,
+        member: result.member,
+        newRole: "member",
+        changedBy: userId,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Transfer leadership (leader only)
+  socket.on("clans:leadership:transfer", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, newLeaderId } = payload || {};
+
+    if (!clanId || !newLeaderId) {
+      if (ack) ack({ success: false, error: "clanId and newLeaderId required" });
+      return;
+    }
+
+    const result = await transferLeadership(prisma, userId, newLeaderId, clanId);
+
+    if (result.success) {
+      // Notify clan members about leadership transfer
+      io.to(`clan:${clanId}`).emit("clans:leadership:transferred", {
+        clanId,
+        oldLeaderId: userId,
+        newLeaderId: result.newLeaderId,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Send message to clan chat
+  socket.on("clans:message:send", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, content } = payload || {};
+
+    if (!clanId || !content) {
+      if (ack) ack({ success: false, error: "clanId and content required" });
+      return;
+    }
+
+    const result = await sendClanMessage(prisma, userId, clanId, content);
+
+    if (result.success) {
+      // Broadcast message to all clan members
+      io.to(`clan:${clanId}`).emit("clans:message:received", {
+        clanId,
+        message: result.message,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Get clan messages history
+  socket.on("clans:messages", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, limit, before, after } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    const result = await getClanMessages(prisma, userId, clanId, { limit, before, after });
+    if (ack) ack(result);
+  });
+
+  // Delete clan message
+  socket.on("clans:message:delete", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { messageId } = payload || {};
+
+    if (!messageId) {
+      if (ack) ack({ success: false, error: "messageId required" });
+      return;
+    }
+
+    const result = await deleteClanMessage(prisma, userId, messageId);
+
+    if (result.success) {
+      // Notify clan members about deleted message
+      io.to(`clan:${result.clanId}`).emit("clans:message:deleted", {
+        clanId: result.clanId,
+        messageId,
+        deletedBy: userId,
+      });
+    }
+
+    if (ack) ack(result);
+  });
+
+  // Join clan chat room (for reconnection)
+  socket.on("clans:chat:join", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId } = payload || {};
+
+    if (!clanId) {
+      if (ack) ack({ success: false, error: "clanId required" });
+      return;
+    }
+
+    // Verify membership
+    const membership = await prisma.clanMember.findFirst({
+      where: { clanId, userId },
+    });
+
+    if (!membership) {
+      if (ack) ack({ success: false, error: "Not a clan member" });
+      return;
+    }
+
+    socket.join(`clan:${clanId}`);
+    if (ack) ack({ success: true });
+  });
+
+  // Report a clan
+  socket.on("clans:report", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, reason, description } = payload || {};
+
+    if (!clanId || !reason) {
+      if (ack) ack({ success: false, error: "clanId and reason required" });
+      return;
+    }
+
+    const result = await reportClan(prisma, userId, clanId, reason, description);
+    if (ack) ack(result);
+  });
+
+  // Get report reasons list
+  socket.on("clans:report:reasons", async (payload, ack) => {
+    if (ack) ack({ success: true, reasons: REPORT_REASONS });
+  });
+
+  // Get clan reports (admin only)
+  socket.on("clans:reports", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { status, clanId, limit, offset } = payload || {};
+    const result = await getClanReports(prisma, userId, { status, clanId, limit, offset });
+    if (ack) ack(result);
+  });
+
+  // Resolve a report (admin only)
+  socket.on("clans:report:resolve", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { reportId, status, adminNotes } = payload || {};
+
+    if (!reportId || !status) {
+      if (ack) ack({ success: false, error: "reportId and status required" });
+      return;
+    }
+
+    const result = await resolveReport(prisma, userId, reportId, status, adminNotes);
+    if (ack) ack(result);
+  });
+
+  // ===========================================================================
+  // CLAN INVITE EVENTS
+  // ===========================================================================
+
+  // Send clan invite (leader/moderator only)
+  socket.on("clan:invite:send", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { clanId, targetUserId, message } = payload || {};
+    if (!clanId || !targetUserId) {
+      if (ack) ack({ ok: false, error: "clanId and targetUserId required" });
+      return;
+    }
+
+    try {
+      // Check if user is leader or moderator of the clan
+      const membership = await prisma.clanMember.findFirst({
+        where: { clanId, userId, role: { in: ["leader", "moderator"] } }
+      });
+
+      if (!membership) {
+        if (ack) ack({ ok: false, error: "Only clan leader or moderator can invite" });
+        return;
+      }
+
+      // Check if target is already in a clan
+      const targetMembership = await prisma.clanMember.findFirst({
+        where: { userId: targetUserId }
+      });
+
+      if (targetMembership) {
+        if (ack) ack({ ok: false, error: "User is already in a clan" });
+        return;
+      }
+
+      // Check for existing pending invite
+      const existingInvite = await prisma.clanInvite.findFirst({
+        where: { clanId, inviteeId: targetUserId, status: "pending" }
+      });
+
+      if (existingInvite) {
+        if (ack) ack({ ok: false, error: "Invite already sent" });
+        return;
+      }
+
+      // Create invite (expires in 7 days)
+      const invite = await prisma.clanInvite.create({
+        data: {
+          clanId,
+          inviterId: userId,
+          inviteeId: targetUserId,
+          message: message || null,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        },
+        include: {
+          clan: { select: { id: true, name: true, tag: true, avatarUrl: true } },
+          inviter: { select: { id: true, nickname: true, avatarUrl: true } }
+        }
+      });
+
+      // Notify target user
+      const targetSocketId = userSockets.get(targetUserId);
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("clan:invite:received", {
+          invite: {
+            id: invite.id,
+            clan: invite.clan,
+            inviter: invite.inviter,
+            message: invite.message,
+            expiresAt: invite.expiresAt,
+            createdAt: invite.createdAt
+          }
+        });
+      }
+
+      if (ack) ack({ ok: true, invite });
+    } catch (e) {
+      console.error("[clan:invite:send] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Accept clan invite
+  socket.on("clan:invite:accept", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { inviteId } = payload || {};
+    if (!inviteId) {
+      if (ack) ack({ ok: false, error: "inviteId required" });
+      return;
+    }
+
+    try {
+      const invite = await prisma.clanInvite.findUnique({
+        where: { id: inviteId },
+        include: { clan: true }
+      });
+
+      if (!invite) {
+        if (ack) ack({ ok: false, error: "Invite not found" });
+        return;
+      }
+
+      if (invite.inviteeId !== userId) {
+        if (ack) ack({ ok: false, error: "Not your invite" });
+        return;
+      }
+
+      if (invite.status !== "pending") {
+        if (ack) ack({ ok: false, error: "Invite already processed" });
+        return;
+      }
+
+      if (new Date() > invite.expiresAt) {
+        await prisma.clanInvite.update({
+          where: { id: inviteId },
+          data: { status: "expired" }
+        });
+        if (ack) ack({ ok: false, error: "Invite expired" });
+        return;
+      }
+
+      // Check if user is already in a clan
+      const existingMembership = await prisma.clanMember.findFirst({
+        where: { userId }
+      });
+
+      if (existingMembership) {
+        if (ack) ack({ ok: false, error: "You are already in a clan" });
+        return;
+      }
+
+      // Accept invite - add user to clan
+      await prisma.$transaction([
+        prisma.clanInvite.update({
+          where: { id: inviteId },
+          data: { status: "accepted" }
+        }),
+        prisma.clanMember.create({
+          data: {
+            clanId: invite.clanId,
+            userId,
+            role: "member"
+          }
+        }),
+        prisma.clan.update({
+          where: { id: invite.clanId },
+          data: { memberCount: { increment: 1 } }
+        })
+      ]);
+
+      // Notify clan members
+      const clanMembers = await prisma.clanMember.findMany({
+        where: { clanId: invite.clanId },
+        select: { userId: true }
+      });
+
+      const newMember = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, nickname: true, avatarUrl: true }
+      });
+
+      for (const member of clanMembers) {
+        const memberSocketId = userSockets.get(member.userId);
+        if (memberSocketId) {
+          io.to(memberSocketId).emit("clan:member:joined", {
+            clanId: invite.clanId,
+            member: newMember
+          });
+        }
+      }
+
+      if (ack) ack({ ok: true, clanId: invite.clanId });
+    } catch (e) {
+      console.error("[clan:invite:accept] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Decline clan invite
+  socket.on("clan:invite:decline", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { inviteId } = payload || {};
+    if (!inviteId) {
+      if (ack) ack({ ok: false, error: "inviteId required" });
+      return;
+    }
+
+    try {
+      const invite = await prisma.clanInvite.findUnique({
+        where: { id: inviteId }
+      });
+
+      if (!invite) {
+        if (ack) ack({ ok: false, error: "Invite not found" });
+        return;
+      }
+
+      if (invite.inviteeId !== userId) {
+        if (ack) ack({ ok: false, error: "Not your invite" });
+        return;
+      }
+
+      if (invite.status !== "pending") {
+        if (ack) ack({ ok: false, error: "Invite already processed" });
+        return;
+      }
+
+      await prisma.clanInvite.update({
+        where: { id: inviteId },
+        data: { status: "declined" }
+      });
+
+      if (ack) ack({ ok: true });
+    } catch (e) {
+      console.error("[clan:invite:decline] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Get pending clan invites for current user
+  socket.on("clan:invite:list", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    try {
+      const invites = await prisma.clanInvite.findMany({
+        where: {
+          inviteeId: userId,
+          status: "pending",
+          expiresAt: { gt: new Date() }
+        },
+        include: {
+          clan: { select: { id: true, name: true, tag: true, avatarUrl: true, memberCount: true } },
+          inviter: { select: { id: true, nickname: true, avatarUrl: true } }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      if (ack) ack({ ok: true, invites });
+    } catch (e) {
+      console.error("[clan:invite:list] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // Cancel clan invite (inviter only)
+  socket.on("clan:invite:cancel", async (payload, ack) => {
+    const userId = socket.data.userId;
+    if (!userId) {
+      if (ack) ack({ ok: false, error: "Not authenticated" });
+      return;
+    }
+
+    const { inviteId } = payload || {};
+    if (!inviteId) {
+      if (ack) ack({ ok: false, error: "inviteId required" });
+      return;
+    }
+
+    try {
+      const invite = await prisma.clanInvite.findUnique({
+        where: { id: inviteId }
+      });
+
+      if (!invite) {
+        if (ack) ack({ ok: false, error: "Invite not found" });
+        return;
+      }
+
+      // Check if user is inviter or clan leader/moderator
+      const membership = await prisma.clanMember.findFirst({
+        where: { clanId: invite.clanId, userId, role: { in: ["leader", "moderator"] } }
+      });
+
+      if (invite.inviterId !== userId && !membership) {
+        if (ack) ack({ ok: false, error: "Not authorized" });
+        return;
+      }
+
+      if (invite.status !== "pending") {
+        if (ack) ack({ ok: false, error: "Invite already processed" });
+        return;
+      }
+
+      await prisma.clanInvite.delete({
+        where: { id: inviteId }
+      });
+
+      if (ack) ack({ ok: true });
+    } catch (e) {
+      console.error("[clan:invite:cancel] error:", e);
+      if (ack) ack({ ok: false, error: "Server error" });
+    }
+  });
+
+  // ===========================================================================
   // EMOTIONAL GAME EVENTS
   // ===========================================================================
 
@@ -4583,30 +7113,62 @@ io.on("connection", (socket) => {
     const visitorId = payload?.visitorId || null;
 
     if (!name) {
-      if (ack) ack({ ok: false, error: "Имя обязательно" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     await leaveAllRooms(socket);
 
+    // пїЅпїЅпїЅпїЅ avatarUrl, frameSlug пїЅ nicknameStyle пїЅпїЅ payload пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     let avatarUrl = payload?.avatarUrl || null;
-    if (!avatarUrl && socket.data.userId) {
-      const user = await prisma.user.findUnique({
+    let frameSlug = payload?.frameSlug || null;
+    let nicknameStyle = null;
+    if (socket.data.userId) {
+      const userData = await prisma.user.findUnique({
         where: { id: socket.data.userId },
-        select: { avatarUrl: true }
+        select: { 
+          avatarUrl: true, 
+          customization: { 
+            select: { 
+              frameAll: true,
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } }
+            } 
+          } 
+        }
       });
-      avatarUrl = user?.avatarUrl || null;
+      if (!avatarUrl) avatarUrl = userData?.avatarUrl || null;
+      if (!frameSlug) frameSlug = userData?.customization?.frameAll || null;
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ nicknameStyle
+      if (userData?.customization) {
+        const c = userData.customization;
+        nicknameStyle = {
+          colorType: c.nicknameColorType,
+          customColor: c.nicknameCustomColor,
+          gradient: c.nicknameGradient,
+          glow: c.nicknameGlow
+        };
+      }
     }
 
-    const { room, playerId } = createEmotionalRoom(name, avatarUrl, visitorId);
+    const { room, playerId } = createEmotionalRoom(name, avatarUrl, visitorId, frameSlug, nicknameStyle);
 
     socket.data.emotionalRoomCode = room.code;
     socket.data.emotionalPlayerId = playerId;
+    socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     emotionalPlayerSockets.set(playerId, socket.id);
     socket.join(`emotional:${room.code}`);
     setAutoLeaveTimer(socket);
 
-    // Отправляем состояние всем (на будущее — персонализированное)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerJoin(visitorId, "emotional");
+      trackGameSession(socket, "emotional", room.code);
+    }
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     room.players.forEach(p => {
       const socketId = emotionalPlayerSockets.get(p.id);
       if (socketId) {
@@ -4623,22 +7185,47 @@ io.on("connection", (socket) => {
     const visitorId = payload?.visitorId || null;
 
     if (!name || !code) {
-      if (ack) ack({ ok: false, error: "Имя и код обязательны" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     await leaveAllRooms(socket);
 
+    // пїЅпїЅпїЅпїЅ avatarUrl, frameSlug пїЅ nicknameStyle пїЅпїЅ payload пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     let avatarUrl = payload?.avatarUrl || null;
-    if (!avatarUrl && socket.data.userId) {
-      const user = await prisma.user.findUnique({
+    let frameSlug = payload?.frameSlug || null;
+    let nicknameStyle = null;
+    if (socket.data.userId) {
+      const userData = await prisma.user.findUnique({
         where: { id: socket.data.userId },
-        select: { avatarUrl: true }
+        select: { 
+          avatarUrl: true, 
+          customization: { 
+            select: { 
+              frameAll: true,
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } }
+            } 
+          } 
+        }
       });
-      avatarUrl = user?.avatarUrl || null;
+      if (!avatarUrl) avatarUrl = userData?.avatarUrl || null;
+      if (!frameSlug) frameSlug = userData?.customization?.frameAll || null;
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ nicknameStyle
+      if (userData?.customization) {
+        const c = userData.customization;
+        nicknameStyle = {
+          colorType: c.nicknameColorType,
+          customColor: c.nicknameCustomColor,
+          gradient: c.nicknameGradient,
+          glow: c.nicknameGlow
+        };
+      }
     }
 
-    const result = joinEmotionalRoom(code, name, avatarUrl, visitorId);
+    const result = joinEmotionalRoom(code, name, avatarUrl, visitorId, frameSlug, nicknameStyle);
     if (result.error) {
       if (ack) ack({ ok: false, error: result.error });
       return;
@@ -4646,11 +7233,18 @@ io.on("connection", (socket) => {
 
     socket.data.emotionalRoomCode = result.room.code;
     socket.data.emotionalPlayerId = result.playerId;
+    socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     emotionalPlayerSockets.set(result.playerId, socket.id);
     socket.join(`emotional:${result.room.code}`);
     setAutoLeaveTimer(socket);
 
-    // Отправляем состояние всем
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerJoin(visitorId, "emotional");
+      trackGameSession(socket, "emotional", room.code);
+    }
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     result.room.players.forEach(p => {
       const socketId = emotionalPlayerSockets.get(p.id);
       if (socketId) {
@@ -4671,21 +7265,32 @@ io.on("connection", (socket) => {
   socket.on("emotional:room:leave", async (payload, ack) => {
     const roomCode = socket.data.emotionalRoomCode;
     const playerId = socket.data.emotionalPlayerId;
+    const visitorId = socket.data.visitorId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
+    }
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gameStartedAt пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ fallback пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    const room = getEmotionalRoom(roomCode);
+    const gameStartedAt = room?.gameStartedAt || null;
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerLeave(visitorId, "emotional", io, gameStartedAt);
     }
 
     const result = leaveEmotionalRoom(roomCode, playerId);
 
-    // если вышел последний или игра завершилась/комната пустеет — останавливаем таймер
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     stopEmotionalTimer(roomCode);
 
     socket.leave(`emotional:${roomCode}`);
     emotionalPlayerSockets.delete(playerId);
     socket.data.emotionalRoomCode = null;
     socket.data.emotionalPlayerId = null;
+    socket.data.visitorId = null;
 
     if (!result.deleted && result.room) {
       result.room.players.forEach(p => {
@@ -4705,7 +7310,7 @@ io.on("connection", (socket) => {
     const { settings } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4730,7 +7335,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.emotionalPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4758,7 +7363,7 @@ io.on("connection", (socket) => {
     const { emotion } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4769,13 +7374,13 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Если все сдали — сразу двигаем фазу
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     const canAdvance = canAdvanceEmotionalToVote(result.room, Date.now());
     console.log("[Emotional] canAdvance:", canAdvance, "phase:", result.room.phase, "submissions:", Object.keys(result.room.submissions || {}));
     if (canAdvance) {
       advanceEmotionalToVote(result.room, Date.now());
       console.log("[Emotional] after advanceToVote - phase:", result.room.phase, "table length:", result.room.table?.length);
-      // Важно: запустить таймер для управления фазой reveal!
+      // пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ reveal!
       startEmotionalTimer(roomCode);
     }
 
@@ -4794,7 +7399,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.emotionalPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4806,7 +7411,7 @@ io.on("connection", (socket) => {
 
     if (canAdvanceEmotionalToVote(result.room, Date.now())) {
       advanceEmotionalToVote(result.room, Date.now());
-      // Важно: запустить таймер для управления фазой reveal!
+      // пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ reveal!
       startEmotionalTimer(roomCode);
     }
 
@@ -4826,7 +7431,7 @@ io.on("connection", (socket) => {
     const { slotId } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4838,6 +7443,55 @@ io.on("connection", (socket) => {
 
     if (canFinalizeEmotionalVote(result.room, Date.now())) {
       finalizeEmotionalRound(result.room);
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ = пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (leaderId)
+      const leaderId = result.room.leaderId;
+      const leaderSlot = result.room.table?.find(s => s.playerId === leaderId);
+      const leaderSlotId = leaderSlot?.slotId;
+      
+      for (const player of result.room.players) {
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        if (player.id === leaderId) continue;
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ visitorId (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+        if (!player.visitorId) continue;
+        
+        const votedSlotId = result.room.votes?.[player.id];
+        // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        if (votedSlotId) {
+          const guessedCorrectly = votedSlotId === leaderSlotId;
+          try {
+            await recordEmotionalRoundComplete(player.visitorId, guessedCorrectly, io);
+          } catch (e) {
+            console.error("[Stats] Emotional round error:", e);
+          }
+        }
+      }
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ
+      if (result.room.status === "ended") {
+        const targetScore = result.room.settings?.targetScore ?? 15;
+        const winnerPlayerIds = Object.entries(result.room.scores || {})
+          .filter(([, score]) => score >= targetScore)
+          .map(([playerId]) => playerId);
+        const winnerSet = new Set(winnerPlayerIds);
+        
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        const gameStartedAt = result.room.gameStartedAt;
+        const timePlayed = gameStartedAt ? Math.floor((Date.now() - gameStartedAt) / 1000) : 0;
+        
+        console.log("[Stats] Emotional game ended - gameStartedAt:", gameStartedAt, "timePlayed:", timePlayed);
+        
+        for (const player of result.room.players) {
+          if (!player.visitorId) continue;
+          const won = winnerSet.has(player.id);
+          try {
+            await recordEmotionalGameComplete(player.visitorId, won, io, timePlayed);
+          } catch (e) {
+            console.error("[Stats] Emotional game complete error:", e);
+          }
+        }
+      }
     }
 
     result.room.players.forEach(p => {
@@ -4855,7 +7509,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.emotionalPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4871,6 +7525,28 @@ io.on("connection", (socket) => {
       stopEmotionalTimer(roomCode);
     }
 
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    // (status === "ended" пїЅ emotional, пїЅпїЅ "finished")
+    if (result.room.status === "ended" && result.winners) {
+      const winnerSet = new Set(result.winners);
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      const gameStartedAt = result.room.gameStartedAt;
+      const timePlayed = gameStartedAt ? Math.floor((Date.now() - gameStartedAt) / 1000) : 0;
+      
+      console.log("[Stats] Emotional game ended (finalize) - gameStartedAt:", gameStartedAt, "timePlayed:", timePlayed);
+      
+      for (const player of result.room.players) {
+        if (!player.visitorId) continue;
+        const won = winnerSet.has(player.id);
+        try {
+          await recordEmotionalGameComplete(player.visitorId, won, io, timePlayed);
+        } catch (e) {
+          console.error("[Stats] Emotional game complete error:", e);
+        }
+      }
+    }
+
     result.room.players.forEach(p => {
       const socketId = emotionalPlayerSockets.get(p.id);
       if (socketId) {
@@ -4881,13 +7557,13 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true, winners: result.winners || [] });
   });
 
-  // Перетасовка колоды эмоций (когда колода закончилась)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
   socket.on("emotional:deck:reshuffle", async (payload, ack) => {
     const roomCode = socket.data.emotionalRoomCode;
     const playerId = socket.data.emotionalPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4897,7 +7573,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Уведомляем всех игроков о перетасовке
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     result.room.players.forEach(p => {
       const socketId = emotionalPlayerSockets.get(p.id);
       if (socketId) {
@@ -4914,7 +7590,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.emotionalPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4942,7 +7618,7 @@ io.on("connection", (socket) => {
     const { targetPlayerId } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4955,10 +7631,10 @@ io.on("connection", (socket) => {
     const kickedSocketId = emotionalPlayerSockets.get(targetPlayerId);
     if (kickedSocketId) {
       io.to(kickedSocketId).emit("emotional:player:kicked", {
-        message: "Вы были удалены из комнаты хостом",
+        message: "пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ",
       });
 
-      // принудительно выкидываем из комнаты
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       const kickedSocket = io.sockets.sockets.get(kickedSocketId);
       if (kickedSocket) {
         kickedSocket.leave(`emotional:${roomCode}`);
@@ -4968,7 +7644,7 @@ io.on("connection", (socket) => {
       emotionalPlayerSockets.delete(targetPlayerId);
     }
 
-    // sync всем оставшимся (кроме kicked)
+    // sync пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅ kicked)
     result.room.players.forEach(p => {
       if (p.connectionStatus === "kicked") return;
       const socketId = emotionalPlayerSockets.get(p.id);
@@ -4980,13 +7656,13 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true, kickedPlayerName: result.kickedPlayerName });
   });
 
-  // Пауза игры
+  // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
   socket.on("emotional:game:pause", async (payload, ack) => {
     const roomCode = socket.data.emotionalRoomCode;
     const playerId = socket.data.emotionalPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -4996,7 +7672,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Уведомляем всех игроков о паузе
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ
     result.room.players.forEach(p => {
       if (p.connectionStatus === "left" || p.connectionStatus === "kicked") return;
       const socketId = emotionalPlayerSockets.get(p.id);
@@ -5008,13 +7684,13 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Возобновление игры
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
   socket.on("emotional:game:resume", async (payload, ack) => {
     const roomCode = socket.data.emotionalRoomCode;
     const playerId = socket.data.emotionalPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5024,7 +7700,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Уведомляем всех игроков о возобновлении
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     result.room.players.forEach(p => {
       if (p.connectionStatus === "left" || p.connectionStatus === "kicked") return;
       const socketId = emotionalPlayerSockets.get(p.id);
@@ -5044,28 +7720,60 @@ io.on("connection", (socket) => {
     const name = normalizeCodenamesName(payload?.name);
     const visitorId = payload?.visitorId || null;
     if (!name) {
-      if (ack) ack({ ok: false, error: "Имя обязательно" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Выходим из всех предыдущих комнат перед созданием новой
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
     await leaveAllRooms(socket);
 
+    // пїЅпїЅпїЅпїЅ avatarUrl, frameSlug пїЅ nicknameStyle пїЅпїЅ payload пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     let avatarUrl = payload?.avatarUrl || null;
-    if (!avatarUrl && socket.data.userId) {
-      const user = await prisma.user.findUnique({
+    let frameSlug = payload?.frameSlug || null;
+    let nicknameStyle = null;
+    if (socket.data.userId) {
+      const userData = await prisma.user.findUnique({
         where: { id: socket.data.userId },
-        select: { avatarUrl: true }
+        select: { 
+          avatarUrl: true, 
+          customization: { 
+            select: { 
+              frameAll: true,
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } }
+            } 
+          } 
+        }
       });
-      avatarUrl = user?.avatarUrl || null;
+      if (!avatarUrl) avatarUrl = userData?.avatarUrl || null;
+      if (!frameSlug) frameSlug = userData?.customization?.frameAll || null;
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ nicknameStyle
+      if (userData?.customization) {
+        const c = userData.customization;
+        nicknameStyle = {
+          colorType: c.nicknameColorType,
+          customColor: c.nicknameCustomColor,
+          gradient: c.nicknameGradient,
+          glow: c.nicknameGlow
+        };
+      }
     }
 
-    const { room, playerId } = createCodenamesRoom(name, avatarUrl, visitorId);
+    const { room, playerId } = createCodenamesRoom(name, avatarUrl, visitorId, frameSlug, nicknameStyle);
     
     socket.data.codenamesRoomCode = room.code;
     socket.data.codenamesPlayerId = playerId;
+    socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     codenamesPlayerSockets.set(playerId, socket.id);
     socket.join(`codenames:${room.code}`);
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerJoin(visitorId, "codenames");
+      trackGameSession(socket, "codenames", room.code);
+    }
 
     const state = buildCodenamesRoomState(room, playerId);
     if (ack) ack({ ok: true, state, playerId });
@@ -5077,23 +7785,48 @@ io.on("connection", (socket) => {
     const visitorId = payload?.visitorId || null;
     
     if (!name || !code) {
-      if (ack) ack({ ok: false, error: "Имя и код обязательны" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅ пїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Выходим из всех предыдущих комнат перед присоединением
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     await leaveAllRooms(socket);
 
+    // пїЅпїЅпїЅпїЅ avatarUrl, frameSlug пїЅ nicknameStyle пїЅпїЅ payload пїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     let avatarUrl = payload?.avatarUrl || null;
-    if (!avatarUrl && socket.data.userId) {
-      const user = await prisma.user.findUnique({
+    let frameSlug = payload?.frameSlug || null;
+    let nicknameStyle = null;
+    if (socket.data.userId) {
+      const userData = await prisma.user.findUnique({
         where: { id: socket.data.userId },
-        select: { avatarUrl: true }
+        select: { 
+          avatarUrl: true, 
+          customization: { 
+            select: { 
+              frameAll: true,
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } }
+            } 
+          } 
+        }
       });
-      avatarUrl = user?.avatarUrl || null;
+      if (!avatarUrl) avatarUrl = userData?.avatarUrl || null;
+      if (!frameSlug) frameSlug = userData?.customization?.frameAll || null;
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ nicknameStyle
+      if (userData?.customization) {
+        const c = userData.customization;
+        nicknameStyle = {
+          colorType: c.nicknameColorType,
+          customColor: c.nicknameCustomColor,
+          gradient: c.nicknameGradient,
+          glow: c.nicknameGlow
+        };
+      }
     }
 
-    const result = joinCodenamesRoom(code, name, avatarUrl, visitorId);
+    const result = joinCodenamesRoom(code, name, avatarUrl, visitorId, frameSlug, nicknameStyle);
     if (result.error) {
       if (ack) ack({ ok: false, error: result.error });
       return;
@@ -5101,11 +7834,18 @@ io.on("connection", (socket) => {
 
     socket.data.codenamesRoomCode = result.room.code;
     socket.data.codenamesPlayerId = result.playerId;
+    socket.data.visitorId = visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     codenamesPlayerSockets.set(result.playerId, socket.id);
     socket.join(`codenames:${result.room.code}`);
     setAutoLeaveTimer(socket);
 
-    // Отправляем состояние всем игрокам
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerJoin(visitorId, "codenames");
+      trackGameSession(socket, "codenames", room.code);
+    }
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const room = result.room;
     room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
@@ -5120,19 +7860,19 @@ io.on("connection", (socket) => {
   socket.on("codenames:room:rejoin", async (payload, ack) => {
     const { playerId, roomCode } = payload || {};
     if (!playerId || !roomCode) {
-      if (ack) ack({ ok: false, error: "Отсутствуют данные" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     const room = getCodenamesRoom(roomCode);
     if (!room) {
-      if (ack) ack({ ok: false, error: "Комната не найдена" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     const player = room.players.find(p => p.id === playerId);
     if (!player) {
-      if (ack) ack({ ok: false, error: "Игрок не найден" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5141,10 +7881,11 @@ io.on("connection", (socket) => {
 
     socket.data.codenamesRoomCode = room.code;
     socket.data.codenamesPlayerId = playerId;
+    socket.data.visitorId = player.visitorId; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     codenamesPlayerSockets.set(playerId, socket.id);
     socket.join(`codenames:${room.code}`);
 
-    // Отправляем обновлённое состояние всем
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -5158,10 +7899,20 @@ io.on("connection", (socket) => {
   socket.on("codenames:room:leave", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
+    const visitorId = socket.data.visitorId;
     
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
+    }
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gameStartedAt пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ fallback пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    const room = getCodenamesRoom(roomCode);
+    const gameStartedAt = room?.gameStartedAt || null;
+
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    if (visitorId) {
+      recordPlayerLeave(visitorId, "codenames", io, gameStartedAt);
     }
 
     const result = leaveCodenamesRoom(roomCode, playerId);
@@ -5170,6 +7921,7 @@ io.on("connection", (socket) => {
     codenamesPlayerSockets.delete(playerId);
     socket.data.codenamesRoomCode = null;
     socket.data.codenamesPlayerId = null;
+    socket.data.visitorId = null;
 
     if (!result.deleted && result.room) {
       result.room.players.forEach(p => {
@@ -5189,7 +7941,7 @@ io.on("connection", (socket) => {
     const { team } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5199,7 +7951,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Отправляем состояние всем
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     result.room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -5216,7 +7968,7 @@ io.on("connection", (socket) => {
     const { role } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5242,12 +7994,12 @@ io.on("connection", (socket) => {
     const { team, name } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     if (!team || !name) {
-      if (ack) ack({ ok: false, error: "Укажите команду и название" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5272,7 +8024,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5289,7 +8041,7 @@ io.on("connection", (socket) => {
       }
     });
 
-    // Запускаем таймер
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     if (result.startTimer && result.timerDuration) {
       startCodenamesTimer(roomCode, result.timerDuration, io);
     }
@@ -5303,12 +8055,12 @@ io.on("connection", (socket) => {
     const { word, count } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     if (!word || word.trim().length === 0) {
-      if (ack) ack({ ok: false, error: "Введите слово-подсказку" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5318,6 +8070,16 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
+    const captain = result.room.players.find(p => p.id === playerId);
+    if (captain?.visitorId) {
+      try {
+        await recordCodenamesRoundComplete(captain.visitorId, "captain", 0, io);
+      } catch (e) {
+        console.error("[Stats] Codenames hint error:", e);
+      }
+    }
+
     result.room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -5325,7 +8087,7 @@ io.on("connection", (socket) => {
       }
     });
 
-    // Таймер НЕ перезапускается - общий таймер на весь ход продолжает идти
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
 
     if (ack) ack({ ok: true });
   });
@@ -5336,7 +8098,7 @@ io.on("connection", (socket) => {
     const { word, count } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5356,14 +8118,14 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Голосование за карточку
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   socket.on("codenames:card:vote", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
     const { cardId } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5373,7 +8135,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Отправляем обновлённое состояние всем
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     result.room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -5381,11 +8143,11 @@ io.on("connection", (socket) => {
       }
     });
 
-    // Если все проголосовали за одну карточку - запускаем pending с жёлтой полосой
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ pending пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (result.allVoted) {
       const pendingResult = startCodenamesPendingCard(roomCode, playerId, cardId);
       if (!pendingResult.error && pendingResult.pendingStarted) {
-        // Синхронизируем состояние с pending для всех игроков
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ pending пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         pendingResult.room.players.forEach(p => {
           const socketId = codenamesPlayerSockets.get(p.id);
           if (socketId) {
@@ -5393,7 +8155,7 @@ io.on("connection", (socket) => {
           }
         });
 
-        // Запускаем таймер на подтверждение (2 сек)
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (2 пїЅпїЅпїЅ)
         const pendingTimeout = setTimeout(async () => {
           const confirmResult = confirmCodenamesPendingCard(roomCode);
           if (!confirmResult.error) {
@@ -5428,17 +8190,17 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Отмена голоса
+  // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
   socket.on("codenames:card:cancelVote", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Отменяем pending если был (прерываем анимацию открытия)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ pending пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     clearCodenamesPendingTimer(roomCode);
     const room = getCodenamesRoom(roomCode);
     if (room && room.pendingCard) {
@@ -5461,14 +8223,14 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Выбор карточки с подтверждением (2.5 сек)
+  // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (2.5 пїЅпїЅпїЅ)
   socket.on("codenames:card:select", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
     const { cardId } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5478,7 +8240,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Если выбор был отменён (повторный клик на ту же карточку)
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     if (result.pendingCancelled) {
       result.room.players.forEach(p => {
         const socketId = codenamesPlayerSockets.get(p.id);
@@ -5491,7 +8253,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Синхронизируем состояние с pending card
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ pending card
     result.room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -5499,7 +8261,7 @@ io.on("connection", (socket) => {
       }
     });
 
-    // Уведомляем о начале pending
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ pending
     io.to(`codenames:${roomCode}`).emit("codenames:card:pending:start", {
       cardId,
       playerId,
@@ -5508,14 +8270,14 @@ io.on("connection", (socket) => {
       endsAt: result.room.pendingCard.endsAt
     });
 
-    // Запускаем таймер подтверждения (2.5 сек)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (2.5 пїЅпїЅпїЅ)
     const timeoutId = setTimeout(() => {
       const confirmResult = confirmCodenamesPendingCard(roomCode);
       if (confirmResult.error) {
         return;
       }
 
-      // Синхронизируем состояние после reveal
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ reveal
       confirmResult.room.players.forEach(p => {
         const socketId = codenamesPlayerSockets.get(p.id);
         if (socketId) {
@@ -5523,13 +8285,13 @@ io.on("connection", (socket) => {
         }
       });
 
-      // Уведомляем о подтверждении
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       io.to(`codenames:${roomCode}`).emit("codenames:card:pending:confirm", {
         cardId,
         cardType: confirmResult.cardType
       });
 
-      // Если игра завершена, останавливаем таймер
+      // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
       if (confirmResult.gameOver) {
         stopCodenamesTimer(roomCode);
         io.to(`codenames:${roomCode}`).emit("codenames:game:finished", {
@@ -5537,7 +8299,7 @@ io.on("connection", (socket) => {
           reason: confirmResult.room.log[confirmResult.room.log.length - 1]?.reason
         });
       } else if (confirmResult.startTimer && confirmResult.timerDuration) {
-        // Запускаем новый таймер для следующего хода
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         startCodenamesTimer(roomCode, confirmResult.timerDuration, io);
       }
     }, CODENAMES_TIMER_SETTINGS.PENDING_CONFIRM);
@@ -5547,13 +8309,13 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true, pending: true, cardId });
   });
 
-  // Отмена выбора карточки
+  // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
   socket.on("codenames:card:cancel", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5575,56 +8337,56 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true, cancelled: true });
   });
 
-  // "Поклик" по карточке без игрового эффекта (только оперативы; либо до подсказки, либо в чужой ход)
+  // "пїЅпїЅпїЅпїЅпїЅпїЅ" пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ; пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ)
   socket.on("codenames:card:poke", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
     const { cardId } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     const room = getCodenamesRoom(roomCode);
     if (!room) {
-      if (ack) ack({ ok: false, error: "Комната не найдена" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     const player = room.players?.find(p => p.id === playerId);
     if (!player) {
-      if (ack) ack({ ok: false, error: "Игрок не найден" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Запрещаем капитанам и наблюдателям (и игрокам без команды)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
     const isCaptain = player.role === "captain";
     const isSpectator = player.role === "spectator" || !player.team;
     if (isCaptain || isSpectator) {
-      if (ack) ack({ ok: false, error: "Недоступно" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     if (room.status !== "playing") {
-      if (ack) ack({ ok: false, error: "Игра не активна" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     const card = room.board?.find(c => c.id === cardId);
     if (!card || card.revealed) {
-      if (ack) ack({ ok: false, error: "Нельзя выбрать эту карточку" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     const isMyTurn = player.team === room.currentTeam;
     const canPoke = !room.currentHint || !isMyTurn;
     if (!canPoke) {
-      if (ack) ack({ ok: false, error: "Недоступно" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Рассылаем всем событие для анимации (без изменений состояния игры)
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ)
     io.to(`codenames:${roomCode}`).emit("codenames:card:poked", {
       cardId,
       player: {
@@ -5639,18 +8401,18 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Прямое открытие карточки (для обратной совместимости или мгновенного reveal)
+  // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ reveal)
   socket.on("codenames:card:reveal", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
     const { cardId } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Очищаем pending если есть
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ pending пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     clearCodenamesPendingTimer(roomCode);
 
     const result = revealCodenamesCard(roomCode, playerId, cardId);
@@ -5666,28 +8428,44 @@ io.on("connection", (socket) => {
       }
     });
 
-    // Если игра завершена, останавливаем таймер
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     if (result.gameOver) {
       stopCodenamesTimer(roomCode);
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      const gameStartedAt = result.room.gameStartedAt;
+      const timePlayed = gameStartedAt ? Math.floor((Date.now() - gameStartedAt) / 1000) : 0;
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+      const winningTeam = result.room.winner;
+      for (const player of result.room.players) {
+        const won = player.team === winningTeam;
+        try {
+          await recordCodenamesGameComplete(player.visitorId, won, io, timePlayed);
+        } catch (e) {
+          console.error("[Stats] Codenames game complete error:", e);
+        }
+      }
+      
       io.to(`codenames:${roomCode}`).emit("codenames:game:finished", {
         winner: result.room.winner,
         reason: result.room.log[result.room.log.length - 1]?.reason
       });
     } else if (result.startTimer && result.timerDuration) {
-      // Запускаем новый таймер для следующего хода
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
       startCodenamesTimer(roomCode, result.timerDuration, io);
     }
 
     if (ack) ack({ ok: true, cardType: result.cardType, endTurn: result.endTurn, gameOver: result.gameOver });
   });
 
-  // Голосование за завершение хода (единогласное)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
   socket.on("codenames:turn:voteEnd", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5697,7 +8475,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Если все проголосовали - завершаем ход
+    // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
     if (result.allVoted) {
       stopCodenamesTimer(roomCode);
       const endResult = executeCodenamesEndTurn(roomCode, "unanimous");
@@ -5716,7 +8494,7 @@ io.on("connection", (socket) => {
         io.to(`codenames:${roomCode}`).emit("codenames:turn:ended", { reason: "unanimous" });
       }
     } else {
-      // Просто синхронизируем состояние с голосами
+      // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
       result.room.players.forEach(p => {
         const socketId = codenamesPlayerSockets.get(p.id);
         if (socketId) {
@@ -5733,7 +8511,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5750,7 +8528,7 @@ io.on("connection", (socket) => {
       }
     });
 
-    // Запускаем новый таймер для следующего хода
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     if (result.startTimer && result.timerDuration) {
       startCodenamesTimer(roomCode, result.timerDuration, io);
     }
@@ -5763,11 +8541,11 @@ io.on("connection", (socket) => {
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Останавливаем таймер при сбросе игры
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
     stopCodenamesTimer(roomCode);
 
     const result = resetCodenamesGame(roomCode, playerId);
@@ -5788,13 +8566,13 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Переключение режима открытой комнаты (тоггл смены команд)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
   socket.on("codenames:room:toggle", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5822,7 +8600,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5843,13 +8621,13 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Пропуск хода
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
   socket.on("codenames:turn:skip", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5875,19 +8653,19 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Удаление игрока
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
   socket.on("codenames:player:kick", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
     const { targetPlayerId } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     if (!targetPlayerId) {
-      if (ack) ack({ ok: false, error: "Не указан игрок" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5897,15 +8675,15 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Отправляем событие удалённому игроку
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     const kickedSocketId = codenamesPlayerSockets.get(targetPlayerId);
     if (kickedSocketId) {
       io.to(kickedSocketId).emit("codenames:player:kicked", { 
-        message: "Вы были удалены из комнаты хостом" 
+        message: "пїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" 
       });
     }
 
-    // Синхронизируем состояние для остальных
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     result.room.players.forEach(p => {
       if (p.connectionStatus === "kicked") return;
       const socketId = codenamesPlayerSockets.get(p.id);
@@ -5923,7 +8701,7 @@ io.on("connection", (socket) => {
     const { settings } = payload || {};
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -5943,39 +8721,42 @@ io.on("connection", (socket) => {
     if (ack) ack({ ok: true });
   });
 
-  // Обновление профиля игрока (синхронизация никнейма/аватара из профиля)
+  // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅпїЅпїЅ/nicknameStyle пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
   socket.on("codenames:player:update_profile", async (payload, ack) => {
     const roomCode = socket.data.codenamesRoomCode;
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    const { nickname, avatarUrl } = payload || {};
+    const { nickname, avatarUrl, nicknameStyle } = payload || {};
     const room = getCodenamesRoom(roomCode);
     
     if (!room) {
-      if (ack) ack({ ok: false, error: "Комната не найдена" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
     const player = room.players.find(p => p.id === playerId);
     if (!player) {
-      if (ack) ack({ ok: false, error: "Игрок не найден" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
-    // Обновляем данные игрока
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     if (nickname && nickname.trim()) {
       player.name = nickname.trim().slice(0, 20);
     }
     if (avatarUrl !== undefined) {
       player.avatarUrl = avatarUrl;
     }
+    if (nicknameStyle !== undefined) {
+      player.nicknameStyle = nicknameStyle;
+    }
 
-    // Отправляем обновлённое состояние всем в комнате
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -5994,7 +8775,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -6004,13 +8785,13 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Останавливаем серверный таймер
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     stopCodenamesTimer(roomCode);
 
-    // Уведомляем всех игроков
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     io.to(`codenames:${roomCode}`).emit("codenames:game:paused", { isPaused: true });
 
-    // Отправляем обновлённое состояние
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     result.room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -6026,7 +8807,7 @@ io.on("connection", (socket) => {
     const playerId = socket.data.codenamesPlayerId;
 
     if (!roomCode || !playerId) {
-      if (ack) ack({ ok: false, error: "Не в комнате" });
+      if (ack) ack({ ok: false, error: "пїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" });
       return;
     }
 
@@ -6036,7 +8817,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Запускаем серверный таймер с оставшимся временем
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const room = result.room;
     if (room.guessTimerEndsAt) {
       const remainingMs = room.guessTimerEndsAt - Date.now();
@@ -6045,10 +8826,10 @@ io.on("connection", (socket) => {
       }
     }
 
-    // Уведомляем всех игроков
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     io.to(`codenames:${roomCode}`).emit("codenames:game:paused", { isPaused: false });
 
-    // Отправляем обновлённое состояние
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -6060,9 +8841,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", async () => {
-    console.log("[Socket Disconnect] Socket ID:", socket.id, "aliasPlayerId:", socket.data.aliasPlayerId, "aliasRoomId:", socket.data.aliasRoomId);
+    console.log("[Socket Disconnect] Socket ID:", socket.id, 
+      "aliasPlayerId:", socket.data.aliasPlayerId, "aliasRoomId:", socket.data.aliasRoomId,
+      "emotionalPlayerId:", socket.data.emotionalPlayerId, "emotionalRoomCode:", socket.data.emotionalRoomCode,
+      "visitorId:", socket.data.visitorId);
     
-    // Очищаем таймер автовыхода при отключении
+    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     const autoLeaveTimerId = roomAutoLeaveTimers.get(socket.id);
     if (autoLeaveTimerId) {
       clearTimeout(autoLeaveTimerId);
@@ -6076,12 +8860,21 @@ io.on("connection", (socket) => {
       
       const currentSocketId = emotionalPlayerSockets.get(playerId);
       if (currentSocketId && currentSocketId !== socket.id) {
-        // Игрок уже переподключился через другой сокет — игнорируем
+        // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         console.log("[Emotional Disconnect] Ignoring stale socket for player:", playerId);
       } else {
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ gameStartedAt пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ fallback пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        const emotionalRoom = getEmotionalRoom(roomCode);
+        const emotionalGameStartedAt = emotionalRoom?.gameStartedAt || null;
+        
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ
+        if (socket.data.visitorId) {
+          recordPlayerLeave(socket.data.visitorId, "emotional", io, emotionalGameStartedAt);
+        }
+        
         const result = disconnectEmotionalPlayer(roomCode, playerId);
         if (result.room) {
-          // Уведомляем других игроков о дисконнекте
+          // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
           result.room.players.forEach((p) => {
             if (p.id === playerId) return;
             if (p.connectionStatus === "left" || p.connectionStatus === "kicked") return;
@@ -6102,8 +8895,13 @@ io.on("connection", (socket) => {
       
       const currentSocketId = codenamesPlayerSockets.get(playerId);
       if (currentSocketId && currentSocketId !== socket.id) {
-        // Игрок уже переподключился через другой сокет
+        // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
       } else {
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ
+        if (socket.data.visitorId) {
+          recordPlayerLeave(socket.data.visitorId, "codenames", io);
+        }
+        
         const room = getCodenamesRoom(roomCode);
         if (room) {
           const player = room.players.find(p => p.id === playerId);
@@ -6111,7 +8909,7 @@ io.on("connection", (socket) => {
             player.connectionStatus = "disconnected";
             player.lastSeen = new Date();
             
-            // Уведомляем других игроков
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             room.players.forEach(p => {
               const socketId = codenamesPlayerSockets.get(p.id);
               if (socketId && p.id !== playerId) {
@@ -6129,14 +8927,19 @@ io.on("connection", (socket) => {
       const aliasPlayerId = socket.data.aliasPlayerId;
       const aliasRoomId = socket.data.aliasRoomId;
       
-      // Проверяем, что отключающийся сокет действительно является актуальным для этого игрока
-      // Если игрок уже переподключился через другой сокет - не помечаем его как disconnected
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
+      // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ - пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅ disconnected
       const currentSocketId = aliasPlayerSockets.get(aliasPlayerId);
       console.log("[Alias Disconnect] Player:", aliasPlayerId, "currentSocketId:", currentSocketId, "this socket.id:", socket.id);
       
       if (currentSocketId && currentSocketId !== socket.id) {
         console.log("[Alias Disconnect] Ignoring disconnect from stale socket for player:", aliasPlayerId);
-        return; // Этот сокет устарел, игрок уже подключен через новый сокет
+        return; // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
+      }
+      
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ
+      if (socket.data.visitorId) {
+        recordPlayerLeave(socket.data.visitorId, "alias", io);
       }
       
       try {
@@ -6148,7 +8951,7 @@ io.on("connection", (socket) => {
             data: { connectionStatus: "disconnected", lastSeen: new Date() }
           });
           
-          // Сообщаем другим игрокам о дисконнекте
+          // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
           io.to(`alias:${aliasRoomId}`).emit("alias:player:disconnected", { 
             playerId: aliasPlayerId, 
             playerName: player.name 
@@ -6163,13 +8966,53 @@ io.on("connection", (socket) => {
       aliasPlayerSockets.delete(aliasPlayerId);
     }
 
+    // Update user online status on disconnect
+    if (socket.data.userId) {
+      const disconnectedUserId = socket.data.userId;
+      userSockets.delete(disconnectedUserId);
+      
+      try {
+        await prisma.user.update({
+          where: { id: disconnectedUserId },
+          data: { 
+            onlineStatus: "offline",
+            lastSeenAt: new Date(),
+            currentGameType: null,
+            currentRoomCode: null
+          }
+        });
+        // Notify friends about status change
+        const friendships = await prisma.friendship.findMany({
+          where: { friendId: disconnectedUserId },
+          select: { userId: true }
+        });
+        for (const f of friendships) {
+          const friendSocketId = userSockets.get(f.userId);
+          if (friendSocketId) {
+            io.to(friendSocketId).emit("friends:status:update", {
+              userId: disconnectedUserId,
+              onlineStatus: "offline",
+              lastSeenAt: new Date()
+            });
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+
     // Handle Truth or Dare disconnect
     if (socket.data.playerId && socket.data.roomId) {
       const playerId = socket.data.playerId;
       const roomId = socket.data.roomId;
       
+      // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ
+      if (socket.data.visitorId) {
+        recordPlayerLeave(socket.data.visitorId, "tod", io);
+      }
+      
       try {
-        // Обновляем статус на disconnected (временный разрыв связи)
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ disconnected (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ)
         const player = await prisma.player.update({
           where: { id: playerId },
           data: { 
@@ -6178,14 +9021,14 @@ io.on("connection", (socket) => {
           }
         });
         
-        // Уведомляем всех в комнате об изменении статуса
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         io.to(roomId).emit("player:connection_status", {
           playerId,
           connectionStatus: "disconnected",
           playerName: player.name
         });
         
-        // Обновляем состояние комнаты
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         await emitRoomState(roomId);
         
       } catch (error) {

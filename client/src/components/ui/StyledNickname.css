@@ -1,0 +1,37 @@
+.styled-nickname {
+  display: inline;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+/* Градиентный текст */
+.styled-nickname--gradient {
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Свечение для градиентного текста (через псевдоэлемент) */
+.styled-nickname--gradient-glow {
+  position: relative;
+}
+
+.styled-nickname--gradient-glow::before {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  color: transparent;
+  -webkit-text-stroke: 0;
+  /* Свечение берётся из первого цвета градиента */
+  filter: blur(8px);
+  opacity: 0.7;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+}

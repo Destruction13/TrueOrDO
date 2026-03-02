@@ -7,7 +7,7 @@ import ShaderBackground from "../components/ShaderBackground";
 import EmailVerifyBanner from "../components/auth/EmailVerifyBanner";
 import BannedModal from "../components/ui/BannedModal";
 import GameEndedModal from "../components/ui/GameEndedModal";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, getOrCreateGlobalVisitorId } from "../context/AuthContext";
 import { useSettings, GAME_IDS } from "../context/SettingsContext";
 import "./TruthOrDarePage.css";
 
@@ -33,16 +33,9 @@ const SESSION_KEYS = {
 };
 
 function getOrCreateVisitorId() {
-  try {
-    let visitorId = localStorage.getItem(SESSION_KEYS.VISITOR_ID);
-    if (!visitorId) {
-      visitorId = "v_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
-      localStorage.setItem(SESSION_KEYS.VISITOR_ID, visitorId);
-    }
-    return visitorId;
-  } catch (e) {
-    return "v_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
-  }
+  // Используем глобальный visitorId (с префиксом u_) для всех пользователей
+  // Это позволяет привязывать статистику к аккаунту
+  return getOrCreateGlobalVisitorId();
 }
 
 function saveSession(playerId, roomCode, playerName) {
@@ -109,7 +102,7 @@ export default function TruthOrDarePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { roomCode: urlRoomCode } = useParams();
-  const { user } = useAuth();
+  const { user, customization } = useAuth();
   const { isShadersDisabled } = useSettings();
   const [connected, setConnected] = useState(false);
   const [roomState, setRoomState] = useState(null);
@@ -211,7 +204,7 @@ export default function TruthOrDarePage() {
       if (urlRoomCode) {
         // Если пользователь авторизован — сразу входим
         if (user?.nickname) {
-          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl);
+          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl, customization?.frameAll);
         } else {
           // Иначе запоминаем код — JoinScreen покажет форму для ввода ника
           setPendingJoinCode(urlRoomCode);
@@ -222,13 +215,14 @@ export default function TruthOrDarePage() {
       }
     };
 
-    const joinRoomDirect = (code, name, avatarUrl) => {
+    const joinRoomDirect = (code, name, avatarUrl, frameSlug) => {
       const visitorId = getOrCreateVisitorId();
       socket.emit("room:join", { 
         code, 
         name, 
         visitorId,
-        avatarUrl 
+        avatarUrl,
+        frameSlug 
       }, (res) => {
         if (res?.ok) {
           setRoomState(res.state);
@@ -263,6 +257,7 @@ export default function TruthOrDarePage() {
 
   // Синхронизация профиля с игрой при изменении user
   // Сравниваем данные user с данными игрока в состоянии комнаты
+  // Синхронизация профиля при изменении user или customization
   useEffect(() => {
     if (!roomState || !meId || !user) return;
     
@@ -270,16 +265,28 @@ export default function TruthOrDarePage() {
     const currentPlayer = roomState.players?.find(p => p.id === meId);
     if (!currentPlayer) return;
     
+    // Формируем nicknameStyle из customization
+    const nicknameStyle = customization ? {
+      colorType: customization.nicknameColorType,
+      customColor: customization.nicknameCustomColor,
+      gradient: customization.nicknameGradient,
+      glow: customization.nicknameGlow
+    } : null;
+    
     // Проверяем, отличаются ли данные профиля от данных в игре
-    const needsUpdate = currentPlayer.avatarUrl !== user.avatarUrl;
+    const needsUpdate = 
+      currentPlayer.name !== user.nickname ||
+      currentPlayer.avatarUrl !== user.avatarUrl ||
+      JSON.stringify(currentPlayer.nicknameStyle) !== JSON.stringify(nicknameStyle);
     
     if (needsUpdate) {
       socket.emit("player:update_profile", {
         nickname: user.nickname,
-        avatarUrl: user.avatarUrl
+        avatarUrl: user.avatarUrl,
+        nicknameStyle
       });
     }
-  }, [user?.nickname, user?.avatarUrl, roomState, meId]);
+  }, [user?.nickname, user?.avatarUrl, customization, roomState, meId]);
 
   useEffect(() => {
     const handleConnect = () => setConnected(true);
@@ -596,9 +603,9 @@ export default function TruthOrDarePage() {
 
   const actions = useMemo(
     () => ({
-      createRoom: async (name, avatarUrl) => {
+      createRoom: async (name, avatarUrl, frameSlug) => {
         const visitorId = getOrCreateVisitorId();
-        const response = await emitWithAck("room:create", { name, visitorId, avatarUrl });
+        const response = await emitWithAck("room:create", { name, visitorId, avatarUrl, frameSlug });
         const result = handleAck(response);
         if (result.ok) {
           setRoomState(result.state);
@@ -609,9 +616,9 @@ export default function TruthOrDarePage() {
         }
         return result;
       },
-      joinRoom: async (name, code, avatarUrl) => {
+      joinRoom: async (name, code, avatarUrl, frameSlug) => {
         const visitorId = getOrCreateVisitorId();
-        const response = await emitWithAck("room:join", { name, code, visitorId, avatarUrl });
+        const response = await emitWithAck("room:join", { name, code, visitorId, avatarUrl, frameSlug });
         
         if (response?.error === "banned") {
           setBannedModal({ isOpen: true, roomCode: code.toUpperCase() });
@@ -765,6 +772,7 @@ export default function TruthOrDarePage() {
           onCreate={actions.createRoom}
           onJoin={actions.joinRoom}
           user={user}
+          customization={customization}
           onProfile={() => navigate("/profile")}
           onLogin={() => navigate("/login", { state: { backgroundLocation: location } })}
           onClearError={() => setError("")}
@@ -804,6 +812,7 @@ export default function TruthOrDarePage() {
         reelItems={reelItems}
         isPaused={isPaused}
         actions={actions}
+        socket={socket}
       />
     </div>
   );

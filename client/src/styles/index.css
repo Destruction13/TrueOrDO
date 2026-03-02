@@ -336,9 +336,11 @@ select:focus {
 }
 
 .field-user__name {
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 500;
   color: var(--text);
+  overflow: visible;
+  padding: 4px 0;
 }
 
 /* Legacy .btn styles removed - now using Button design system component */
@@ -429,9 +431,10 @@ select:focus {
   border-radius: 999px;
   color: var(--text);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  overflow: visible;
 }
 
 .user-header__profile:hover {
@@ -460,10 +463,10 @@ select:focus {
 }
 
 .user-header__name {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: 150px;
+  overflow: visible;
   white-space: nowrap;
+  padding: 4px 0;
 }
 
 .status-bar {
@@ -563,13 +566,13 @@ select:focus {
 }
 
 .room-header-profile__btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 2px solid rgba(46, 230, 255, 0.3);
-  background: rgba(46, 230, 255, 0.1);
+  border: none;
+  background: transparent;
   cursor: pointer;
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.2s;
   padding: 0;
   display: flex;
@@ -578,7 +581,6 @@ select:focus {
 }
 
 .room-header-profile__btn:hover {
-  border-color: rgba(46, 230, 255, 0.6);
   transform: scale(1.05);
 }
 

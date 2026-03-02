@@ -188,3 +188,87 @@ export async function uploadAvatar(file) {
 
   return data;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CUSTOMIZATION API
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Получить список доступных рамок
+ * @param {string} [game] - Фильтр по игре (опционально)
+ */
+export async function getFrames(game) {
+  const params = game ? `?game=${encodeURIComponent(game)}` : "";
+  return request(`/frames${params}`);
+}
+
+/**
+ * Получить список доступных градиентов для никнейма
+ */
+export async function getNicknameGradients() {
+  return request("/nickname-gradients");
+}
+
+/**
+ * Получить список доступных свечений для никнейма
+ */
+export async function getNicknameGlows() {
+  return request("/nickname-glows");
+}
+
+/**
+ * Получить список доступных анимированных эффектов для никнейма (PRO)
+ */
+export async function getNicknameEffects() {
+  return request("/nickname-effects");
+}
+
+/**
+ * Получить статистику текущего пользователя
+ */
+export async function getUserStats() {
+  return request("/me/stats");
+}
+
+/**
+ * Получить достижения текущего пользователя
+ */
+export async function getUserAchievements() {
+  return request("/me/achievements");
+}
+
+/**
+ * Получить список всех достижений
+ */
+export async function getAllAchievements() {
+  return request("/achievements");
+}
+
+/**
+ * Установить избранные достижения (витрина профиля)
+ * @param {string[]} achievementIds - Массив ID достижений (максимум 6)
+ */
+export async function setFeaturedAchievements(achievementIds) {
+  return request("/me/achievements/featured", {
+    method: "PATCH",
+    body: { achievementIds },
+  });
+}
+
+/**
+ * Получить текущие настройки кастомизации пользователя
+ */
+export async function getCustomization() {
+  return request("/me/customization");
+}
+
+/**
+ * Обновить настройки кастомизации
+ * @param {Object} updates - Обновления (frameAll, frameCodenames, nicknameColorType, etc.)
+ */
+export async function updateCustomization(updates) {
+  return request("/me/customization", {
+    method: "PATCH",
+    body: updates
+  });
+}

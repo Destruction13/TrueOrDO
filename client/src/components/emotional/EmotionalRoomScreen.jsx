@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { GAME_IDS } from "../../context/SettingsContext";
 import BatteryModeButton from "../ui/BatteryModeButton";
 import Button from "../ui/Button";
+import AvatarFrame from "../ui/AvatarFrame";
 import RadialCountdown from "../ui/RadialCountdown";
 import EmotionalSettingsModal from "./EmotionalSettingsModal";
 import EmotionalRulesModal from "./EmotionalRulesModal";
@@ -15,10 +16,10 @@ import EmotionalLeaderboardModal from "./EmotionalLeaderboardModal";
 import "../codenames/CodenamesRoomScreen.css";
 import "./EmotionalRoomScreen.css";
 
-export default function EmotionalRoomScreen({ connected, error, meId, gameState, actions }) {
+export default function EmotionalRoomScreen({ connected, error, meId, gameState, actions, socket }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, customization } = useAuth();
 
   const room = gameState?.room;
   const players = gameState?.players || [];
@@ -193,13 +194,15 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
           
           {isAuthenticated ? (
             <button className="codenames-header-profile__btn" onClick={() => navigate("/profile")} title="Профиль">
-              {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="codenames-header-profile__avatar" />
-              ) : (
-                <span className="codenames-header-profile__placeholder">
-                  {(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}
-                </span>
-              )}
+              <AvatarFrame size="s" frameSlug={customization?.frameAll}>
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="codenames-header-profile__avatar" />
+                ) : (
+                  <span className="codenames-header-profile__placeholder">
+                    {(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}
+                  </span>
+                )}
+              </AvatarFrame>
             </button>
           ) : (
             <button
@@ -276,6 +279,7 @@ export default function EmotionalRoomScreen({ connected, error, meId, gameState,
             players={players}
             meId={meId}
             phase={room?.phase}
+            socket={socket}
             surfaceRef={surfaceRef}
             slots={gameState?.table || []}
             revealStartedAt={gameState?.revealStartedAt}

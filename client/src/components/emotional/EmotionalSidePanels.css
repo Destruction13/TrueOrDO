@@ -14,6 +14,7 @@
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: background 0.15s, border-color 0.15s;
+  overflow: visible;
 }
 
 .emotional-players-panel__item--me {
@@ -36,18 +37,20 @@
 .emotional-players-panel__player {
   flex: 1;
   min-width: 0;
+  overflow: visible;
 }
 
 .emotional-players-panel__player-name {
-  font-size: clamp(11px, 2cqw, 13px);
+  font-size: clamp(12px, 2.2cqw, 15px);
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: ellipsis;
   display: flex;
   align-items: center;
   gap: clamp(4px, 1cqw, 6px);
   flex-wrap: wrap;
+  padding: 4px 0;
 }
 
 .emotional-players-panel__badge {
@@ -457,9 +460,9 @@
 .emotional-round-report__voter-name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   white-space: nowrap;
+  padding: 2px 0;
 }
 
 .emotional-round-report__voter-points {

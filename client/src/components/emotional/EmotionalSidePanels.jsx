@@ -1,6 +1,18 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import StyledNickname from "../ui/StyledNickname";
 import "./EmotionalSidePanels.css";
+
+// Преобразование nicknameStyle в формат для StyledNickname
+function toNicknameCustomization(style) {
+  if (!style) return null;
+  return {
+    nicknameColorType: style.colorType,
+    nicknameCustomColor: style.customColor,
+    nicknameGradient: style.gradient,
+    nicknameGlow: style.glow
+  };
+}
 
 /**
  * Панель игроков с очками (слева на desktop, сверху на mobile)
@@ -57,7 +69,10 @@ export function PlayersPanel({ players = [], scores = {}, meId, hostId, leaderId
               </div>
               <div className="emotional-players-panel__player">
                 <span className="emotional-players-panel__player-name">
-                  {player.name}
+                  <StyledNickname 
+                    name={player.name} 
+                    customization={toNicknameCustomization(player.nicknameStyle)}
+                  />
                   {isLeader && <span className="emotional-players-panel__badge emotional-players-panel__badge--leader">ведёт</span>}
                   {isDisconnected && <span className="emotional-players-panel__badge emotional-players-panel__badge--offline">⚡</span>}
                 </span>

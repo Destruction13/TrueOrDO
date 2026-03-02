@@ -1,0 +1,184 @@
+/* ============================================
+   FullProfileTabs — Система вкладок
+   Референс: image/README/fullprofdoska.png
+   ============================================ */
+
+.full-profile-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0; /* Важно для работы скролла в grid контейнере */
+  overflow: hidden;
+}
+
+/* Header с навигацией */
+.full-profile-tabs__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+/* Навигация по вкладкам */
+.full-profile-tabs__nav {
+  display: flex;
+  gap: 8px;
+}
+
+.full-profile-tabs__tab {
+  position: relative;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: visible;
+}
+
+.full-profile-tabs__tab:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.full-profile-tabs__tab.active {
+  color: #fff;
+  border-color: rgba(168, 85, 247, 0.4);
+  background: rgba(124, 58, 237, 0.08);
+}
+
+/* Индикатор активной вкладки с эффектом свечения */
+.full-profile-tabs__tab-indicator {
+  position: absolute;
+  bottom: -1px;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: linear-gradient(90deg, #7c3aed 0%, #a855f7 50%, #7c3aed 100%);
+  border-radius: 2px;
+  box-shadow: 
+    0 0 8px rgba(168, 85, 247, 0.8),
+    0 0 16px rgba(168, 85, 247, 0.5),
+    0 0 24px rgba(124, 58, 237, 0.3);
+}
+
+/* Дополнительное свечение через псевдоэлемент */
+.full-profile-tabs__tab-indicator::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 6px;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(168, 85, 247, 0.6) 20%, 
+    rgba(168, 85, 247, 0.8) 50%, 
+    rgba(168, 85, 247, 0.6) 80%, 
+    transparent 100%
+  );
+  filter: blur(4px);
+  border-radius: 4px;
+}
+
+/* Кнопка добавления виджета */
+.full-profile-tabs__add-widget-btn {
+  padding: 8px 16px;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #a855f7;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.full-profile-tabs__add-widget-btn:hover {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Контент вкладки */
+.full-profile-tabs__content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  min-height: 0; /* Важно для работы скролла в flex контейнере */
+}
+
+/* Кастомный скроллбар */
+.full-profile-tabs__content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.full-profile-tabs__content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 3px;
+}
+
+.full-profile-tabs__content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.full-profile-tabs__content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.full-profile-tabs__content-inner {
+  min-height: 0;
+}
+
+/* ============================================
+   Widgets Label (над секцией)
+   ============================================ */
+.full-profile-tabs__widgets-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 768px) {
+  .full-profile-tabs__header {
+    padding: 12px 16px;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .full-profile-tabs__nav {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .full-profile-tabs__tab {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .full-profile-tabs__content {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .full-profile-tabs__tab {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}

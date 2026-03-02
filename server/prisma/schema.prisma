@@ -16,13 +16,27 @@ model User {
   email           String    @unique
   passwordHash    String?   // Опционально для OAuth пользователей
   emailVerifiedAt DateTime?
-  nickname        String?   @unique
+  nickname        String?   // Отображаемое имя (может повторяться)
+  tag             String?   // Уникальный 4-значный тег (#0001-#9999)
   avatarUrl       String?
   bio             String?
+  biography       String?   // Длинная биография для профиля (до 500 символов)
+  visitorId       String?   // Привязка к браузеру/устройству для статистики
   
   // OAuth провайдеры
   discordId       String?   @unique
+  discordUsername String?   // Discord логин (@username)
   googleId        String?   @unique
+  
+  // Онлайн-статус
+  onlineStatus    String    @default("offline") // "online" | "idle" | "in_game" | "offline"
+  lastSeenAt      DateTime?                     // Время последней активности
+  currentGameType String?                       // Тип текущей игры (если в игре)
+  currentRoomCode String?                       // Код комнаты (если в игре)
+  
+  // Система предупреждений профиля (жалобы)
+  profileWarnings   Int       @default(0)       // Количество предупреждений (при 5 - блокировка)
+  profileBlockedAt  DateTime?                   // Дата блокировки профиля (требуется редактирование)
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -30,6 +44,74 @@ model User {
   sessions                Session[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
+  customization           UserCustomization?
+  subscription            Subscription?
+  payments                Payment[]
+  purchases               UserPurchase[]
+  gameStats               UserGameStats[]
+  achievements            UserAchievement[]
+  
+  // Геймификация
+  xp                      Int      @default(0)
+  level                   Int      @default(1)
+  loginStreak             Int      @default(0)
+  lastLoginDate           DateTime?
+  
+  // Социальные связи (друзья)
+  friends                 Friendship[]    @relation("UserFriends")
+  friendOf                Friendship[]    @relation("FriendOf")
+  sentFriendRequests      FriendRequest[] @relation("SentFriendRequests")
+  receivedFriendRequests  FriendRequest[] @relation("ReceivedFriendRequests")
+  blockedUsers            BlockedUser[]   @relation("BlockedByUser")
+  blockedBy               BlockedUser[]   @relation("BlockedUsers")
+  
+  // Чаты
+  conversationsAsParticipant1 Conversation[] @relation("ConversationParticipant1")
+  conversationsAsParticipant2 Conversation[] @relation("ConversationParticipant2")
+  sentMessages            Message[]       @relation("SentMessages")
+  
+  // Кланы
+  ownedClans              Clan[]          @relation("ClanOwner")
+  clanMemberships         ClanMember[]
+  clanRequests            ClanRequest[]
+  clanMessages            ClanMessage[]   @relation("ClanMessageSender")
+  clanReports             ClanReport[]    @relation("ClanReporter")
+  
+  // Приглашения в игру
+  sentGameInvites         GameInvite[]    @relation("SentGameInvites")
+  receivedGameInvites     GameInvite[]    @relation("ReceivedGameInvites")
+  
+  // Игнорируемые пользователи
+  ignoredUsers            IgnoredUser[]   @relation("IgnoredByUser")
+  ignoredBy               IgnoredUser[]   @relation("IgnoredUsers")
+  
+  // Жалобы на профиль
+  sentProfileReports      ProfileReport[] @relation("ProfileReporter")
+  receivedProfileReports  ProfileReport[] @relation("ProfileReportTarget")
+  
+  // Приглашения в клан
+  sentClanInvites         ClanInvite[]    @relation("ClanInviteSender")
+  receivedClanInvites     ClanInvite[]    @relation("ClanInviteReceiver")
+  
+  // Full Profile (игры, виджеты, активность, заметки)
+  profileGames            UserProfileGame[]
+  profileWidgets          UserProfileWidget[]
+  activities              UserActivity[]
+  userNotes               UserNote[]      @relation("UserNotes")
+  notesAboutMe            UserNote[]      @relation("UserNotesAbout")
+  
+  // Activity Sessions (Discord-style tracking)
+  sessions_activity       UserSession[]   // История сессий в играх
+  currentSessionId        String?         // ID активной сессии (для real-time)
+  totalPlayTime           Int      @default(0)  // Общее время в играх (секунды)
+  activityStreakDays      Int      @default(0)  // Текущий стрик активности (дни подряд)
+  lastActivityDate        DateTime?       // Дата последней активности
+  maxActivityStreak       Int      @default(0)  // Рекордный стрик
+  
+  // Уникальная комбинация никнейм+тег (для поиска друзей)
+  @@unique([nickname, tag])
+  @@index([nickname])
+  @@index([tag])
 }
 
 model Session {
@@ -76,11 +158,12 @@ model PasswordResetToken {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Room {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  createdAt DateTime @default(now())
-  hostId    String
-  settings  String   @default("{}")
+  id            String    @id @default(cuid())
+  code          String    @unique
+  createdAt     DateTime  @default(now())
+  gameStartedAt DateTime? // Время начала игры для статистики
+  hostId        String
+  settings      String    @default("{}")
 
   players   Player[]
   rounds    Round[]
@@ -91,6 +174,8 @@ model Player {
   roomId              String
   name                String
   avatarUrl           String?
+  frameSlug           String?  // Slug рамки аватара из UserCustomization
+  nicknameStyle       String?  // JSON: { colorType, customColor, gradient: { cssValue }, glow: { cssValue } }
   visitorId           String?                      // уникальный ID браузера/устройства для бан-листа
   status              String   @default("active") // "active" | "shamed" | "chaos"
   connectionStatus    String   @default("online") // "online" | "disconnected" | "left"
@@ -188,7 +273,8 @@ model AliasRoom {
   deck           String   @default("[]")
   usedWordIds    String   @default("[]")
   
-  createdAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  gameStartedAt DateTime? // Время начала игры для статистики
 
   teams   AliasTeam[]
   players AliasPlayer[]
@@ -215,6 +301,8 @@ model AliasPlayer {
   visitorId        String?
   name             String
   avatarUrl        String?
+  frameSlug        String?  // Slug рамки аватара из UserCustomization
+  nicknameStyle    String?  // JSON: { colorType, customColor, gradient: { cssValue }, glow: { cssValue } }
   teamId           String?
   isReady          Boolean  @default(false)
   isSpectator      Boolean  @default(false)
@@ -228,4 +316,662 @@ model AliasPlayer {
 
   @@index([roomId])
   @@index([teamId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CUSTOMIZATION MODELS
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Frame {
+  id          String   @id @default(cuid())
+  name        String                           // Название рамки для UI
+  slug        String   @unique                 // Уникальный идентификатор (witcher, cyberpunk, etc.)
+  game        String   @default("all")         // "all" | "codenames" | "alias" | "truthOrDare" | "emotional"
+  accessType  String   @default("free")        // "free" | "vip" | "pro" | "purchasable"
+  price       Float?                           // Цена для purchasable
+  sortOrder   Int      @default(0)             // Порядок отображения
+  isActive    Boolean  @default(true)          // Активна ли рамка
+  createdAt   DateTime @default(now())
+
+  @@index([game, isActive])
+  @@index([accessType])
+}
+
+model UserCustomization {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  
+  // Рамки для каждой игры (slug рамки)
+  frameAll        String?   // Общая рамка по умолчанию
+  frameCodenames  String?   // Рамка для Codenames
+  frameAlias      String?   // Рамка для Alias
+  frameTod        String?   // Рамка для Truth or Dare
+  frameEmotional  String?   // Рамка для Emotional Intelligence
+  
+  // Кастомизация никнейма
+  nicknameColorType   String  @default("basic")  // "basic" | "custom" | "gradient"
+  nicknameCustomColor String?                     // Hex цвет (#ff0000) для типа "custom"
+  nicknameGradientId  String?                     // ID градиента для типа "gradient"
+  nicknameGlowId      String?                     // ID эффекта свечения
+  nicknameEffectId    String?                     // ID анимированного эффекта (PRO)
+  
+  updatedAt DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nicknameGradient NicknameGradient? @relation(fields: [nicknameGradientId], references: [id], onDelete: SetNull)
+  nicknameGlow     NicknameGlow?     @relation(fields: [nicknameGlowId], references: [id], onDelete: SetNull)
+  nicknameEffect   NicknameEffect?   @relation(fields: [nicknameEffectId], references: [id], onDelete: SetNull)
+}
+
+// Справочник градиентов для никнейма
+model NicknameGradient {
+  id           String   @id @default(cuid())
+  name         String                           // Название для UI
+  slug         String   @unique                 // Уникальный идентификатор
+  cssValue     String                           // CSS значение (linear-gradient(...))
+  accessType   String   @default("free")        // "free" | "vip" | "pro"
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  customizations UserCustomization[]
+
+  @@index([accessType, isActive])
+}
+
+// Справочник эффектов свечения для никнейма
+model NicknameGlow {
+  id           String   @id @default(cuid())
+  name         String                           // Название для UI
+  slug         String   @unique                 // Уникальный идентификатор
+  cssValue     String                           // CSS значение (text-shadow: ...)
+  accessType   String   @default("free")        // "free" | "vip" | "pro"
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  customizations UserCustomization[]
+
+  @@index([accessType, isActive])
+}
+
+// Справочник анимированных эффектов никнейма (PRO-фича)
+model NicknameEffect {
+  id           String   @id @default(cuid())
+  name         String                           // Название для UI ("Искры", "Мерцание" и т.д.)
+  slug         String   @unique                 // Уникальный идентификатор (sparkles, shimmer, etc.)
+  component    String                           // Имя React-компонента: "SparklesText", "ShimmerText", etc.
+  config       String   @default("{}")          // JSON с настройками эффекта (цвета, скорость и т.д.)
+  previewUrl   String?                          // URL превью-гифки/видео эффекта
+  accessType   String   @default("pro")         // "vip" | "pro" — эффекты только для подписчиков
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  customizations UserCustomization[]
+
+  @@index([accessType, isActive])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAME STATS & ACHIEVEMENTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Статистика игрока по каждой игре
+model UserGameStats {
+  id          String   @id @default(cuid())
+  userId      String
+  gameType    String   // "tod" | "alias" | "codenames" | "emotional"
+  
+  gamesPlayed Int      @default(0)  // Всего игр
+  gamesWon    Int      @default(0)  // Побед
+  timePlayed  Int      @default(0)  // Время в секундах
+  
+  // Специфичные для игр метрики
+  // ToD: задания выполнены/отказы
+  // Alias: слова угаданы/объяснены
+  // и т.д.
+  customStats String   @default("{}") // JSON для доп. метрик
+  
+  lastPlayedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, gameType])
+  @@index([userId])
+  @@index([gameType])
+}
+
+// Справочник достижений
+model Achievement {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String
+  icon        String   // Эмодзи или URL иконки
+  
+  category    String   // "game_tod" | "game_alias" | "social" | "loyalty" | "secret"
+  gameType    String?  // Для game-specific достижений
+  
+  rarity      String   @default("common") // "common" | "rare" | "epic" | "legendary" | "secret"
+  xpReward    Int      @default(10)
+  
+  // Условие разблокировки (JSON)
+  // { type: "count", field: "gamesPlayed", gameType: "tod", value: 10 }
+  // { type: "streak", field: "loginDays", value: 7 }
+  unlockCondition String @default("{}")
+  
+  isSecret    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  
+  users UserAchievement[]
+  
+  @@index([category])
+  @@index([gameType])
+  @@index([rarity])
+}
+
+// Достижения пользователя
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  
+  level         Int      @default(1)    // Уровень достижения (1-5)
+  unlockedAt    DateTime @default(now()) // Дата первого получения
+  leveledUpAt   DateTime @default(now()) // Дата последнего повышения уровня
+  isFeatured    Boolean  @default(false) // Показывать в профиле
+  featuredOrder Int?     // Порядок в избранных (0-5)
+  
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, achievementId])
+  @@index([userId, isFeatured])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USER PURCHASES (разовые покупки рамок, эффектов и т.д.)
+// ═══════════════════════════════════════════════════════════════════════════
+
+model UserPurchase {
+  id          String   @id @default(cuid())
+  userId      String
+  
+  itemType    String   // "frame" | "gradient" | "glow" | "effect"
+  itemId      String   // ID или slug элемента
+  
+  price       Int      // Цена в копейках на момент покупки
+  currency    String   @default("RUB")
+  
+  // Данные платежа
+  paymentId   String?  // Ссылка на Payment (если через платёжку)
+  
+  purchasedAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, itemType, itemId])
+  @@index([userId])
+  @@index([itemType, itemId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SOCIAL MODELS (FRIENDS, CHATS, CLANS)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Дружба между пользователями
+model Friendship {
+  id        String   @id @default(cuid())
+  userId    String   // Кто добавил в друзья
+  friendId  String   // Кого добавили
+  createdAt DateTime @default(now())
+  
+  user   User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
+}
+
+// Заявки в друзья
+model FriendRequest {
+  id         String   @id @default(cuid())
+  senderId   String   // Кто отправил заявку
+  receiverId String   // Кому отправлена заявка
+  status     String   @default("pending") // "pending" | "accepted" | "rejected"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  sender   User @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+}
+
+// Заблокированные пользователи
+model BlockedUser {
+  id        String   @id @default(cuid())
+  userId    String   // Кто заблокировал
+  blockedId String   // Кого заблокировали
+  reason    String?  // Причина блокировки (опционально)
+  createdAt DateTime @default(now())
+  
+  user    User @relation("BlockedByUser", fields: [userId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockedUsers", fields: [blockedId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, blockedId])
+  @@index([userId])
+  @@index([blockedId])
+}
+
+// Приватные диалоги (conversation между двумя пользователями)
+model Conversation {
+  id           String   @id @default(cuid())
+  participant1Id String  // Первый участник
+  participant2Id String  // Второй участник
+  lastMessageAt DateTime? // Время последнего сообщения для сортировки
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  participant1 User @relation("ConversationParticipant1", fields: [participant1Id], references: [id], onDelete: Cascade)
+  participant2 User @relation("ConversationParticipant2", fields: [participant2Id], references: [id], onDelete: Cascade)
+  messages     Message[]
+  
+  @@unique([participant1Id, participant2Id])
+  @@index([participant1Id])
+  @@index([participant2Id])
+  @@index([lastMessageAt])
+}
+
+// Приватные сообщения
+model Message {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String    // Текст сообщения
+  type           String    @default("text") // "text" | "game_invite" | "system"
+  metadata       String?   // JSON для доп. данных (например, данные приглашения в игру)
+  readAt         DateTime? // Время прочтения получателем
+  createdAt      DateTime  @default(now())
+  
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+// Кланы
+model Clan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  avatarUrl   String?
+  isOpen      Boolean  @default(true)  // true = открытый, false = закрытый
+  
+  ownerId     String
+  owner       User     @relation("ClanOwner", fields: [ownerId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  members     ClanMember[]
+  requests    ClanRequest[]
+  messages    ClanMessage[]
+  reports     ClanReport[]
+  invites     ClanInvite[]
+  
+  @@index([ownerId])
+  @@index([name])
+  @@index([isOpen])
+}
+
+// Участники клана
+model ClanMember {
+  id        String   @id @default(cuid())
+  clanId    String
+  userId    String
+  role      String   @default("member") // "leader" | "moderator" | "member"
+  joinedAt  DateTime @default(now())
+  
+  clan      Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([clanId, userId])
+  @@index([userId])
+  @@index([clanId, role])
+}
+
+// Заявки в клан (для закрытых кланов)
+model ClanRequest {
+  id        String   @id @default(cuid())
+  clanId    String
+  userId    String
+  status    String   @default("pending") // "pending" | "approved" | "rejected"
+  message   String?  // Сообщение от заявителя
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  clan      Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([clanId, userId])
+  @@index([clanId, status])
+  @@index([userId])
+}
+
+// Сообщения в чате клана
+model ClanMessage {
+  id        String   @id @default(cuid())
+  clanId    String
+  senderId  String
+  content   String
+  createdAt DateTime @default(now())
+  
+  clan      Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  sender    User @relation("ClanMessageSender", fields: [senderId], references: [id])
+  
+  @@index([clanId, createdAt])
+}
+
+// Игнорируемые пользователи (скрытие сообщений в чатах)
+model IgnoredUser {
+  id        String   @id @default(cuid())
+  userId    String   // Кто игнорирует
+  ignoredId String   // Кого игнорируют
+  createdAt DateTime @default(now())
+  
+  user    User @relation("IgnoredByUser", fields: [userId], references: [id], onDelete: Cascade)
+  ignored User @relation("IgnoredUsers", fields: [ignoredId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, ignoredId])
+  @@index([userId])
+  @@index([ignoredId])
+}
+
+// Жалобы на профиль пользователя
+model ProfileReport {
+  id         String   @id @default(cuid())
+  reporterId String   // Кто жалуется
+  targetId   String   // На кого жалуются
+  reason     String   // "offensive_avatar" | "offensive_nickname" | "offensive_bio" | "spam" | "other"
+  comment    String?  // Дополнительный комментарий
+  status     String   @default("pending") // "pending" | "reviewed" | "actioned" | "dismissed"
+  createdAt  DateTime @default(now())
+  reviewedAt DateTime?
+  
+  reporter User @relation("ProfileReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  target   User @relation("ProfileReportTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  
+  @@index([targetId, status])
+  @@index([reporterId])
+  @@index([status])
+}
+
+// Приглашения в клан
+model ClanInvite {
+  id         String   @id @default(cuid())
+  clanId     String
+  inviterId  String   // Кто пригласил (владелец/модератор)
+  inviteeId  String   // Кого пригласили
+  status     String   @default("pending") // "pending" | "accepted" | "declined" | "expired"
+  message    String?  // Сообщение от приглашающего
+  expiresAt  DateTime // Время истечения приглашения (7 дней)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  clan    Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  inviter User @relation("ClanInviteSender", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee User @relation("ClanInviteReceiver", fields: [inviteeId], references: [id], onDelete: Cascade)
+  
+  @@unique([clanId, inviteeId]) // Один активный инвайт на пользователя в клан
+  @@index([inviteeId, status])
+  @@index([clanId])
+  @@index([expiresAt])
+}
+
+// Жалобы на кланы
+model ClanReport {
+  id         String   @id @default(cuid())
+  clanId     String
+  reporterId String
+  reason     String   // "offensive" | "spam" | "adult" | "scam" | "other"
+  comment    String?  // Дополнительный комментарий
+  status     String   @default("pending") // "pending" | "reviewed" | "actioned"
+  createdAt  DateTime @default(now())
+  
+  clan      Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  reporter  User @relation("ClanReporter", fields: [reporterId], references: [id])
+  
+  @@index([status])
+  @@index([clanId])
+}
+
+// Приглашения в игру
+model GameInvite {
+  id          String    @id @default(cuid())
+  senderId    String
+  receiverId  String
+  gameType    String    // "tod" | "alias" | "codenames" | "emotional"
+  roomCode    String    // Код комнаты
+  roomName    String?   // Название комнаты (если есть)
+  status      String    @default("pending") // "pending" | "accepted" | "declined" | "expired"
+  expiresAt   DateTime  // Время истечения приглашения
+  createdAt   DateTime  @default(now())
+  
+  sender   User @relation("SentGameInvites", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedGameInvites", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUBSCRIPTION & PAYMENT MODELS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Подписка пользователя (VIP / PRO)
+model Subscription {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  
+  tier            String   // "VIP" | "PRO"
+  status          String   @default("PENDING") // "PENDING" | "ACTIVE" | "CANCELLED" | "EXPIRED"
+  billingPeriod   String   @default("ONE_TIME") // "ONE_TIME" | "MONTHLY" | "YEARLY"
+  
+  startDate       DateTime? // Дата начала подписки
+  endDate         DateTime? // Дата окончания (null = бессрочно для ONE_TIME)
+  
+  autoRenew       Boolean  @default(false) // false для разовой покупки
+  cancelledAt     DateTime? // Дата отмены (если отменена)
+  
+  // Данные для рекуррентных платежей (для будущего)
+  externalSubscriptionId String? // ID подписки в платёжной системе
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([status])
+  @@index([tier])
+}
+
+// История платежей
+model Payment {
+  id              String   @id @default(cuid())
+  userId          String
+  subscriptionId  String?
+  
+  amount          Int      // Сумма в копейках (39900 = 399.00 ₽)
+  currency        String   @default("RUB")
+  
+  status          String   @default("PENDING") // "PENDING" | "SUCCESS" | "FAILED" | "REFUNDED"
+  
+  // Данные от платёжной системы (Трибьют)
+  paymentProvider String   @default("tribute")
+  externalId      String?  // ID платежа в Трибьюте
+  paymentMethod   String?  // Способ оплаты (card, sbp, etc.)
+  
+  // Что покупается
+  tier            String   // "VIP" | "PRO"
+  billingPeriod   String   @default("ONE_TIME") // "ONE_TIME" | "MONTHLY" | "YEARLY"
+  
+  // Метаданные
+  description     String?  // Описание платежа
+  failureReason   String?  // Причина ошибки (если failed)
+  
+  paidAt          DateTime? // Дата фактической оплаты
+  refundedAt      DateTime? // Дата возврата (если был)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([externalId])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FULL PROFILE MODELS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Игры в профиле пользователя (любимые, текущие)
+model UserProfileGame {
+  id          String   @id @default(cuid())
+  userId      String
+  
+  // Информация об игре
+  gameId      String            // Внешний ID игры (из API или статичного списка)
+  name        String            // Название игры
+  coverUrl    String?           // URL обложки
+  extraData   String  @default("{}") // JSON: { icon, color, path, ... }
+  
+  // Тип привязки
+  listType    String            // "favorite" | "current" | "wishlist" | "featured"
+  sortOrder   Int      @default(0) // Порядок в списке
+  
+  // Теги (только для "current" и "featured")
+  experienceTag String?         // "amateur" | "experienced" | "expert" | "better_than_you"
+  ratingTag     String?         // "cant_stop" | "love" | "like_many" | "hate_many" | "ragequit"
+  searchTags    String @default("[]") // JSON array: ["looking_group", "want_to_play", ...]
+  
+  // Комментарий (только для "featured")
+  comment       String?         // Комментарий к любимой игре (до 175 символов)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, gameId, listType]) // Одна игра в одном списке
+  @@index([userId, listType])
+  @@index([userId])
+}
+
+// Виджеты на доске профиля
+model UserProfileWidget {
+  id          String   @id @default(cuid())
+  userId      String
+  
+  widgetType  String            // "favorite_games" | "current_games" | "wishlist" | "favorite_game" | "achievements"
+  isVisible   Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  // Настройки виджета (JSON)
+  settings    String   @default("{}")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, widgetType])
+  @@index([userId])
+}
+
+// История активности пользователя
+model UserActivity {
+  id          String   @id @default(cuid())
+  userId      String
+  
+  activityType String            // "played" | "marathon" | "achievement" | "stream"
+  gameType     String?           // "tod" | "alias" | "codenames" | "emotional"
+  gameName     String?           // Название игры/комнаты
+  roomCode     String?           // Код комнаты
+  
+  // Детали активности
+  duration     Int?              // Длительность в минутах
+  details      String  @default("{}") // JSON с доп. данными
+  
+  // Запланированное событие (например, "Марафон в 3 ч.")
+  scheduledEvent String?
+  
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@index([userId])
+}
+
+// Приватные заметки о других пользователях
+model UserNote {
+  id          String   @id @default(cuid())
+  userId      String            // Кто создал заметку
+  targetUserId String           // О ком заметка
+  
+  note        String            // Текст заметки
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user       User @relation("UserNotes", fields: [userId], references: [id], onDelete: Cascade)
+  targetUser User @relation("UserNotesAbout", fields: [targetUserId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, targetUserId])
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTIVITY SESSION MODELS (Discord-style activity tracking)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Сессии пользователя (история входов в игры)
+model UserSession {
+  id          String   @id @default(cuid())
+  userId      String
+  
+  gameType    String?           // "tod" | "alias" | "codenames" | "emotional" | null (просто онлайн)
+  roomCode    String?           // Код комнаты (если в игре)
+  
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?         // null = активная сессия
+  duration    Int?              // Длительность в секундах (заполняется при endedAt)
+  
+  deviceInfo  String?           // User-Agent или тип устройства
+  
+  createdAt   DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([userId, startedAt])
+  @@index([gameType])
 }

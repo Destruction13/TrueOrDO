@@ -1,0 +1,162 @@
+/* ==========================================================================
+   AvatarFrame — Обёртка аватара с декоративной рамкой
+   ========================================================================== */
+
+.avatar-frame {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Контейнер для аватара (дети компонента) */
+.avatar-frame__content {
+  position: relative;
+  z-index: 1; /* Аватар — базовый слой */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+/* Рамка — поверх аватара (поддержка PNG 1024x1024) */
+.avatar-frame__border {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* Рамка больше контейнера для обрамления аватара */
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  z-index: 2; /* Рамка поверх аватара */
+  
+  /* Защита от перетаскивания (Apple-style) */
+  pointer-events: none;
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  
+  /* Качественное масштабирование для 1024x1024 исходников */
+  object-fit: contain;
+  image-rendering: -webkit-optimize-contrast; /* Chrome/Safari: сохраняет чёткость */
+  image-rendering: crisp-edges; /* Firefox: чёткие края */
+  
+  /* Сглаживание для плавного уменьшения */
+  -ms-interpolation-mode: bicubic;
+}
+
+/* --------------------------------------------------------------------------
+   Размеры
+   -------------------------------------------------------------------------- */
+
+/* Large (L) — 120px рамка, 100px аватар */
+.avatar-frame--l {
+  width: 120px;
+  height: 120px;
+}
+
+.avatar-frame--l .avatar-frame__content {
+  width: 100px;
+  height: 100px;
+}
+
+/* Medium (M) — 64px рамка, 48px аватар */
+.avatar-frame--m {
+  width: 64px;
+  height: 64px;
+}
+
+.avatar-frame--m .avatar-frame__content {
+  width: 48px;
+  height: 48px;
+}
+
+/* Small (S) — 40px рамка, 28px аватар */
+.avatar-frame--s {
+  width: 40px;
+  height: 40px;
+}
+
+.avatar-frame--s .avatar-frame__content {
+  width: 28px;
+  height: 28px;
+}
+
+/* Extra Small (XS) — 32px рамка, 22px аватар */
+.avatar-frame--xs {
+  width: 32px;
+  height: 32px;
+}
+
+.avatar-frame--xs .avatar-frame__content {
+  width: 22px;
+  height: 22px;
+}
+
+/* Mini Profile (MP) — 100px рамка, 84px аватар */
+.avatar-frame--mp {
+  width: 100px;
+  height: 100px;
+}
+
+.avatar-frame--mp .avatar-frame__content {
+  width: 84px;
+  height: 84px;
+}
+
+/* --------------------------------------------------------------------------
+   Стили для вложенных элементов
+   -------------------------------------------------------------------------- */
+
+.avatar-frame__content img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.avatar-frame__content > span,
+.avatar-frame__content > div {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+/* --------------------------------------------------------------------------
+   Анимированные рамки (GIF)
+   -------------------------------------------------------------------------- */
+
+.avatar-frame__border--animated {
+  /* Для GIF анимаций — отключаем оптимизации которые могут мешать */
+  image-rendering: auto;
+  will-change: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Отключение анимации (для production или battery mode)
+   -------------------------------------------------------------------------- */
+
+.avatar-frame--static .avatar-frame__border {
+  animation: none;
+}
+
+.avatar-frame--static .avatar-frame__border--animated {
+  /* Для статичного режима можно заменить GIF на статичный кадр через JS */
+}
+
+/* Респонсив для Emotional (использует clamp) */
+.avatar-frame--emotional {
+  /* Переопределяется инлайн стилями в компоненте */
+}
