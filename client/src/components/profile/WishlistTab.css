@@ -1,0 +1,196 @@
+/* ============================================
+   WishlistTab — Вкладка "Вишлист"
+   ============================================ */
+
+.wishlist-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wishlist-tab__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wishlist-tab__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.wishlist-tab__count {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.wishlist-tab__add-btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a855f7;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wishlist-tab__add-btn:hover {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.5);
+}
+
+/* Список */
+.wishlist-tab__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wishlist-tab__card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.wishlist-tab__card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.wishlist-tab__cover {
+  width: 60px;
+  height: 80px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wishlist-tab__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wishlist-tab__cover-placeholder {
+  font-size: 24px;
+  opacity: 0.5;
+}
+
+.wishlist-tab__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wishlist-tab__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.wishlist-tab__release {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.wishlist-tab__priority {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.wishlist-tab__priority--high {
+  color: #e74c3c;
+}
+
+.wishlist-tab__priority--medium {
+  color: #f1c40f;
+}
+
+.wishlist-tab__priority--low {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Actions */
+.wishlist-tab__actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.wishlist-tab__card:hover .wishlist-tab__actions {
+  opacity: 1;
+}
+
+.wishlist-tab__action-btn {
+  padding: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.wishlist-tab__action-btn:hover {
+  opacity: 1;
+}
+
+/* Empty State */
+.wishlist-tab__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+.wishlist-tab__empty-icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+
+.wishlist-tab__empty-text {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.wishlist-tab__empty-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wishlist-tab__empty-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
+}

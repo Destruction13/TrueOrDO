@@ -3,13 +3,16 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GodRays } from "@paper-design/shaders-react";
 import { useAuth } from "../context/AuthContext";
+import { SocialHeaderIcons } from "../components/social";
 import Button from "../components/ui/Button";
+import AvatarFrame from "../components/ui/AvatarFrame";
+import StyledNickname from "../components/ui/StyledNickname";
 import "./LandingPage.css";
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, customization } = useAuth();
 
   // Установка заголовка страницы
   useEffect(() => {
@@ -46,16 +49,26 @@ export default function LandingPage() {
 
       <div className="user-header">
         {user ? (
-          <button className="user-header__profile" onClick={() => navigate("/profile")} type="button">
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="user-header__avatar" />
-            ) : (
-              <span className="user-header__avatar-placeholder">
-                {(user.nickname || user.email)?.[0]?.toUpperCase() || "?"}
+          <>
+            <SocialHeaderIcons />
+            <button className="user-header__profile" onClick={() => navigate("/profile")} type="button">
+              <AvatarFrame size="xs" frameSlug={customization?.frameAll}>
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="user-header__avatar" />
+                ) : (
+                  <span className="user-header__avatar-placeholder">
+                    {(user.nickname || user.email)?.[0]?.toUpperCase() || "?"}
+                  </span>
+                )}
+              </AvatarFrame>
+              <span className="user-header__name">
+                <StyledNickname 
+                  name={user.nickname || user.email} 
+                  customization={customization}
+                />
               </span>
-            )}
-            <span className="user-header__name">{user.nickname || user.email}</span>
-          </button>
+            </button>
+          </>
         ) : (
           <Button
             variant="ghost"

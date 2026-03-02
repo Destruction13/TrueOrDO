@@ -1,0 +1,150 @@
+/* LampBackground — анимированный фон с эффектом "лампы" */
+
+.lamp-background {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(180deg, #0f172a 0%, #020617 50%, #020617 100%);
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Фоновый градиент на всю страницу */
+.lamp-background::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, #0f172a 0%, #020617 30%, #020617 100%);
+  z-index: -10;
+}
+
+.lamp-container {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 80rem;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Лучи света */
+.lamp-beam {
+  position: absolute;
+  top: 0;
+  height: 20rem;
+  background: conic-gradient(
+    from 70deg at center top,
+    transparent 0deg,
+    rgba(6, 182, 212, 0.2) 60deg,
+    transparent 120deg
+  );
+}
+
+.lamp-beam--left {
+  right: 50%;
+  transform-origin: top right;
+  transform: skewX(-15deg);
+}
+
+.lamp-beam--right {
+  left: 50%;
+  transform-origin: top left;
+  transform: skewX(15deg);
+}
+
+/* Центральный источник света */
+.lamp-source {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 0.5rem;
+  background: linear-gradient(90deg, 
+    transparent, 
+    #06b6d4, 
+    #22d3ee, 
+    #06b6d4, 
+    transparent
+  );
+  border-radius: 0 0 100% 100%;
+  box-shadow: 
+    0 0 20px rgba(6, 182, 212, 0.8),
+    0 0 40px rgba(6, 182, 212, 0.4),
+    0 0 80px rgba(6, 182, 212, 0.2);
+}
+
+/* Размытый фоновый свет */
+.lamp-glow {
+  position: absolute;
+  top: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 15rem;
+  background: radial-gradient(
+    ellipse at center top,
+    rgba(6, 182, 212, 0.3) 0%,
+    rgba(6, 182, 212, 0.1) 40%,
+    transparent 70%
+  );
+  filter: blur(40px);
+}
+
+/* Контент */
+.lamp-content {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  padding-top: 10rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Мобильная адаптация */
+@media (max-width: 768px) {
+  .lamp-beam {
+    height: 12rem;
+  }
+  
+  .lamp-glow {
+    height: 10rem;
+  }
+  
+  .lamp-content {
+    padding-top: 6rem;
+  }
+}
+
+/* Дополнительный эффект звёзд/частиц (опционально) */
+.lamp-background::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    1px 1px at 20px 30px, rgba(255, 255, 255, 0.3), transparent
+  ),
+  radial-gradient(
+    1px 1px at 40px 70px, rgba(255, 255, 255, 0.2), transparent
+  ),
+  radial-gradient(
+    1px 1px at 50px 160px, rgba(255, 255, 255, 0.3), transparent
+  ),
+  radial-gradient(
+    1px 1px at 90px 40px, rgba(255, 255, 255, 0.2), transparent
+  ),
+  radial-gradient(
+    1px 1px at 130px 80px, rgba(255, 255, 255, 0.3), transparent
+  ),
+  radial-gradient(
+    1px 1px at 160px 120px, rgba(255, 255, 255, 0.2), transparent
+  );
+  background-size: 200px 200px;
+  opacity: 0.5;
+  pointer-events: none;
+}

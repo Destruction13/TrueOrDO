@@ -1,0 +1,28 @@
+/* BorderTrail — анимированная "бегущая" граница */
+
+.border-trail {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.border-trail__dot {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(4px);
+  mix-blend-mode: screen;
+  transform: translate(-50%, -50%);
+}
+
+/* Маска для показа только по краям */
+.border-trail::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: inherit;
+  border-radius: inherit;
+  z-index: 1;
+}

@@ -140,17 +140,17 @@
 .cyber-leaderboard__player {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .cyber-leaderboard__player-name {
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.85);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   display: block;
+  padding: 4px 0;
 }
 
 /* Score */
@@ -222,7 +222,7 @@
   }
 
   .cyber-leaderboard__player-name {
-    font-size: 0.7rem;
+    font-size: 0.85rem;
   }
 
   .cyber-leaderboard__score {

@@ -1,0 +1,1875 @@
+/* ============================================
+   BoardTab — Вкладка "Доска"
+   Референс: image/README/fullprofdoska.png
+   ============================================ */
+
+/* ============================================
+   XP Progress Bar — минималистичный стиль
+   ============================================ */
+
+.xp-progress {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 20px 20px 16px 20px;
+  padding-left: 80px; /* Место для круга слева */
+  padding-right: 80px; /* Отступ справа для кубка */
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  position: relative;
+  overflow: visible;
+}
+
+/* Уровень — круг с градиентным бордером */
+.xp-progress__level-circle {
+  position: absolute;
+  left: 10px;
+  /* Позиционирование: 20px паддинг + 22px кнопка + 8px gap + 8px (половина бара) - 32px (половина круга) = 26px */
+  top: 26px;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  z-index: 2;
+  border-radius: 50%;
+  /* Градиентный бордер через background */
+  background: linear-gradient(135deg, 
+    #06b6d4 0%,
+    #3b82f6 25%,
+    #8b5cf6 50%,
+    #d946ef 75%,
+    #ec4899 100%
+  );
+  padding: 3px;
+  box-shadow: 
+    0 0 12px rgba(139, 92, 246, 0.4),
+    0 0 24px rgba(59, 130, 246, 0.2);
+}
+
+.xp-progress__level-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, 
+    rgba(15, 20, 35, 0.98) 0%, 
+    rgba(10, 15, 30, 1) 100%
+  );
+  border-radius: 50%;
+}
+
+.xp-progress__level-number {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(139, 92, 246, 0.6);
+  line-height: 1;
+}
+
+/* SVG кольцо прогресса скрыто */
+.xp-progress__level-ring {
+  display: none;
+}
+
+.xp-progress__level-ring-bg,
+.xp-progress__level-ring-fill {
+  display: none;
+}
+
+/* Контейнер прогресс бара */
+.xp-progress__bar-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: static; /* Важно: static, чтобы круг позиционировался относительно bar-bg */
+  z-index: 1;
+  min-width: 0;
+}
+
+/* Кнопка наград за уровень */
+.xp-progress__rewards-btn {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(100, 180, 255, 0.1);
+  border: 1px solid rgba(100, 180, 255, 0.3);
+  border-radius: 4px;
+  color: rgba(100, 180, 255, 0.9);
+  font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.xp-progress__rewards-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.xp-progress__rewards-btn:hover {
+  background: rgba(100, 180, 255, 0.2);
+  border-color: rgba(100, 180, 255, 0.5);
+  box-shadow: 0 0 12px rgba(100, 180, 255, 0.3);
+  color: #fff;
+}
+
+/* Метка XP — под баром */
+.xp-progress__label {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 4px;
+  margin-right: 20px; /* Выравнивание с баром */
+}
+
+/* Информация о том, сколько осталось до нового уровня */
+.xp-progress__remaining {
+  font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: rgba(100, 180, 255, 0.9);
+  text-shadow: 0 0 8px rgba(100, 180, 255, 0.4);
+  text-transform: uppercase;
+}
+
+/* Контейнер прогресс бара — водяной эффект */
+.xp-progress__bar-bg {
+  position: relative;
+  height: 16px;
+  margin-right: 20px; /* Отступ от кубка */
+  background: linear-gradient(180deg, 
+    rgba(10, 30, 60, 0.9) 0%,
+    rgba(5, 15, 35, 0.95) 100%
+  );
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 
+    inset 0 2px 6px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 2px rgba(100, 180, 255, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(80, 150, 220, 0.2);
+}
+
+
+/* Заливка — основа воды */
+.xp-progress__bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  min-width: 8px;
+  border-radius: 7px;
+  background: linear-gradient(180deg,
+    rgba(100, 200, 255, 0.9) 0%,
+    rgba(60, 150, 230, 0.85) 30%,
+    rgba(40, 120, 200, 0.9) 60%,
+    rgba(30, 100, 180, 0.95) 100%
+  );
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* Волна 1 — верхняя, бесконечная анимация */
+.xp-progress__bar-fill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: 
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 16'%3E%3Cpath d='M0,8 Q15,2 30,8 T60,8 T90,8 T120,8 L120,0 L0,0 Z' fill='rgba(180,230,255,0.35)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 16'%3E%3Cpath d='M0,10 Q20,4 40,10 T80,10 T120,10 L120,0 L0,0 Z' fill='rgba(200,240,255,0.25)'/%3E%3C/svg%3E");
+  background-size: 120px 16px, 80px 16px;
+  background-repeat: repeat-x;
+  animation: waveMove1 2s linear infinite, waveMove2 3s linear infinite;
+}
+
+/* Волна 2 — нижняя с пузырьками */
+.xp-progress__bar-fill::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: 
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 16'%3E%3Cpath d='M0,6 Q12,12 25,6 T50,6 T75,6 T100,6 L100,16 L0,16 Z' fill='rgba(100,180,255,0.2)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 16'%3E%3Cpath d='M0,5 Q10,11 20,5 T40,5 T60,5 T80,5 L80,16 L0,16 Z' fill='rgba(140,210,255,0.15)'/%3E%3C/svg%3E");
+  background-size: 100px 16px, 80px 16px;
+  background-repeat: repeat-x;
+  animation: waveMove3 2.5s linear infinite, waveMove4 3.5s linear infinite;
+}
+
+@keyframes waveMove1 {
+  from { background-position-x: 0, 0; }
+  to { background-position-x: 120px, 0; }
+}
+
+@keyframes waveMove2 {
+  from { background-position-x: 0, 0; }
+  to { background-position-x: 0, -80px; }
+}
+
+@keyframes waveMove3 {
+  from { background-position-x: 0, 0; }
+  to { background-position-x: -100px, 0; }
+}
+
+@keyframes waveMove4 {
+  from { background-position-x: 0, 0; }
+  to { background-position-x: 0, 80px; }
+}
+
+/* Контейнер для дополнительных эффектов */
+.xp-progress__bar-shine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+/* Блик сверху — отражение света */
+.xp-progress__bar-shine::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.5) 20%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.5) 80%,
+    transparent 100%
+  );
+  border-radius: 3px;
+  opacity: 0.7;
+}
+
+/* Брызги/капли справа */
+.xp-progress__bar-shine::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  background: 
+    radial-gradient(circle at 30% 30%, rgba(180, 230, 255, 0.9) 0%, rgba(180, 230, 255, 0.9) 15%, transparent 16%),
+    radial-gradient(circle at 70% 50%, rgba(150, 210, 255, 0.8) 0%, rgba(150, 210, 255, 0.8) 10%, transparent 11%),
+    radial-gradient(circle at 50% 80%, rgba(120, 190, 255, 0.7) 0%, rgba(120, 190, 255, 0.7) 8%, transparent 9%),
+    radial-gradient(circle at 85% 25%, rgba(200, 240, 255, 0.85) 0%, rgba(200, 240, 255, 0.85) 6%, transparent 7%);
+  animation: splashBubbles 1.5s ease-in-out infinite;
+  filter: blur(0.5px);
+}
+
+@keyframes splashBubbles {
+  0%, 100% {
+    transform: translateX(0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateX(-3px) scale(1.1);
+    opacity: 1;
+  }
+}
+
+/* Свечение вокруг заливки */
+.xp-progress__bar-fill {
+  box-shadow: 
+    0 0 8px rgba(100, 180, 255, 0.5),
+    0 0 16px rgba(80, 160, 240, 0.3),
+    inset 0 -3px 6px rgba(20, 60, 120, 0.4),
+    inset 0 2px 4px rgba(180, 230, 255, 0.3);
+}
+
+/* Иконка кубка справа — ОЧЕНЬ БОЛЬШАЯ, выходит за пределы */
+.xp-progress__icon {
+  position: absolute;
+  right: 0; /* Выровнен по правому краю как виджеты */
+  bottom: 0; /* Привязка к низу */
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+/* Градиентный туман за кубком */
+.xp-progress__icon::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: 
+    radial-gradient(ellipse at center,
+      rgba(251, 191, 36, 0.4) 0%,
+      rgba(245, 158, 11, 0.3) 20%,
+      rgba(217, 70, 239, 0.25) 40%,
+      rgba(139, 92, 246, 0.2) 60%,
+      rgba(59, 130, 246, 0.15) 80%,
+      transparent 100%
+    );
+  filter: blur(12px);
+  animation: trophyGlow 4s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes trophyGlow {
+  0%, 100% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(1);
+    filter: blur(15px) hue-rotate(0deg);
+  }
+  33% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1.1);
+    filter: blur(18px) hue-rotate(20deg);
+  }
+  66% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1.05);
+    filter: blur(12px) hue-rotate(-20deg);
+  }
+}
+
+.xp-progress__icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  /* Без анимации — статичная картинка */
+  /* Запрет выделения и перетаскивания */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+}
+
+/* Разделительная линия после XP бара */
+.xp-progress__divider {
+  position: absolute;
+  bottom: -12px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(100, 180, 255, 0.3) 15%,
+    rgba(139, 92, 246, 0.4) 50%,
+    rgba(100, 180, 255, 0.3) 85%,
+    transparent 100%
+  );
+}
+
+/* ============================================ */
+
+.board-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Header с Widgets label */
+.board-tab__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* Кнопка справа */
+  margin-top: 12px; /* Отступ от разделительной линии XP бара */
+  margin-bottom: 8px;
+}
+
+.board-tab__widgets-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.board-tab__add-widget-btn {
+  padding: 8px 16px;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 8px;
+  color: #a78bfa;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.board-tab__add-widget-btn:hover {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Секция */
+.board-tab__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: sectionFadeIn 0.3s ease-out;
+}
+
+@keyframes sectionFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.board-tab__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.board-tab__section-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.board-tab__section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.board-tab__section-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.board-tab__add-btn {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #a855f7;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.board-tab__add-btn:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.5);
+}
+
+.board-tab__add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   Сетка любимых игр (5 в ряд, компактная)
+   ============================================ */
+.board-tab__games-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  /* Изоляция от родительских layout-анимаций */
+  contain: layout style;
+  position: relative;
+}
+
+.board-tab__game-card-wrapper {
+  list-style: none;
+  flex: 0 0 calc(25% - 6px);
+}
+
+/* Когда идёт перетаскивание — соседние карточки анимируются плавно */
+.board-tab__games-grid--dragging .board-tab__game-card-wrapper:not(.board-tab__game-card-wrapper--dragging) {
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+/* Перетаскиваемая карточка */
+.board-tab__game-card-wrapper--dragging {
+  z-index: 10;
+  opacity: 0.9;
+}
+
+.board-tab__game-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3/4;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.board-tab__game-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.board-tab__game-card--dragging {
+  transform: scale(1.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}
+
+/* Кнопка удаления игры */
+.board-tab__game-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  background: rgba(239, 68, 68, 0.9);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.board-tab__game-remove:hover {
+  background: rgba(239, 68, 68, 1);
+}
+
+.board-tab__game-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.board-tab__game-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%);
+  display: flex;
+  align-items: flex-end;
+  padding: 6px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.board-tab__game-card:hover .board-tab__game-overlay,
+.board-tab__game-overlay--visible {
+  opacity: 1;
+}
+
+.board-tab__game-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ============================================
+   Список текущих игр
+   ============================================ */
+.board-tab__current-games {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.board-tab__current-games > * {
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+/* Wrapper для drag-and-drop */
+.board-tab__current-game-wrapper {
+  list-style: none;
+  cursor: grab;
+}
+
+.board-tab__current-game-wrapper--hidden {
+  display: none;
+}
+
+.board-tab__current-game-wrapper:active {
+  cursor: grabbing;
+}
+
+.board-tab__current-game-wrapper:active .board-tab__current-game-card {
+  background: rgba(124, 58, 237, 0.08);
+  border-color: rgba(124, 58, 237, 0.3);
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.2);
+}
+
+.board-tab__current-game-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 1px;
+  padding-left: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.board-tab__current-game-card--hidden {
+  display: none;
+}
+
+.board-tab__current-game-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.board-tab__current-game-cover {
+  width: 85px;
+  height: 113px;
+  min-height: 113px;
+  max-height: 113px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.board-tab__current-game-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.board-tab__current-game-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  padding-top: 8px;
+}
+
+/* ============================================
+   Теги игры
+   ============================================ */
+.board-tab__current-game-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.board-tab__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.2s ease;
+}
+
+.board-tab__tag:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.board-tab__tag-icon {
+  font-size: 10px;
+  opacity: 1;
+  filter: none;
+}
+
+.board-tab__tag-remove {
+  position: relative;
+  margin-left: 2px;
+  padding: 0;
+  width: 12px;
+  height: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.board-tab__tag:hover .board-tab__tag-remove {
+  opacity: 1;
+}
+
+.board-tab__tag-remove:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.board-tab__tag-remove .board-tab__tag-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.board-tab__add-tag-btn {
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.board-tab__add-tag-btn:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Кнопка +N для скрытых тегов */
+.board-tab__tag--more {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.board-tab__tag--more:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Кнопка скрыть */
+.board-tab__tag--collapse {
+  position: relative;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.board-tab__tag--collapse:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Всплывашки для кнопок тегов */
+.board-tab__tag-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.8) 0%, rgba(30, 25, 50, 0.8) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 100000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.board-tab__tag-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(38, 30, 55, 0.8);
+}
+
+.board-tab__tag--collapse:hover .board-tab__tag-tooltip,
+.board-tab__tag--more:hover .board-tab__tag-tooltip,
+.board-tab__tag-remove:hover .board-tab__tag-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.board-tab__tag--more {
+  position: relative;
+}
+
+.board-tab__current-game-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: transform 0.2s ease, color 0.2s ease;
+  z-index: 10;
+}
+
+.board-tab__current-game-delete:hover {
+  transform: scale(1.25);
+  color: #dc2626;
+}
+
+/* Тултип для кнопки удаления */
+.board-tab__delete-tooltip {
+  background: rgba(30, 30, 40, 0.95);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
+   Empty State
+   ============================================ */
+.board-tab__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+.board-tab__empty-icon {
+  font-size: 32px;
+  opacity: 0.5;
+}
+
+.board-tab__empty-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Меню wrapper */
+.board-tab__game-menu-wrapper {
+  position: relative;
+}
+
+.board-tab__game-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 140px;
+  background: rgba(30, 30, 45, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 6px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.board-tab__game-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.board-tab__game-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.board-tab__game-menu-item--danger {
+  color: #f87171;
+}
+
+.board-tab__game-menu-item--danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Empty state кнопка */
+.board-tab__empty-add-btn {
+  margin-top: 8px;
+  padding: 10px 20px;
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: 8px;
+  color: #a78bfa;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.board-tab__empty-add-btn:hover {
+  background: rgba(124, 58, 237, 0.3);
+  border-color: rgba(124, 58, 237, 0.6);
+  transform: translateY(-1px);
+}
+
+/* ============================================
+   AddGameModal — модалка добавления игры
+   ============================================ */
+.add-game-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.add-game-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  background: linear-gradient(180deg, rgba(35, 35, 55, 0.98) 0%, rgba(25, 25, 40, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.add-game-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.add-game-modal__title {
+  flex: 1;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.add-game-modal__slots {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.add-game-modal__slots strong {
+  color: #a78bfa;
+}
+
+.add-game-modal__close {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-game-modal__close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.add-game-modal__search {
+  position: relative;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.add-game-modal__search-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.add-game-modal__search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.add-game-modal__search-input:focus {
+  border-color: rgba(124, 58, 237, 0.5);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+}
+
+.add-game-modal__search-spinner {
+  position: absolute;
+  right: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: translateY(-50%) rotate(360deg); }
+}
+
+.add-game-modal__results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  min-height: 200px;
+  max-height: 400px;
+}
+
+.add-game-modal__result-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.add-game-modal__result-cover {
+  width: 60px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.add-game-modal__result-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.add-game-modal__result-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.add-game-modal__result-add {
+  padding: 6px 12px;
+  background: rgba(124, 58, 237, 0.2);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a78bfa;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.add-game-modal__result-item:hover .add-game-modal__result-add {
+  opacity: 1;
+}
+
+.add-game-modal__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+}
+
+/* ============================================
+   Кнопка "Показать больше / Скрыть"
+   ============================================ */
+
+.board-tab__show-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  margin-top: 0;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.board-tab__show-more-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.board-tab__show-more-icon {
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+
+.board-tab__show-more-btn:hover .board-tab__show-more-icon {
+  transform: translateY(2px);
+}
+
+/* Секция текущих игр (для позиционирования попапа) */
+.board-tab__section--current-games {
+  position: relative;
+}
+
+/* ============================================
+   Виджет "Любимая игра" (Featured Game)
+   ============================================ */
+
+.board-tab__featured-game {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+
+/* ============================================
+   Виджет "Любимая игра" — с шиммер эффектами и градиентным переливом
+   ============================================ */
+
+/* Основной контейнер с градиентным фоном */
+.board-tab__section--favorite-game {
+  position: relative;
+  padding: 1px;
+  border-radius: 8px; /* Такой же как у остальных виджетов */
+  background: linear-gradient(135deg,
+    rgba(124, 58, 237, 0.1) 0%,
+    rgba(139, 92, 246, 0.08) 25%,
+    rgba(59, 130, 246, 0.08) 50%,
+    rgba(139, 92, 246, 0.08) 75%,
+    rgba(124, 58, 237, 0.1) 100%
+  );
+  background-size: 400% 400%;
+  animation: favoriteGameBgFlow 10s ease-in-out infinite;
+  overflow: hidden;
+}
+
+/* Анимация перелива фона */
+@keyframes favoriteGameBgFlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Анимированная градиентная рамка */
+.board-tab__section--favorite-game::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: 8px; /* Такой же как у виджета */
+  background: linear-gradient(
+    90deg,
+    rgba(6, 182, 212, 0.5),
+    rgba(59, 130, 246, 0.5),
+    rgba(139, 92, 246, 0.6),
+    rgba(168, 85, 247, 0.5),
+    rgba(217, 70, 239, 0.5),
+    rgba(139, 92, 246, 0.6),
+    rgba(59, 130, 246, 0.5),
+    rgba(6, 182, 212, 0.5)
+  );
+  background-size: 300% 100%;
+  animation: favoriteGameBorderGlow 6s linear infinite;
+  -webkit-mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  mask: 
+    linear-gradient(#fff 0 0) content-box, 
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.8;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Шиммер эффект — бегущий блик */
+.board-tab__section--favorite-game::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  animation: favoriteGameShimmer 12s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes favoriteGameShimmer {
+  0% { left: -100%; }
+  20% { left: 150%; }
+  100% { left: 150%; }
+}
+
+.board-tab__section--favorite-game:hover::before {
+  opacity: 0.8;
+}
+
+@keyframes favoriteGameBorderGlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+/* Внутренний виджет */
+.board-tab__favorite-game-widget {
+  position: relative;
+  z-index: 1;
+}
+
+/* Внутренний контент */
+.board-tab__favorite-game-content {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px;
+  background: transparent;
+  border-radius: 10px;
+}
+
+/* Обёртка обложки с рамкой */
+.board-tab__favorite-game-cover-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 10px;
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+  box-shadow: 
+    0 0 12px rgba(124, 58, 237, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  z-index: 2; /* Выше шиммера */
+}
+
+/* Обложка игры */
+.board-tab__favorite-game-cover {
+  display: block;
+  width: 90px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 7px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: transform 0.3s ease;
+}
+
+
+/* Информация об игре */
+.board-tab__favorite-game-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 2; /* Выше шиммера */
+}
+
+.board-tab__favorite-game-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  text-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+}
+
+/* Секция комментария */
+.board-tab__favorite-game-comment-section {
+  min-height: 20px;
+}
+
+/* Плейсхолдер с карандашиком */
+.board-tab__favorite-game-comment-placeholder {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: default;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+}
+
+.board-tab__favorite-game-comment-placeholder--editable {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.board-tab__favorite-game-comment-placeholder--editable:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.board-tab__favorite-game-pencil {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+  margin-top: 1px;
+  transition: color 0.2s ease;
+}
+
+.board-tab__favorite-game-comment-placeholder--editable:hover .board-tab__favorite-game-pencil {
+  color: rgba(124, 58, 237, 0.8);
+}
+
+.board-tab__favorite-game-comment-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.board-tab__favorite-game-comment-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Textarea для редактирования — максимум 7 строк */
+.board-tab__favorite-game-textarea {
+  width: 100%;
+  min-height: calc(7 * 1.5em + 20px); /* 7 строк * line-height + padding */
+  max-height: calc(7 * 1.5em + 20px); /* Жёсткое ограничение высоты */
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: 8px;
+  font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.5;
+  outline: none;
+  resize: none;
+  overflow: hidden; /* Скрываем контент за пределами */
+  transition: all 0.2s ease;
+  box-shadow: 
+    0 0 0 2px rgba(124, 58, 237, 0.1),
+    inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.board-tab__favorite-game-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+.board-tab__favorite-game-textarea:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(124, 58, 237, 0.6);
+  box-shadow: 
+    0 0 0 3px rgba(124, 58, 237, 0.15),
+    inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Кнопка удаления */
+.board-tab__favorite-game-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  border-radius: 6px;
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease, color 0.2s ease;
+  z-index: 10;
+}
+
+.board-tab__favorite-game-delete--visible {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+.board-tab__favorite-game-delete:hover {
+  transform: scale(1.25);
+  color: #dc2626;
+}
+
+/* Старые стили для совместимости */
+.board-tab__featured-game-cover {
+  width: 85px;
+  height: 113px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.board-tab__featured-game-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  padding-top: 8px;
+}
+
+.board-tab__featured-game-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.board-tab__featured-game-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.board-tab__featured-game-remove {
+  position: absolute;
+  top: 4px;
+  left: 60px;
+  width: 20px;
+  height: 20px;
+  background: rgba(239, 68, 68, 0.9);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  transition: transform 0.2s ease;
+}
+
+.board-tab__featured-game-remove:hover {
+  transform: scale(1.15);
+}
+
+/* Empty state для Featured Game */
+.board-tab__empty--featured {
+  min-height: 100px;
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.board-tab__empty--featured:hover {
+  border-color: rgba(124, 58, 237, 0.4);
+  background: rgba(124, 58, 237, 0.05);
+}
+
+.board-tab__empty-plus {
+  font-size: 36px;
+  color: rgba(255, 255, 255, 0.3);
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+}
+
+.board-tab__empty--featured:hover .board-tab__empty-plus {
+  color: #a855f7;
+  transform: scale(1.1);
+}
+
+/* ============================================
+   Виджет "Хочу поиграть" (Wishlist)
+   ============================================ */
+.board-tab__section--wishlist {
+  
+}
+
+.board-tab__games-grid--wishlist {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* ============================================
+   Drag-and-Drop для виджетов
+   ============================================ */
+.board-tab__widgets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: -12px;
+}
+
+/* Обёртка виджета с drag handle слева */
+.board-tab__widget-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.board-tab__drag-handle {
+  position: relative;
+  flex-shrink: 0;
+  width: 20px;
+  height: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12px;
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+}
+
+.board-tab__widget-wrapper:hover .board-tab__drag-handle {
+  opacity: 0.6;
+}
+
+.board-tab__drag-handle:hover {
+  opacity: 1;
+}
+
+.board-tab__drag-handle--active {
+  opacity: 1;
+}
+
+.board-tab__drag-handle-icon {
+  display: grid;
+  grid-template-columns: repeat(2, 4px);
+  grid-template-rows: repeat(3, 4px);
+  gap: 2px;
+  user-select: none;
+}
+
+.board-tab__drag-handle-icon span {
+  width: 4px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  transition: background 0.2s ease;
+}
+
+.board-tab__drag-handle:hover .board-tab__drag-handle-icon span {
+  background: #a855f7;
+}
+
+.board-tab__drag-handle--active .board-tab__drag-handle-icon span {
+  background: #a855f7;
+}
+
+/* Tooltip при клике на drag handle */
+.board-tab__drag-tooltip {
+  position: fixed;
+  z-index: 10000;
+  width: 220px;
+  padding: 12px;
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.board-tab__drag-tooltip-text {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+}
+
+.board-tab__drag-tooltip-text:last-of-type {
+  margin-bottom: 12px;
+}
+
+.board-tab__drag-tooltip-text strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.board-tab__drag-tooltip-remove {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.board-tab__drag-tooltip-remove:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Стиль секции при перетаскивании */
+.board-tab__section {
+  position: relative;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.board-tab__section:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.board-tab__widget-wrapper--dragging .board-tab__section {
+  background: rgba(124, 58, 237, 0.1);
+  border-color: rgba(124, 58, 237, 0.4);
+  box-shadow: 0 10px 40px rgba(124, 58, 237, 0.3);
+  transform: scale(1.02);
+}
+
+/* Запрет выделения текста во время перетаскивания виджета */
+.board-tab__widgets-list:has(.board-tab__widget-wrapper--dragging) {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.board-tab__widget-wrapper--dragging .board-tab__drag-handle {
+  opacity: 1;
+}
+
+.board-tab__widget-wrapper--dragging .board-tab__drag-handle-icon {
+  color: #a855f7;
+}
+
+/* Empty state для отсутствия виджетов */
+.board-tab__empty--no-widgets {
+  min-height: 200px;
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 768px) {
+  .board-tab__games-grid {
+    gap: 6px;
+  }
+
+  .board-tab__current-game-cover {
+    width: 64px;
+    height: 85px;
+  }
+  
+  .board-tab__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .board-tab__section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .board-tab__add-btn {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .add-game-modal {
+    max-height: 90vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .board-tab__games-grid {
+    gap: 4px;
+  }
+
+  .board-tab__current-game-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .board-tab__current-game-cover {
+    width: 64px;
+    height: 85px;
+    border-radius: 6px;
+  }
+
+  .board-tab__current-game-info {
+    width: 100%;
+  }
+
+  .board-tab__current-game-tags {
+    flex-wrap: wrap;
+  }
+
+  .board-tab__tag {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}
+
+/* ============================================
+   Touch-friendly improvements
+   ============================================ */
+@media (hover: none) and (pointer: coarse) {
+  /* На тач-устройствах показываем удаление всегда */
+  .board-tab__game-remove {
+    opacity: 1;
+  }
+
+  .board-tab__game-menu-btn {
+    opacity: 1;
+  }
+
+  .board-tab__recent-menu {
+    opacity: 1;
+  }
+
+  /* Увеличиваем кнопки для тач */
+  .board-tab__add-btn,
+  .board-tab__add-widget-btn {
+    padding: 12px 18px;
+    font-size: 14px;
+  }
+
+  .board-tab__tag-remove {
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+  }
+
+  .board-tab__add-tag-btn {
+    padding: 8px 14px;
+  }
+
+  .board-tab__game-card {
+    /* Отключаем hover эффект на тач */
+    transform: none !important;
+  }
+
+  .board-tab__game-card:active {
+    transform: scale(0.95) !important;
+  }
+}

@@ -4,3 +4,4 @@ export { default as TruthOrDarePage } from './TruthOrDarePage';
 export { default as AliasPage } from './AliasPage';
 export { default as CodenamesPage } from './CodenamesPage';
 export { default as EmotionalPage } from './EmotionalPage';
+export { default as PricingPage } from './PricingPage';

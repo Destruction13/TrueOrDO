@@ -70,6 +70,46 @@ function sanitizeString(str, maxLength = 500) {
   return str.trim().slice(0, maxLength);
 }
 
+/**
+ * Генерация уникального 4-значного тега для пользователя (Discord-style)
+ * Формат: "0001" - "9999" (без #, # добавляется при отображении)
+ * @param {object} prisma - Prisma client
+ * @param {string} nickname - Никнейм пользователя
+ * @returns {Promise<string>} - Уникальный тег
+ */
+async function generateUniqueTag(prisma, nickname) {
+  const MAX_ATTEMPTS = 100;
+  
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    // Генерируем случайный 4-значный тег (0001-9999)
+    const tag = String(Math.floor(Math.random() * 9999) + 1).padStart(4, '0');
+    
+    // Проверяем уникальность комбинации nickname+tag
+    const existing = await prisma.user.findFirst({
+      where: { nickname, tag }
+    });
+    
+    if (!existing) {
+      return tag;
+    }
+  }
+  
+  // Если не удалось найти уникальный тег за MAX_ATTEMPTS попыток,
+  // пробуем последовательный поиск свободного тега
+  for (let i = 1; i <= 9999; i++) {
+    const tag = String(i).padStart(4, '0');
+    const existing = await prisma.user.findFirst({
+      where: { nickname, tag }
+    });
+    if (!existing) {
+      return tag;
+    }
+  }
+  
+  // Все 9999 тегов заняты для этого никнейма
+  throw new Error(`Все теги для никнейма "${nickname}" заняты`);
+}
+
 module.exports = {
   hashPassword,
   verifyPassword,
@@ -78,5 +118,6 @@ module.exports = {
   isValidEmail,
   isValidPassword,
   isValidNickname,
-  sanitizeString
+  sanitizeString,
+  generateUniqueTag
 };

@@ -1,0 +1,21 @@
+.clickable-player {
+  cursor: pointer;
+  display: inline;
+}
+
+.clickable-player:hover {
+  /* Никаких визуальных эффектов при наведении */
+}
+
+.clickable-player:focus-visible {
+  outline: none;
+}
+
+.clickable-player:active {
+  /* Никаких эффектов при клике */
+}
+
+.clickable-player--disabled {
+  cursor: default;
+  pointer-events: none;
+}

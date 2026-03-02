@@ -1,0 +1,159 @@
+.friend-request-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.friend-request-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Avatar */
+.friend-request-card__avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.friend-request-card__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.friend-request-card__avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 50%;
+}
+
+.friend-request-card__online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid rgba(20, 20, 30, 0.95);
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+/* Info */
+.friend-request-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.friend-request-card__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+}
+
+.friend-request-card__level {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.friend-request-card__meta {
+  font-size: 11px;
+}
+
+.friend-request-card__time {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Actions */
+.friend-request-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.friend-request-card__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.friend-request-card__btn--accept {
+  width: 32px;
+  height: 32px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.friend-request-card__btn--accept:hover {
+  background: rgba(34, 197, 94, 0.25);
+  transform: scale(1.05);
+}
+
+.friend-request-card__btn--reject {
+  width: 32px;
+  height: 32px;
+  background: rgba(239, 68, 68, 0.1);
+  color: rgba(239, 68, 68, 0.7);
+}
+
+.friend-request-card__btn--reject:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  transform: scale(1.05);
+}
+
+.friend-request-card__btn--cancel {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}
+
+.friend-request-card__btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .friend-request-card {
+    padding: 12px;
+  }
+
+  .friend-request-card__btn--accept,
+  .friend-request-card__btn--reject {
+    width: 36px;
+    height: 36px;
+  }
+}

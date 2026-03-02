@@ -1,4 +1,51 @@
 const express = require("express");
+const { generateUniqueTag } = require("./utils");
+
+/**
+ * Обновить loginStreak при входе пользователя
+ */
+async function updateLoginStreak(prisma, user) {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const lastLogin = user.lastLoginDate ? new Date(user.lastLoginDate) : null;
+    if (lastLogin) {
+      lastLogin.setHours(0, 0, 0, 0);
+    }
+    
+    let newStreak = user.loginStreak || 0;
+    
+    if (!lastLogin) {
+      // Первый вход
+      newStreak = 1;
+    } else {
+      const diffDays = Math.floor((today.getTime() - lastLogin.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        // Уже был вход сегодня — не меняем streak
+      } else if (diffDays === 1) {
+        // Вход на следующий день — увеличиваем streak
+        newStreak += 1;
+      } else {
+        // Пропущен день — сбрасываем streak
+        newStreak = 1;
+      }
+    }
+    
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        loginStreak: newStreak,
+        lastLoginDate: new Date()
+      }
+    });
+    
+    console.log(`[OAuth] Updated loginStreak for ${user.id}: ${newStreak}`);
+  } catch (error) {
+    console.error("Login streak update error:", error);
+  }
+}
 
 // OAuth URLs
 const DISCORD_AUTH_URL = "https://discord.com/api/oauth2/authorize";
@@ -120,20 +167,36 @@ function createOAuthRouter(prisma) {
         const avatarUrl = getDiscordAvatarUrl(discordUser);
         const email = discordUser.email?.toLowerCase() || `discord_${discordUser.id}@oauth.local`;
         
-        // Генерируем уникальный никнейм
-        let nickname = sanitizeNickname(discordUser.username || discordUser.global_name);
-        nickname = await ensureUniqueNickname(prisma, nickname);
+        // Генерируем никнейм и уникальный тег
+        const nickname = sanitizeNickname(discordUser.username || discordUser.global_name);
+        const tag = await generateUniqueTag(prisma, nickname);
 
         user = await prisma.user.create({
           data: {
             email,
             discordId: discordUser.id,
+            discordUsername: discordUser.username, // Сохраняем Discord логин
             nickname,
+            tag,
             avatarUrl,
-            emailVerifiedAt: discordUser.verified ? new Date() : null
+            emailVerifiedAt: discordUser.verified ? new Date() : null,
+            loginStreak: 1,
+            lastLoginDate: new Date()
           }
         });
+      } else {
+        // Обновляем discordUsername для существующих пользователей
+        if (discordUser.username && user.discordUsername !== discordUser.username) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { discordUsername: discordUser.username }
+          });
+          user.discordUsername = discordUser.username;
+        }
       }
+
+      // Обновляем loginStreak
+      await updateLoginStreak(prisma, user);
 
       // Создаём сессию
       req.session.userId = user.id;
@@ -259,20 +322,26 @@ function createOAuthRouter(prisma) {
           return res.redirect(`${baseUrl}/login?error=oauth_no_email`);
         }
 
-        // Генерируем уникальный никнейм из имени
-        let nickname = sanitizeNickname(googleUser.name || googleUser.given_name || email.split("@")[0]);
-        nickname = await ensureUniqueNickname(prisma, nickname);
+        // Генерируем никнейм и уникальный тег
+        const nickname = sanitizeNickname(googleUser.name || googleUser.given_name || email.split("@")[0]);
+        const tag = await generateUniqueTag(prisma, nickname);
 
         user = await prisma.user.create({
           data: {
             email,
             googleId: googleUser.id,
             nickname,
+            tag,
             avatarUrl: googleUser.picture || null,
-            emailVerifiedAt: googleUser.verified_email ? new Date() : null
+            emailVerifiedAt: googleUser.verified_email ? new Date() : null,
+            loginStreak: 1,
+            lastLoginDate: new Date()
           }
         });
       }
+
+      // Обновляем loginStreak
+      await updateLoginStreak(prisma, user);
 
       // Создаём сессию
       req.session.userId = user.id;

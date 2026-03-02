@@ -1,9 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Button from "../ui/Button";
+import AvatarFrame from "../ui/AvatarFrame";
+import StyledNickname from "../ui/StyledNickname";
+import { ClickablePlayer } from "../friends";
 import { getEmotionColor } from "./emotionColors";
 import FitTwoLineText from "./FitTwoLineText";
 import "./EmotionalOvalTable.css";
+
+// Преобразование nicknameStyle в формат для StyledNickname
+function toNicknameCustomization(style) {
+  if (!style) return null;
+  return {
+    nicknameColorType: style.colorType,
+    nicknameCustomColor: style.customColor,
+    nicknameGradient: style.gradient,
+    nicknameGlow: style.glow
+  };
+}
 
 export default function EmotionalOvalTable({
   players = [],
@@ -32,6 +46,7 @@ export default function EmotionalOvalTable({
   isHost = false,
   tableCleared = false,
   round = 0,
+  socket = null,
 }) {
   // activeHandCard — карточка, которую пользователь "выбрал" (клик/тап) и которая должна подсветиться
   const [activeHandCard, setActiveHandCard] = useState(null);
@@ -309,17 +324,42 @@ export default function EmotionalOvalTable({
               style={{ left: `${x}%`, top: `${y}%` }}
             >
               <div className="oval-table__player-avatar-wrapper">
-                <div className="oval-table__player-avatar">
-                  {player.avatarUrl ? (
-                    <img src={player.avatarUrl} alt="" />
-                  ) : (
-                    <span>{initial}</span>
-                  )}
-                </div>
+                <AvatarFrame size="s" frameSlug={player.frameSlug} className="oval-table__avatar-frame">
+                  <div className="oval-table__player-avatar">
+                    {player.avatarUrl ? (
+                      <img src={player.avatarUrl} alt="" />
+                    ) : (
+                      <span>{initial}</span>
+                    )}
+                  </div>
+                </AvatarFrame>
                 <div className={`oval-table__player-status-dot ${isDisconnected ? "offline" : "online"}`} />
                 {isPlayerHost && <div className="oval-table__player-crown">👑</div>}
               </div>
-              <div className="oval-table__player-name">{player.name}</div>
+              <div className="oval-table__player-name">
+                {player.visitorId ? (
+                  <ClickablePlayer
+                    odlerId={player.visitorId}
+                    odlerNickname={player.name}
+                    avatar={player.avatarUrl}
+                    frameSlug={player.frameSlug}
+                    nicknameStyle={player.nicknameStyle}
+                    relationshipStatus={player.id === meId ? "self" : "none"}
+                    socket={socket}
+                    disabled={!player.visitorId}
+                  >
+                    <StyledNickname 
+                      name={player.name} 
+                      customization={toNicknameCustomization(player.nicknameStyle)}
+                    />
+                  </ClickablePlayer>
+                ) : (
+                  <StyledNickname 
+                    name={player.name} 
+                    customization={toNicknameCustomization(player.nicknameStyle)}
+                  />
+                )}
+              </div>
             </div>
           );
         })}

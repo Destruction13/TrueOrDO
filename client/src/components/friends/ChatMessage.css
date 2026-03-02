@@ -1,0 +1,31 @@
+.chat-message {
+  display: flex;
+  max-width: 80%;
+}
+
+.chat-message--own {
+  margin-left: auto;
+}
+
+.chat-message__bubble {
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chat-message--own .chat-message__bubble {
+  background: #8b5cf6;
+}
+
+.chat-message__content {
+  color: white;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.chat-message__time {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 4px;
+  text-align: right;
+}

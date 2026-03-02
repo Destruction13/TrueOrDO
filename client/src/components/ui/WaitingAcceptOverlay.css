@@ -87,7 +87,7 @@
 
 .waiting-accept-overlay__player-name {
   font-family: "Orbitron", sans-serif;
-  font-size: clamp(24px, 5vw, 32px);
+  font-size: clamp(26px, 5.5vw, 36px);
   font-weight: 700;
   color: var(--wa-accent, var(--accent));
   text-shadow:
@@ -382,7 +382,7 @@
   }
 
   .waiting-accept-overlay__player-name {
-    font-size: 22px;
+    font-size: 24px;
   }
 
   .waiting-accept-overlay__text {

@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
 import AliasShaderBackground from "../components/alias/AliasShaderBackground";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, getOrCreateGlobalVisitorId } from "../context/AuthContext";
 import { useSettings, GAME_IDS } from "../context/SettingsContext";
 import Button from "../components/ui/Button";
 import AliasJoinScreen from "../components/alias/AliasJoinScreen";
@@ -21,16 +21,9 @@ const SESSION_KEYS = {
 };
 
 function getOrCreateVisitorId() {
-  try {
-    let visitorId = localStorage.getItem(SESSION_KEYS.VISITOR_ID);
-    if (!visitorId) {
-      visitorId = "av_" + Math.random().toString(36).substring(2) + Date.now().toString(36);
-      localStorage.setItem(SESSION_KEYS.VISITOR_ID, visitorId);
-    }
-    return visitorId;
-  } catch {
-    return "av_" + Math.random().toString(36).substring(2);
-  }
+  // Используем глобальный visitorId (с префиксом u_) для всех пользователей
+  // Это позволяет привязывать статистику к аккаунту
+  return getOrCreateGlobalVisitorId();
 }
 
 function saveSession(playerId, roomCode, playerName) {
@@ -84,7 +77,7 @@ export default function AliasPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { roomCode: urlRoomCode } = useParams();
-  const { user } = useAuth();
+  const { user, customization } = useAuth();
   const { isShadersDisabled } = useSettings();
   
   const [connected, setConnected] = useState(false);
@@ -171,7 +164,7 @@ export default function AliasPage() {
       if (urlRoomCode) {
         // Если пользователь авторизован — сразу входим
         if (user?.nickname) {
-          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl);
+          joinRoomDirect(urlRoomCode, user.nickname, user.avatarUrl, customization?.frameAll);
         } else {
           // Иначе запоминаем код — JoinScreen покажет форму для ввода ника
           setPendingJoinCode(urlRoomCode);
@@ -182,13 +175,14 @@ export default function AliasPage() {
       }
     };
 
-    const joinRoomDirect = (code, name, avatarUrl) => {
+    const joinRoomDirect = (code, name, avatarUrl, frameSlug) => {
       const visitorId = getOrCreateVisitorId();
       socket.emit("alias:room:join", { 
         code, 
         name, 
         visitorId,
-        avatarUrl 
+        avatarUrl,
+        frameSlug 
       }, (res) => {
         if (res?.ok) {
           setAliasState(res.state);
@@ -303,8 +297,7 @@ export default function AliasPage() {
     };
   }, [meId]);
 
-  // Синхронизация профиля с игрой при изменении user
-  // Сравниваем данные user с данными игрока в состоянии комнаты
+  // Синхронизация профиля с игрой при изменении user или customization
   useEffect(() => {
     if (!aliasState || !meId || !user) return;
     
@@ -312,16 +305,28 @@ export default function AliasPage() {
     const currentPlayer = aliasState.players?.find(p => p.id === meId);
     if (!currentPlayer) return;
     
+    // Формируем nicknameStyle из customization
+    const nicknameStyle = customization ? {
+      colorType: customization.nicknameColorType,
+      customColor: customization.nicknameCustomColor,
+      gradient: customization.nicknameGradient,
+      glow: customization.nicknameGlow
+    } : null;
+    
     // Проверяем, отличаются ли данные профиля от данных в игре
-    const needsUpdate = currentPlayer.avatarUrl !== user.avatarUrl;
+    const needsUpdate = 
+      currentPlayer.name !== user.nickname ||
+      currentPlayer.avatarUrl !== user.avatarUrl ||
+      JSON.stringify(currentPlayer.nicknameStyle) !== JSON.stringify(nicknameStyle);
     
     if (needsUpdate) {
       socket.emit("alias:player:update_profile", {
         nickname: user.nickname,
-        avatarUrl: user.avatarUrl
+        avatarUrl: user.avatarUrl,
+        nicknameStyle
       });
     }
-  }, [user?.nickname, user?.avatarUrl, aliasState, meId]);
+  }, [user?.nickname, user?.avatarUrl, customization, aliasState, meId]);
 
   const emitWithAck = (event, payload) => new Promise(resolve => socket.emit(event, payload, resolve));
 
@@ -332,9 +337,9 @@ export default function AliasPage() {
   };
 
   const actions = useMemo(() => ({
-    createRoom: async (name, avatarUrl) => {
+    createRoom: async (name, avatarUrl, frameSlug) => {
       const visitorId = getOrCreateVisitorId();
-      const res = await emitWithAck("alias:room:create", { name, visitorId, avatarUrl });
+      const res = await emitWithAck("alias:room:create", { name, visitorId, avatarUrl, frameSlug });
       const result = handleAck(res);
       if (result.ok) {
         setAliasState(result.state);
@@ -345,9 +350,9 @@ export default function AliasPage() {
       }
       return result;
     },
-    joinRoom: async (name, code, avatarUrl) => {
+    joinRoom: async (name, code, avatarUrl, frameSlug) => {
       const visitorId = getOrCreateVisitorId();
-      const res = await emitWithAck("alias:room:join", { name, code, visitorId, avatarUrl });
+      const res = await emitWithAck("alias:room:join", { name, code, visitorId, avatarUrl, frameSlug });
       const result = handleAck(res);
       if (result.ok) {
         setAliasState(result.state);
@@ -421,6 +426,7 @@ export default function AliasPage() {
           onCreate={actions.createRoom}
           onJoin={actions.joinRoom}
           user={user}
+          customization={customization}
           onProfile={() => navigate("/profile")}
           onLogin={() => navigate("/login", { state: { backgroundLocation: location } })}
           onClearError={() => setError("")}
@@ -455,6 +461,7 @@ export default function AliasPage() {
         actions={actions}
         cyberLeaderboard={cyberLeaderboard}
         setCyberLeaderboard={setCyberLeaderboard}
+        socket={socket}
       />
     </div>
   );

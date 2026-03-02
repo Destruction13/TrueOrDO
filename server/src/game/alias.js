@@ -139,11 +139,14 @@ async function buildAliasRoomState(prisma, roomId) {
       id: p.id,
       name: p.name,
       avatarUrl: p.avatarUrl,
+      frameSlug: p.frameSlug,
+      nicknameStyle: p.nicknameStyle ? JSON.parse(p.nicknameStyle) : null,
       teamId: p.teamId,
       isReady: p.isReady,
       isSpectator: p.isSpectator,
       connectionStatus: p.connectionStatus,
-      explainOrder: p.explainOrder
+      explainOrder: p.explainOrder,
+      visitorId: p.visitorId
     })),
     currentWord // Will be filtered on client for non-explainers
   };

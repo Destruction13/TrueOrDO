@@ -146,7 +146,7 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   transition: all 0.2s ease;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .emotional-leaderboard-modal__item--me {
@@ -222,15 +222,15 @@
 }
 
 .emotional-leaderboard-modal__player-name {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: #fff;
   display: flex;
   align-items: center;
   gap: 8px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  padding: 4px 0;
 }
 
 .emotional-leaderboard-modal__you-badge {
@@ -319,7 +319,7 @@
   }
 
   .emotional-leaderboard-modal__player-name {
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .emotional-leaderboard-modal__score-value {

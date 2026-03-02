@@ -4,7 +4,10 @@ import { motion } from "framer-motion";
 import { GlowingEffect } from "../components/ui/GlowingEffect";
 import GamesShaderBackground from "../components/GamesShaderBackground";
 import { useAuth } from "../context/AuthContext";
+import { SocialHeaderIcons } from "../components/social";
 import Button from "../components/ui/Button";
+import AvatarFrame from "../components/ui/AvatarFrame";
+import StyledNickname from "../components/ui/StyledNickname";
 import "./GamesPage.css";
 
 const games = [
@@ -15,7 +18,7 @@ const games = [
     path: "/truth-or-dare",
     available: true,
     icon: "🎯",
-    image: "/tod-preview.png",
+    image: "/covers/TruthOrDare.jpg",
   },
   {
     id: "alias",
@@ -24,7 +27,7 @@ const games = [
     path: "/alias",
     available: true,
     icon: "🎭",
-    image: "/alias-preview.png",
+    image: "/covers/Alias.jpg",
   },
   {
     id: "codenames",
@@ -33,6 +36,7 @@ const games = [
     path: "/codenames",
     available: true,
     icon: "🕵️",
+    image: "/covers/Codenames.jpg",
   },
   {
     id: "emotional",
@@ -41,6 +45,7 @@ const games = [
     path: "/emotional",
     available: true,
     icon: "🧠",
+    image: "/covers/Emotional.jpg",
   },
 ];
 
@@ -84,7 +89,7 @@ function GameCard({ game, index, onClick }) {
 export default function GamesPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, customization } = useAuth();
 
   // Установка заголовка страницы
   useEffect(() => {
@@ -97,16 +102,26 @@ export default function GamesPage() {
 
       <div className="user-header">
         {user ? (
-          <button className="user-header__profile" onClick={() => navigate("/profile")} type="button">
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="user-header__avatar" />
-            ) : (
-              <span className="user-header__avatar-placeholder">
-                {(user.nickname || user.email)?.[0]?.toUpperCase() || "?"}
+          <>
+            <SocialHeaderIcons />
+            <button className="user-header__profile" onClick={() => navigate("/profile")} type="button">
+              <AvatarFrame size="xs" frameSlug={customization?.frameAll}>
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="user-header__avatar" />
+                ) : (
+                  <span className="user-header__avatar-placeholder">
+                    {(user.nickname || user.email)?.[0]?.toUpperCase() || "?"}
+                  </span>
+                )}
+              </AvatarFrame>
+              <span className="user-header__name">
+                <StyledNickname 
+                  name={user.nickname || user.email} 
+                  customization={customization}
+                />
               </span>
-            )}
-            <span className="user-header__name">{user.nickname || user.email}</span>
-          </button>
+            </button>
+          </>
         ) : (
           <Button
             variant="ghost"

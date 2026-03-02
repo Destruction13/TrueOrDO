@@ -3,11 +3,25 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import Button from "../ui/Button";
 import PulseButton from "../ui/PulseButton";
+import AvatarFrame from "../ui/AvatarFrame";
+import StyledNickname from "../ui/StyledNickname";
+import { ClickablePlayer } from "../friends";
 import CodenamesRulesModal from "./CodenamesRulesModal";
 import { useAuth } from "../../context/AuthContext";
 import { GAME_IDS } from "../../context/SettingsContext";
 import BatteryModeButton from "../ui/BatteryModeButton";
 import "./CodenamesRoomScreen.css";
+
+// Преобразование nicknameStyle в формат для StyledNickname
+function toNicknameCustomization(style) {
+  if (!style) return null;
+  return {
+    nicknameColorType: style.colorType,
+    nicknameCustomColor: style.customColor,
+    nicknameGradient: style.gradient,
+    nicknameGlow: style.glow
+  };
+}
 
 const TEAM_COLORS = {
   red: { name: "Красные", color: "#f7786b" },
@@ -46,11 +60,12 @@ export default function CodenamesRoomScreen({
   gameState,
   actions,
   isPaused,
-  cardPokes
+  cardPokes,
+  socket
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, customization } = useAuth();
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [hintInput, setHintInput] = useState("");
@@ -604,7 +619,9 @@ export default function CodenamesRoomScreen({
           )}
           {isAuthenticated ? (
             <button className="codenames-header-profile__btn" onClick={() => navigate("/profile")} title="Профиль">
-              {user?.avatarUrl ? <img src={user.avatarUrl} alt="" className="codenames-header-profile__avatar" /> : <span className="codenames-header-profile__placeholder">{(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}</span>}
+              <AvatarFrame size="s" frameSlug={customization?.frameAll}>
+                {user?.avatarUrl ? <img src={user.avatarUrl} alt="" className="codenames-header-profile__avatar" /> : <span className="codenames-header-profile__placeholder">{(user?.nickname || user?.email)?.[0]?.toUpperCase() || "?"}</span>}
+              </AvatarFrame>
             </button>
           ) : (
             <button className="codenames-header-btn codenames-header-btn--login" onClick={() => navigate("/login", { state: { backgroundLocation: location } })}>Войти</button>
@@ -711,11 +728,36 @@ export default function CodenamesRoomScreen({
                 <React.Fragment key={player.id}>
                   <div className={`codenames-player ${isCaptain ? "codenames-player--captain" : ""} ${player.id === meId ? "codenames-player--me" : ""} ${isDisconnected ? "codenames-player--disconnected" : ""}`}>
                     <div className="codenames-player__avatar-wrapper">
-                      {player.avatarUrl ? <img src={player.avatarUrl} alt="" className="codenames-player__avatar" /> : <span className="codenames-player__avatar-placeholder">{player.name[0].toUpperCase()}</span>}
+                      <AvatarFrame size="xs" frameSlug={player.frameSlug}>
+                        {player.avatarUrl ? <img src={player.avatarUrl} alt="" className="codenames-player__avatar" /> : <span className="codenames-player__avatar-placeholder">{player.name[0].toUpperCase()}</span>}
+                      </AvatarFrame>
                       <div className={`codenames-player__status-dot ${isDisconnected ? "offline" : "online"}`} />
                       {isPlayerHost && <div className="codenames-player__crown">👑</div>}
                     </div>
-                    <span className="codenames-player__name">{player.name}</span>
+                    {player.visitorId ? (
+                      <ClickablePlayer
+                        odlerId={player.visitorId}
+                        odlerNickname={player.name}
+                        avatar={player.avatarUrl}
+                        frameSlug={player.frameSlug}
+                        nicknameStyle={player.nicknameStyle}
+                        relationshipStatus={player.id === meId ? "self" : "none"}
+                        socket={socket}
+                        disabled={!player.visitorId}
+                      >
+                        <StyledNickname 
+                          name={player.name} 
+                          customization={toNicknameCustomization(player.nicknameStyle)}
+                          className="codenames-player__name"
+                        />
+                      </ClickablePlayer>
+                    ) : (
+                      <StyledNickname 
+                        name={player.name} 
+                        customization={toNicknameCustomization(player.nicknameStyle)}
+                        className="codenames-player__name"
+                      />
+                    )}
                     {isCaptain && <span className="codenames-player__badge">К</span>}
                   </div>
                   {/* Разделитель после капитана, если есть агенты */}
@@ -1043,11 +1085,36 @@ export default function CodenamesRoomScreen({
                 <React.Fragment key={player.id}>
                   <div className={`codenames-player ${isCaptain ? "codenames-player--captain" : ""} ${player.id === meId ? "codenames-player--me" : ""} ${isDisconnected ? "codenames-player--disconnected" : ""}`}>
                     <div className="codenames-player__avatar-wrapper">
-                      {player.avatarUrl ? <img src={player.avatarUrl} alt="" className="codenames-player__avatar" /> : <span className="codenames-player__avatar-placeholder">{player.name[0].toUpperCase()}</span>}
+                      <AvatarFrame size="xs" frameSlug={player.frameSlug}>
+                        {player.avatarUrl ? <img src={player.avatarUrl} alt="" className="codenames-player__avatar" /> : <span className="codenames-player__avatar-placeholder">{player.name[0].toUpperCase()}</span>}
+                      </AvatarFrame>
                       <div className={`codenames-player__status-dot ${isDisconnected ? "offline" : "online"}`} />
                       {isPlayerHost && <div className="codenames-player__crown">👑</div>}
                     </div>
-                    <span className="codenames-player__name">{player.name}</span>
+                    {player.visitorId ? (
+                      <ClickablePlayer
+                        odlerId={player.visitorId}
+                        odlerNickname={player.name}
+                        avatar={player.avatarUrl}
+                        frameSlug={player.frameSlug}
+                        nicknameStyle={player.nicknameStyle}
+                        relationshipStatus={player.id === meId ? "self" : "none"}
+                        socket={socket}
+                        disabled={!player.visitorId}
+                      >
+                        <StyledNickname 
+                          name={player.name} 
+                          customization={toNicknameCustomization(player.nicknameStyle)}
+                          className="codenames-player__name"
+                        />
+                      </ClickablePlayer>
+                    ) : (
+                      <StyledNickname 
+                        name={player.name} 
+                        customization={toNicknameCustomization(player.nicknameStyle)}
+                        className="codenames-player__name"
+                      />
+                    )}
                     {isCaptain && <span className="codenames-player__badge">К</span>}
                   </div>
                   {/* Разделитель после капитана, если есть агенты */}

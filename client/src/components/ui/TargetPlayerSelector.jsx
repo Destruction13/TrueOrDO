@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import AvatarFrame from "./AvatarFrame";
 import "./TargetPlayerSelector.css";
 
 /**
@@ -108,17 +109,19 @@ export default function TargetPlayerSelector({
               whileTap={!disabled && !(customEnabled && isChaos) ? { scale: 0.98 } : {}}
             >
               <div className="target-player-btn__avatar-wrapper">
-                {player.avatarUrl ? (
-                  <img 
-                    src={player.avatarUrl} 
-                    alt={player.name}
-                    className="target-player-btn__avatar"
-                  />
-                ) : (
-                  <div className="target-player-btn__avatar-placeholder">
-                    {initial}
-                  </div>
-                )}
+                <AvatarFrame size="s" frameSlug={player.frameSlug}>
+                  {player.avatarUrl ? (
+                    <img 
+                      src={player.avatarUrl} 
+                      alt={player.name}
+                      className="target-player-btn__avatar"
+                    />
+                  ) : (
+                    <div className="target-player-btn__avatar-placeholder">
+                      {initial}
+                    </div>
+                  )}
+                </AvatarFrame>
                 <div className={`target-player-btn__status-dot ${player.status}`} />
               </div>
               

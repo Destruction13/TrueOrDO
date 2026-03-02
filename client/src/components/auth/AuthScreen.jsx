@@ -8,6 +8,67 @@ import "./AuthScreen.css";
 const DISCORD_AUTH_URL = "/api/auth/discord";
 const GOOGLE_AUTH_URL = "/api/auth/google";
 
+/**
+ * Попытка открыть Discord OAuth через приложение, затем fallback на браузер
+ * Discord протокол: discord://-/... может открыть приложение напрямую
+ */
+function handleDiscordAuth(e) {
+  e.preventDefault();
+  
+  // Получаем полный URL для OAuth
+  const baseUrl = window.location.origin;
+  const clientId = import.meta.env.VITE_DISCORD_CLIENT_ID;
+  
+  // Если нет client_id в env — просто переходим на серверный endpoint
+  if (!clientId) {
+    window.location.href = DISCORD_AUTH_URL;
+    return;
+  }
+  
+  const redirectUri = `${baseUrl}/api/auth/discord/callback`;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'identify email'
+  });
+  
+  // URL для приложения Discord (протокол discord://)
+  const discordAppUrl = `discord://-/oauth2/authorize?${params}`;
+  // URL для веб-версии (fallback)
+  const discordWebUrl = `https://discord.com/oauth2/authorize?${params}`;
+  
+  // Пробуем открыть через приложение
+  const startTime = Date.now();
+  
+  // Создаём скрытый iframe для попытки открыть протокол
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  document.body.appendChild(iframe);
+  
+  try {
+    iframe.contentWindow.location.href = discordAppUrl;
+  } catch (err) {
+    // Ошибка безопасности — протокол не поддерживается
+  }
+  
+  // Также пробуем через window.location для систем где iframe не работает
+  setTimeout(() => {
+    window.location.href = discordAppUrl;
+  }, 50);
+  
+  // Если через 1.5 сек страница всё ещё активна — приложение не открылось, fallback на веб
+  setTimeout(() => {
+    // Проверяем, что мы всё ещё на странице (приложение не перехватило)
+    if (document.hasFocus() || Date.now() - startTime < 1400) {
+      // Убираем iframe
+      document.body.removeChild(iframe);
+      // Переходим на веб-версию
+      window.location.href = discordWebUrl;
+    }
+  }, 1500);
+}
+
 // Иконки OAuth провайдеров
 function DiscordIcon() {
   return (
@@ -242,10 +303,14 @@ export default function AuthScreen({ onSuccess, onClose, initialMode = "login" }
                 <span>или</span>
               </div>
               <div className="auth-oauth__buttons">
-                <a href={DISCORD_AUTH_URL} className="oauth-btn oauth-btn--discord">
+                <button 
+                  type="button"
+                  onClick={handleDiscordAuth} 
+                  className="oauth-btn oauth-btn--discord"
+                >
                   <DiscordIcon />
                   <span>Discord</span>
-                </a>
+                </button>
                 <a href={GOOGLE_AUTH_URL} className="oauth-btn oauth-btn--google">
                   <GoogleIcon />
                   <span>Google</span>
