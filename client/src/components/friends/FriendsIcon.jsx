@@ -69,10 +69,8 @@ export default function FriendsIcon({ socket }) {
       loadCounts();
     };
 
-    // Новое сообщение
-    const handleMessageReceived = () => {
-      setUnreadMessagesCount((prev) => prev + 1);
-    };
+    // Новые сообщения уже учитываются в SocialIntegration (unreadMessagesCount),
+    // тут не увеличиваем локально, чтобы не было двойного счёта.
 
     // Сообщения прочитаны
     const handleMessagesRead = (data) => {
@@ -90,7 +88,6 @@ export default function FriendsIcon({ socket }) {
     socket.on("friends:request:received", handleRequestReceived);
     socket.on("friends:request:accepted", handleRequestAccepted);
     socket.on("friends:status:update", handleStatusUpdate);
-    socket.on("messages:received", handleMessageReceived);
     socket.on("messages:read:confirmed", handleMessagesRead);
     socket.on("game:invite:received", handleGameInvite);
 
@@ -98,7 +95,6 @@ export default function FriendsIcon({ socket }) {
       socket.off("friends:request:received", handleRequestReceived);
       socket.off("friends:request:accepted", handleRequestAccepted);
       socket.off("friends:status:update", handleStatusUpdate);
-      socket.off("messages:received", handleMessageReceived);
       socket.off("messages:read:confirmed", handleMessagesRead);
       socket.off("game:invite:received", handleGameInvite);
     };

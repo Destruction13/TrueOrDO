@@ -33,6 +33,16 @@ export function SocialProvider({ children }) {
   const [isFriendsModalOpen, setIsFriendsModalOpen] = useState(false);
   const [friendsModalTab, setFriendsModalTab] = useState("friends");
   const [openChats, setOpenChats] = useState([]);
+
+  // legacy compact messenger: active chat partner for unread suppression
+  const [activePartnerId, setActivePartnerId] = useState(null);
+
+  // refs, чтобы не пересоздавать сокет при изменениях UI
+  const activePartnerIdRef = useRef(null);
+
+  useEffect(() => {
+    activePartnerIdRef.current = activePartnerId;
+  }, [activePartnerId]);
   
   // Counters
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
@@ -53,6 +63,7 @@ export function SocialProvider({ children }) {
     const newSocket = io(import.meta.env.VITE_API_URL || window.location.origin, {
       auth: { userId: user.id },
       transports: ["websocket", "polling"],
+      withCredentials: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
@@ -62,13 +73,19 @@ export function SocialProvider({ children }) {
     newSocket.on("connect", () => {
       setIsConnected(true);
       setConnectionError(null);
-      // Initialize social data
-      newSocket.emit("friends:init", {}, (response) => {
-        if (response?.success) {
-          setPendingRequestsCount(response.pendingCount || 0);
-          setUnreadMessagesCount(response.unreadMessages || 0);
-          setOnlineFriendsCount(response.onlineFriends || 0);
-        }
+      // Presence register (сервер выставляет onlineStatus и пушит друзьям)
+      newSocket.emit("friends:register", {}, (res) => {
+        // ok: true/false
+        if (res?.pendingCount != null) setPendingRequestsCount(res.pendingCount || 0);
+      });
+
+      // Initial counters
+      newSocket.emit("messages:unread:count", {}, (res) => {
+        if (res?.success) setUnreadMessagesCount(res.count || 0);
+      });
+
+      newSocket.emit("friends:list", { filter: "online" }, (res) => {
+        if (res?.success) setOnlineFriendsCount(res.friends?.length || 0);
       });
     });
 
@@ -91,9 +108,14 @@ export function SocialProvider({ children }) {
     });
 
     newSocket.on("messages:received", (data) => {
-      // Don't increment if chat is open
-      const isChatOpen = openChats.some((c) => c.odlerId === data.senderId);
-      if (!isChatOpen) {
+      // Не увеличиваем unread, если прямо сейчас открыт компактный чат с этим собеседником
+      const senderId = data?.senderId;
+      const isActive =
+        activePartnerIdRef.current &&
+        senderId &&
+        String(activePartnerIdRef.current) === String(senderId);
+
+      if (!isActive) {
         setUnreadMessagesCount((c) => c + 1);
       }
     });
@@ -113,19 +135,44 @@ export function SocialProvider({ children }) {
     };
   }, [isAuthenticated, user?.id]);
 
-  // Open chat with user
+  // Открыть мессенджер и сразу выбрать диалог
+  // Открыть компактный чат (окна снизу справа)
   const openChat = useCallback((odlerId, nickname, avatar) => {
     setOpenChats((prev) => {
-      if (prev.some((c) => c.odlerId === odlerId)) {
-        return prev; // Already open
-      }
+      const exists = prev.some((c) => String(c.odlerId) === String(odlerId));
+      if (exists) return prev;
       return [...prev, { odlerId, nickname, avatar }];
     });
+    setActivePartnerId(odlerId);
   }, []);
 
-  // Close chat
+  // Для совместимости (если где-то вызывается) 
+  const openMessenger = useCallback(() => {
+    setIsFriendsModalOpen(true);
+    setFriendsModalTab("friends");
+  }, []);
+
+  const closeMessenger = useCallback(() => {
+    // компактный режим: закрытие мессенджера = закрыть все чаты
+    setOpenChats([]);
+    setActivePartnerId(null);
+  }, []);
+
+  const toggleMessenger = useCallback(() => {
+    setIsFriendsModalOpen((v) => !v);
+    setFriendsModalTab("friends");
+  }, []);
+
+  // Close chat (legacy popups)
   const closeChat = useCallback((odlerId) => {
-    setOpenChats((prev) => prev.filter((c) => c.odlerId !== odlerId));
+    setOpenChats((prev) => {
+      const next = prev.filter((c) => String(c.odlerId) !== String(odlerId));
+      // если закрыли активный чат — сбрасываем activePartnerId
+      if (String(activePartnerIdRef.current) === String(odlerId)) {
+        setActivePartnerId(next.length ? next[next.length - 1].odlerId : null);
+      }
+      return next;
+    });
   }, []);
 
   // Open friends modal
@@ -157,7 +204,14 @@ export function SocialProvider({ children }) {
     closeChat,
     openFriendsModal,
     inviteToGame,
-    
+    openMessenger,
+    closeMessenger,
+    toggleMessenger,
+
+    // UI state
+    isMessengerOpen: openChats.length > 0,
+    isCompactChatOpen: openChats.length > 0,
+
     // UI state setters
     setIsFriendsModalOpen,
     setPendingRequestsCount,
@@ -166,7 +220,11 @@ export function SocialProvider({ children }) {
 
   return (
     <SocialContext.Provider value={value}>
-      <NotificationProvider socket={socket}>
+      <NotificationProvider
+        socket={socket}
+        isChatOpen={openChats.length > 0}
+        activeChatPartnerId={activePartnerId}
+      >
         {children}
         
         {/* Global social UI components */}
@@ -180,11 +238,13 @@ export function SocialProvider({ children }) {
               onOpenChat={openChat}
             />
             
+            {/* Compact chat windows (bottom-right) */}
             <ChatContainer
               chats={openChats}
               onClose={closeChat}
               socket={socket}
               currentUserId={user?.id}
+              onActivePartnerChange={setActivePartnerId}
             />
           </>
         )}

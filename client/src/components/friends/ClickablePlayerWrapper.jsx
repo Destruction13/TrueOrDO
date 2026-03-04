@@ -5,7 +5,8 @@ export default function ClickablePlayerWrapper({ children, player, friendshipSta
     onClick?.(player);
   };
 
-  if (!player || player.odlerId === currentUserId) {
+  const playerId = player?.id || player?.odlerId;
+  if (!player || String(playerId) === String(currentUserId)) {
     return <>{children}</>;
   }
 

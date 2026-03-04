@@ -4,6 +4,7 @@
  */
 
 const { PrismaClient } = require("@prisma/client");
+const { toPublicUser } = require("./userPublic");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ОТПРАВКА ЗАЯВКИ В ДРУЗЬЯ
@@ -82,8 +83,7 @@ async function sendFriendRequest(prisma, senderId, receiverId) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: { select: { frameAll: true } },
             onlineStatus: true,
           },
         },
@@ -92,13 +92,16 @@ async function sendFriendRequest(prisma, senderId, receiverId) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: { select: { frameAll: true } },
             onlineStatus: true,
           },
         },
       },
     });
+
+    //     frameSlug  compatibility
+    request.sender = toPublicUser(request.sender);
+    request.receiver = toPublicUser(request.receiver);
 
     return { success: true, request };
   } catch (error) {
@@ -166,8 +169,15 @@ async function acceptFriendRequest(prisma, userId, requestId) {
           id: true,
           nickname: true,
           avatarUrl: true,
-          frameSlug: true,
-          nicknameStyle: true,
+          customization: {
+            select: {
+              frameAll: true,
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } },
+            },
+          },
           onlineStatus: true,
           lastSeenAt: true,
           currentGameType: true,
@@ -175,7 +185,7 @@ async function acceptFriendRequest(prisma, userId, requestId) {
         },
       });
 
-      return { friendship: friendship1, friend };
+      return { friendship: friendship1, friend: toPublicUser(friend) };
     });
 
     return { success: true, friendship: result.friendship, friend: result.friend };
@@ -334,7 +344,6 @@ async function getFriends(prisma, userId, options = {}) {
         ? {
             nickname: {
               contains: search,
-              mode: "insensitive",
             },
           }
         : undefined,
@@ -349,8 +358,15 @@ async function getFriends(prisma, userId, options = {}) {
             visitorId: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
             lastSeenAt: true,
             currentGameType: true,
@@ -367,7 +383,7 @@ async function getFriends(prisma, userId, options = {}) {
     // Преобразуем в удобный формат
     let friends = friendships.map((f) => ({
       friendshipId: f.id,
-      ...f.friend,
+      ...toPublicUser(f.friend),
       friendsSince: f.createdAt,
     }));
 
@@ -419,8 +435,7 @@ async function getPendingRequests(prisma, userId) {
             visitorId: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: { select: { frameAll: true } },
             onlineStatus: true,
             level: true,
           },
@@ -435,7 +450,7 @@ async function getPendingRequests(prisma, userId) {
       success: true,
       requests: requests.map((r) => ({
         id: r.id,
-        sender: r.sender,
+        sender: toPublicUser(r.sender),
         createdAt: r.createdAt,
       })),
     };
@@ -469,8 +484,7 @@ async function getSentRequests(prisma, userId) {
             visitorId: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: { select: { frameAll: true } },
             onlineStatus: true,
             level: true,
           },
@@ -485,7 +499,7 @@ async function getSentRequests(prisma, userId) {
       success: true,
       requests: requests.map((r) => ({
         id: r.id,
-        receiver: r.receiver,
+        receiver: toPublicUser(r.receiver),
         createdAt: r.createdAt,
       })),
     };
@@ -726,37 +740,87 @@ async function searchUsers(prisma, userId, query, limit = 20) {
     );
     blockedIds.delete(userId);
 
-    // Поиск пользователей
-    const users = await prisma.user.findMany({
-      where: {
-        AND: [
-          { id: { not: userId } },
-          { id: { notIn: Array.from(blockedIds) } },
-          {
-            nickname: {
-              contains: query,
-              mode: "insensitive",
+    const normalizedQuery = String(query).trim();
+
+    // Поддержка формата "Nickname#1234" (nickname + tag)
+    const tagMatch = normalizedQuery.match(/^(.+?)#(\d{1,4})$/);
+
+    const whereBase = {
+      AND: [{ id: { not: userId } }, { id: { notIn: Array.from(blockedIds) } }],
+    };
+
+    const whereClause = tagMatch
+      ? {
+          ...whereBase,
+          AND: [
+            ...whereBase.AND,
+            { tag: { equals: tagMatch[2] } },
+          ],
+        }
+      : {
+          ...whereBase,
+          AND: [
+            ...whereBase.AND,
+            {
+              OR: [
+                { nickname: { contains: normalizedQuery } },
+                { discordUsername: { contains: normalizedQuery } },
+                // Поиск по тегу (например "4307" или "#4307")
+                { tag: { contains: normalizedQuery.replace(/^#/, "") } },
+              ],
             },
-          },
-        ],
-      },
+          ],
+        };
+
+    // Поиск пользователей
+    const usersRaw = await prisma.user.findMany({
+      where: whereClause,
       select: {
         id: true,
         nickname: true,
+        tag: true,
+        discordUsername: true,
         avatarUrl: true,
-        frameSlug: true,
-        nicknameStyle: true,
+        customization: {
+          select: {
+            frameAll: true,
+            nicknameColorType: true,
+            nicknameCustomColor: true,
+            nicknameGradient: { select: { cssValue: true } },
+            nicknameGlow: { select: { cssValue: true } },
+          },
+        },
         onlineStatus: true,
         level: true,
       },
-      take: limit,
+      // Берём чуть больше, потому что дальше можем отфильтровать в JS
+      take: Math.max(limit * 5, 50),
     });
+
+    // JS-фильтрация для случая Nickname#tag и для case-insensitive поведения на sqlite
+    const qLower = normalizedQuery.toLowerCase();
+    const nicknamePartLower = tagMatch ? tagMatch[1].trim().toLowerCase() : null;
+
+    const users = usersRaw
+      .filter((u) => {
+        const nick = (u.nickname || "").toLowerCase();
+        const discord = (u.discordUsername || "").toLowerCase();
+        const tag = (u.tag || "");
+
+        if (tagMatch) {
+          return tag === tagMatch[2] && nick.includes(nicknamePartLower);
+        }
+
+        return nick.includes(qLower) || discord.includes(qLower) || tag.includes(normalizedQuery.replace(/^#/, ""));
+      })
+      .slice(0, limit);
+
 
     // Добавляем статус дружбы для каждого
     const usersWithStatus = await Promise.all(
       users.map(async (user) => {
         const status = await getFriendshipStatus(prisma, userId, user.id);
-        return { ...user, friendshipStatus: status.status, requestId: status.requestId };
+        return { ...toPublicUser(user), friendshipStatus: status.status, requestId: status.requestId };
       })
     );
 

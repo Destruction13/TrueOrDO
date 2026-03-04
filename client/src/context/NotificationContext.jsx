@@ -20,7 +20,7 @@ export function useNotification() {
 // NOTIFICATION PROVIDER
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function NotificationProvider({ children, socket }) {
+export function NotificationProvider({ children, socket, isChatOpen, activeChatPartnerId }) {
   const [notifications, setNotifications] = useState([]);
   const [history, setHistory] = useState([]);
 
@@ -127,11 +127,27 @@ export function NotificationProvider({ children, socket }) {
     };
 
     const handleNewMessage = (data) => {
+      // server payload: { message, conversationId, senderId }
+      const msg = data?.message;
+      const senderId = data?.senderId;
+
+      // Не показываем toast, если чат сейчас открыт и это сообщение от активного собеседника
+      if (isChatOpen && activeChatPartnerId && senderId && String(activeChatPartnerId) === String(senderId)) {
+        return;
+      }
+
+      const senderNickname = msg?.sender?.nickname || "Игрок";
+      const senderAvatar = msg?.sender?.avatarUrl || msg?.sender?.avatarUrl || null;
+      const preview = msg?.content
+        ? msg.content.substring(0, 50) + (msg.content.length > 50 ? "..." : "")
+        : "";
+
       addNotification({
         type: "social",
         title: "Новое сообщение",
-        message: data.content?.substring(0, 50) + (data.content?.length > 50 ? "..." : ""),
-        avatar: data.senderAvatar,
+        message: `${senderNickname}${preview ? `: ${preview}` : ""}`,
+        avatar: senderAvatar,
+        duration: 3000,
       });
     };
 
@@ -146,7 +162,7 @@ export function NotificationProvider({ children, socket }) {
       socket.off("game:invite:received", handleGameInvite);
       socket.off("messages:received", handleNewMessage);
     };
-  }, [socket, addNotification]);
+  }, [socket, addNotification, isChatOpen, activeChatPartnerId]);
 
   const value = {
     notifications,

@@ -7,6 +7,8 @@
 // КОНСТАНТЫ
 // ═══════════════════════════════════════════════════════════════════════════
 
+const { toPublicUser } = require("./userPublic");
+
 const MAX_CLAN_NAME_LENGTH = 30;
 const MIN_CLAN_NAME_LENGTH = 3;
 const MAX_CLAN_DESCRIPTION_LENGTH = 500;
@@ -176,8 +178,8 @@ async function createClan(prisma, userId, data) {
     const existing = await prisma.clan.findFirst({
       where: {
         OR: [
-          { name: { equals: name.trim(), mode: "insensitive" } },
-          tag ? { tag: { equals: tag.toUpperCase(), mode: "insensitive" } } : {},
+          { name: { equals: name.trim() } },
+          tag ? { tag: { equals: tag.toUpperCase() } } : {},
         ],
       },
     });
@@ -330,8 +332,8 @@ async function updateClan(prisma, userId, clanId, data) {
         where: {
           id: { not: clanId },
           OR: [
-            name ? { name: { equals: name.trim(), mode: "insensitive" } } : {},
-            tag ? { tag: { equals: tag.toUpperCase(), mode: "insensitive" } } : {},
+            name ? { name: { equals: name.trim() } } : {},
+            tag ? { tag: { equals: tag.toUpperCase() } } : {},
           ],
         },
       });
@@ -444,8 +446,15 @@ async function getClan(prisma, clanId, userId = null) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
           },
         },
         members: {
@@ -455,8 +464,7 @@ async function getClan(prisma, clanId, userId = null) {
                 id: true,
                 nickname: true,
                 avatarUrl: true,
-                frameSlug: true,
-                nicknameStyle: true,
+                customization: { select: { frameAll: true } },
                 onlineStatus: true,
                 level: true,
               },
@@ -519,8 +527,8 @@ async function searchClans(prisma, query, options = {}) {
     const whereClause = query
       ? {
           OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { tag: { contains: query, mode: "insensitive" } },
+            { name: { contains: query } },
+            { tag: { contains: query } },
           ],
         }
       : {};
@@ -842,8 +850,15 @@ async function getClanMembers(prisma, clanId, options = {}) {
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true,
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              },
               onlineStatus: true,
               lastSeenAt: true,
               level: true,
@@ -868,7 +883,8 @@ async function getClanMembers(prisma, clanId, options = {}) {
       user: m.user,
     }));
 
-    return { success: true, members: formattedMembers, total };
+    const mapped = formattedMembers.map((m) => ({ ...m, user: toPublicUser(m.user) }));
+    return { success: true, members: mapped, total };
   } catch (error) {
     console.error("[clans] getClanMembers error:", error);
     return { success: false, error: "Ошибка при получении участников" };
@@ -939,8 +955,15 @@ async function requestJoinClan(prisma, userId, clanId, message = "") {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             level: true,
           },
         },
@@ -954,6 +977,7 @@ async function requestJoinClan(prisma, userId, clanId, message = "") {
       },
     });
 
+    request.user = toPublicUser(request.user);
     return { success: true, request };
   } catch (error) {
     console.error("[clans] requestJoinClan error:", error);
@@ -1044,8 +1068,15 @@ async function acceptClanRequest(prisma, actorId, requestId) {
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true,
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              },
             },
           },
           clan: {
@@ -1061,6 +1092,7 @@ async function acceptClanRequest(prisma, actorId, requestId) {
       return membership;
     });
 
+    result.user = toPublicUser(result.user);
     return { success: true, membership: result, userId: request.userId, clanId: request.clanId };
   } catch (error) {
     console.error("[clans] acceptClanRequest error:", error);
@@ -1202,8 +1234,15 @@ async function getClanRequests(prisma, userId, clanId, options = {}) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             level: true,
             onlineStatus: true,
           },
@@ -1336,12 +1375,21 @@ async function promoteMember(prisma, leaderId, targetUserId, clanId) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
           },
         },
       },
     });
+
+    updatedMember.user = toPublicUser(updatedMember.user);
 
     return { success: true, member: updatedMember };
   } catch (error) {
@@ -1407,12 +1455,21 @@ async function demoteMember(prisma, leaderId, targetUserId, clanId) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
           },
         },
       },
     });
+
+    updatedMember.user = toPublicUser(updatedMember.user);
 
     return { success: true, member: updatedMember };
   } catch (error) {
@@ -1550,8 +1607,15 @@ async function sendClanMessage(prisma, userId, clanId, content) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
           },
         },
       },
@@ -1563,6 +1627,7 @@ async function sendClanMessage(prisma, userId, clanId, content) {
       senderRole: membership.role,
     };
 
+    messageWithRole.sender = toPublicUser(messageWithRole.sender);
     return { success: true, message: messageWithRole };
   } catch (error) {
     console.error("[clans] sendClanMessage error:", error);
@@ -1625,8 +1690,15 @@ async function getClanMessages(prisma, userId, clanId, options = {}) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
           },
         },
       },
@@ -1663,7 +1735,8 @@ async function getClanMessages(prisma, userId, clanId, options = {}) {
       senderRole: roleMap.get(m.senderId) || "member",
     }));
 
-    return { success: true, messages: messagesWithRoles, hasMore };
+    const mapped = messagesWithRoles.map((m) => ({ ...m, sender: toPublicUser(m.sender) }));
+    return { success: true, messages: mapped, hasMore };
   } catch (error) {
     console.error("[clans] getClanMessages error:", error);
     return { success: false, error: "Ошибка при загрузке сообщений" };

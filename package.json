@@ -6,6 +6,7 @@
     "client"
   ],
   "scripts": {
+    "predev": "node scripts/ensure-ports-free.js",
     "dev": "concurrently -n server,client -c green,cyan \"npm:dev --prefix server\" \"npm:dev:delayed --prefix client\"",
     "build": "npm --prefix client run build",
     "start": "npm --prefix server run start",

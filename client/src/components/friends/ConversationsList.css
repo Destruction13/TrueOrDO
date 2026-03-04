@@ -1,1 +1,67 @@
-﻿/* ConversationsList styles - placeholder */
+﻿.conversations-list {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.conversations-list__empty {
+  color: rgba(255, 255, 255, 0.6);
+  padding: 14px;
+  text-align: center;
+}
+
+.conversations-list__item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  align-items: center;
+}
+
+.conversations-list__item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.conversations-list__item.active {
+  background: rgba(46, 230, 255, 0.10);
+}
+
+.conversations-list__item img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.conversations-list__item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversations-list__item-name {
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.conversations-list__item-preview {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversations-list__item-badge {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+}

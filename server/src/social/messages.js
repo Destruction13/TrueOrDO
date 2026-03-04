@@ -3,6 +3,8 @@
  * Handles private messaging between users
  */
 
+const { toPublicUser } = require("./userPublic");
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ПОЛУЧЕНИЕ ИЛИ СОЗДАНИЕ ДИАЛОГА
 // ═══════════════════════════════════════════════════════════════════════════
@@ -20,8 +22,8 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
     const blocked = await prisma.blockedUser.findFirst({
       where: {
         OR: [
-          { blockerId: userId1, blockedId: userId2 },
-          { blockerId: userId2, blockedId: userId1 },
+          { userId: userId1, blockedId: userId2 },
+          { userId: userId2, blockedId: userId1 },
         ],
       },
     });
@@ -44,8 +46,15 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
           },
         },
@@ -54,8 +63,15 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
           },
         },
@@ -75,8 +91,15 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true,
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              },
               onlineStatus: true,
             },
           },
@@ -85,14 +108,25 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true,
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              },
               onlineStatus: true,
             },
           },
         },
       });
     }
+
+    // frameSlug compatibility
+    conversation.participant1 = toPublicUser(conversation.participant1);
+    conversation.participant2 = toPublicUser(conversation.participant2);
 
     return { success: true, conversation };
   } catch (error) {
@@ -134,8 +168,8 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
     const blocked = await prisma.blockedUser.findFirst({
       where: {
         OR: [
-          { blockerId: senderId, blockedId: receiverId },
-          { blockerId: receiverId, blockedId: senderId },
+          { userId: senderId, blockedId: receiverId },
+          { userId: receiverId, blockedId: senderId },
         ],
       },
     });
@@ -167,8 +201,15 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true,
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              },
             },
           },
         },
@@ -187,6 +228,7 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
       success: true, 
       message: {
         ...result,
+        sender: toPublicUser(result.sender),
         metadata: result.metadata ? JSON.parse(result.metadata) : null,
       },
       conversationId: convResult.conversation.id,
@@ -258,8 +300,15 @@ async function getMessages(prisma, userId, conversationId, options = {}) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
           },
         },
       },
@@ -278,6 +327,7 @@ async function getMessages(prisma, userId, conversationId, options = {}) {
     // Парсим metadata
     const parsedMessages = messages.map((m) => ({
       ...m,
+      sender: toPublicUser(m.sender),
       metadata: m.metadata ? JSON.parse(m.metadata) : null,
     }));
 
@@ -402,8 +452,15 @@ async function getConversations(prisma, userId, options = {}) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
             lastSeenAt: true,
           },
@@ -413,8 +470,15 @@ async function getConversations(prisma, userId, options = {}) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
             lastSeenAt: true,
           },
@@ -454,7 +518,7 @@ async function getConversations(prisma, userId, options = {}) {
 
         return {
           id: conv.id,
-          partner,
+          partner: toPublicUser(partner),
           lastMessage: lastMessage
             ? {
                 id: lastMessage.id,

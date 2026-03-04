@@ -7,6 +7,7 @@ import { LofiPlayerProvider } from "./context/LofiPlayerContext";
 import { SocialProvider } from "./components/social";
 import RoutesRoot from "./RoutesRoot";
 import LofiPlayer from "./components/ui/LofiPlayer";
+import ChatFab from "./components/social/ChatFab";
 import "./styles/index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <SocialProvider>
             <LofiPlayerProvider>
               <RoutesRoot />
+              <ChatFab />
               <LofiPlayer />
             </LofiPlayerProvider>
           </SocialProvider>

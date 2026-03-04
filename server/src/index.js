@@ -9,6 +9,24 @@ const session = require("express-session");
 const cookieParser = require("cookie-parser");
 const { Server } = require("socket.io");
 const { PrismaClient } = require("@prisma/client");
+
+async function resolveUserId(prisma, targetId) {
+  if (!targetId) return null;
+
+  const byId = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { id: true },
+  });
+  if (byId) return byId.id;
+
+  const byVisitor = await prisma.user.findFirst({
+    where: { visitorId: targetId },
+    select: { id: true },
+  });
+
+  return byVisitor?.id ?? null;
+}
+
 const { customAlphabet } = require("nanoid");
 const { getWheelData, pickWheel1, pickWheel2, pickWheel2ForChaos, pickTruthQuestion, pickChaosTruthQuestion, getRandomShameTitle } = require("./game/wheels");
 const { PrismaSessionStore } = require("./auth/session-store");
@@ -173,6 +191,7 @@ const {
   getConversations,
   deleteConversation,
   sendMessage,
+  editMessage,
   getMessages,
   getMessagesByPartner,
   markAsRead,
@@ -537,8 +556,10 @@ const sessionMiddleware = session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
+    // SameSite=None требует Secure=true (HTTPS) в проде
     secure: IS_PRODUCTION,
-    sameSite: IS_PRODUCTION ? "strict" : "lax",
+    // Если фронт и бэкенд на разных доменах/сабдоменах, для WebSocket нужны cookies с SameSite=None
+    sameSite: IS_PRODUCTION ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 ����
   }
 });
@@ -592,9 +613,10 @@ const io = new Server(server, {
     origin: CLIENT_ORIGIN,
     credentials: true
   },
-  // ������� ����������� disconnect (�� ��������� pingInterval=25000, pingTimeout=20000)
-  pingInterval: 5000,  // ���� ������ 5 ������
-  pingTimeout: 3000    // ������� ������ 3 �������
+  // Чтобы не было ложных disconnect (особенно на мобильных/при переключении вкладок)
+  // Оставляем значения близкие к дефолтным Socket.IO.
+  pingInterval: 25000,
+  pingTimeout: 20000
 });
 
 // Auth routes (����� �������� io)
@@ -660,7 +682,65 @@ const wheel2SpinMeta = new Map(); // roundId -> { startedAtMs, durationMs }
 const wheel1SpinMeta = new Map(); // roundId -> { startedAtMs, durationMs }
 const pausedRooms = new Map(); // ��������� ����� ��� ������: { isPaused, remainingWhenPaused, roundId }
 const playerSockets = new Map();
-const userSockets = new Map(); // Map<userId, socketId> for friends notifications
+const userSockets = new Map(); // Map<userId, Set<socketId>> for friends notifications
+const userOfflineTimers = new Map(); // Map<userId, timeoutId> (grace to avoid offline flicker)
+
+function normalizeSocketSet(value) {
+  if (!value) return null;
+  if (value instanceof Set) return value;
+  if (typeof value === "string") return new Set([value]);
+  if (Array.isArray(value)) return new Set(value);
+  return null;
+}
+
+function getSocialUserSocketSet(userId) {
+  if (!userId) return null;
+  const current = userSockets.get(userId);
+  const set = normalizeSocketSet(current);
+  if (!set) return null;
+  // self-heal in case older code saved a string
+  if (set !== current) {
+    userSockets.set(userId, set);
+  }
+  return set;
+}
+
+function addSocialUserSocket(userId, socketId) {
+  if (!userId || !socketId) return;
+  const set = getSocialUserSocketSet(userId) || new Set();
+  set.add(socketId);
+  userSockets.set(userId, set);
+}
+
+function removeSocialUserSocket(userId, socketId) {
+  if (!userId || !socketId) return 0;
+  const set = getSocialUserSocketSet(userId);
+  if (!set) return 0;
+  set.delete(socketId);
+  if (set.size === 0) {
+    userSockets.delete(userId);
+    return 0;
+  }
+  return set.size;
+}
+
+function forEachSocialUserSocket(userId, fn) {
+  const set = getSocialUserSocketSet(userId);
+  if (!set || !set.size) return;
+  for (const sid of set) {
+    try {
+      fn(sid);
+    } catch (e) {
+      // ignore
+    }
+  }
+}
+
+function emitToSocialUser(userId, event, data) {
+  forEachSocialUserSocket(userId, (sid) => {
+    io.to(sid).emit(event, data);
+  });
+}
 
 // Emotional (in-memory)
 const emotionalPlayerSockets = new Map(); // playerId -> socketId
@@ -5197,8 +5277,16 @@ io.on("connection", (socket) => {
       return;
     }
 
-    userSockets.set(userId, socket.id);
-    
+    // register socketId for this user (multi-tab safe)
+    addSocialUserSocket(userId, socket.id);
+
+    // cancel pending offline timer (reconnect)
+    const t = userOfflineTimers.get(userId);
+    if (t) {
+      clearTimeout(t);
+      userOfflineTimers.delete(userId);
+    }
+
     // Update online status
     try {
       await prisma.user.update({
@@ -5215,13 +5303,10 @@ io.on("connection", (socket) => {
         select: { userId: true }
       });
       for (const f of friendships) {
-        const friendSocketId = userSockets.get(f.userId);
-        if (friendSocketId) {
-          io.to(friendSocketId).emit("friends:status:update", {
-            userId,
-            onlineStatus: "online"
-          });
-        }
+        emitToSocialUser(f.userId, "friends:status:update", {
+          userId,
+          onlineStatus: "online",
+        });
       }
 
       // Get pending requests count
@@ -5256,26 +5341,30 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const { targetUserId } = payload || {};
-    if (!targetUserId) {
+    const { targetUserId, receiverId } = payload || {};
+    const rawTargetId = targetUserId || receiverId;
+    if (!rawTargetId) {
       if (ack) ack({ ok: false, error: "Target user required" });
       return;
     }
 
-    const result = await sendFriendRequest(prisma, userId, targetUserId);
+    const resolvedTargetUserId = await resolveUserId(prisma, rawTargetId);
+    if (!resolvedTargetUserId) {
+      if (ack) ack({ ok: false, error: "Пользователь не найден" });
+      return;
+    }
+
+    const result = await sendFriendRequest(prisma, userId, resolvedTargetUserId);
     
     if (result.success && result.request) {
       // Notify target user about new request
-      const targetSocketId = userSockets.get(targetUserId);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit("friends:request:received", {
-          request: {
-            id: result.request.id,
-            sender: result.request.sender,
-            createdAt: result.request.createdAt
-          }
-        });
-      }
+      emitToSocialUser(resolvedTargetUserId, "friends:request:received", {
+        request: {
+          id: result.request.id,
+          sender: result.request.sender,
+          createdAt: result.request.createdAt,
+        },
+      });
     }
     
     if (ack) ack(result);
@@ -5299,25 +5388,30 @@ io.on("connection", (socket) => {
     
     if (result.success && result.friend) {
       // Notify the sender that their request was accepted
-      const senderSocketId = userSockets.get(result.friend.id);
-      if (senderSocketId) {
-        // Get current user info to send to friend
-        const currentUser = await prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            nickname: true,
-            avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
-            onlineStatus: true,
-            level: true
-          }
-        });
-        io.to(senderSocketId).emit("friends:request:accepted", {
-          friend: currentUser
-        });
-      }
+      // Get current user info to send to friend
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          nickname: true,
+          avatarUrl: true,
+          customization: {
+            select: {
+              frameAll: true,
+              nicknameColorType: true,
+              nicknameCustomColor: true,
+              nicknameGradient: { select: { cssValue: true } },
+              nicknameGlow: { select: { cssValue: true } },
+            },
+          },
+          onlineStatus: true,
+          level: true,
+        },
+      });
+
+      emitToSocialUser(result.friend.id, "friends:request:accepted", {
+        friend: require("./social/userPublic").toPublicUser(currentUser),
+      });
     }
     
     if (ack) ack(result);
@@ -5367,20 +5461,24 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const { friendId } = payload || {};
-    if (!friendId) {
+    const { friendId, odlerId } = payload || {};
+    const rawTargetId = friendId || odlerId;
+    if (!rawTargetId) {
       if (ack) ack({ ok: false, error: "Friend ID required" });
       return;
     }
 
-    const result = await removeFriend(prisma, userId, friendId);
+    const resolvedFriendId = await resolveUserId(prisma, rawTargetId);
+    if (!resolvedFriendId) {
+      if (ack) ack({ ok: false, error: "Пользователь не найден" });
+      return;
+    }
+
+    const result = await removeFriend(prisma, userId, resolvedFriendId);
     
     if (result.success) {
       // Notify the removed friend
-      const friendSocketId = userSockets.get(friendId);
-      if (friendSocketId) {
-        io.to(friendSocketId).emit("friends:removed", { byUserId: userId });
-      }
+      emitToSocialUser(resolvedFriendId, "friends:removed", { byUserId: userId });
     }
     
     if (ack) ack(result);
@@ -5520,7 +5618,13 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const status = await getFriendshipStatus(prisma, userId, targetUserId);
+    const resolvedTargetId = await resolveUserId(prisma, targetUserId);
+    if (!resolvedTargetId) {
+      if (ack) ack({ ok: false, error: "Пользователь не найден" });
+      return;
+    }
+
+    const status = await getFriendshipStatus(prisma, userId, resolvedTargetId);
     if (ack) ack({ ok: true, ...status });
   });
 
@@ -5547,7 +5651,13 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const result = await getPublicProfile(prisma, viewerId, targetUserId);
+    const resolvedTargetId = await resolveUserId(prisma, targetUserId);
+    if (!resolvedTargetId) {
+      if (ack) ack({ ok: false, error: "Пользователь не найден" });
+      return;
+    }
+
+    const result = await getPublicProfile(prisma, viewerId, resolvedTargetId);
     if (ack) ack(result);
   });
 
@@ -5794,8 +5904,15 @@ io.on("connection", (socket) => {
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              }
             }
           }
         },
@@ -5805,8 +5922,7 @@ io.on("connection", (socket) => {
       if (ack) ack({
         ok: true,
         users: ignoredUsers.map(i => ({
-          ...i.ignored,
-          nicknameStyle: i.ignored.nicknameStyle ? JSON.parse(i.ignored.nicknameStyle) : null,
+          ...require("./social/userPublic").toPublicUser(i.ignored),
           ignoredAt: i.createdAt
         }))
       });
@@ -5932,21 +6048,18 @@ io.on("connection", (socket) => {
         console.log(`[ProfileReport] User ${resolvedTargetId} profile BLOCKED (${pendingReportsCount} reports)`);
 
         // Send in-app notification
-        const targetSocketId = userSockets.get(resolvedTargetId);
-        if (targetSocketId) {
-          io.to(targetSocketId).emit("notifications:new", {
-            type: "profile_warning",
-            title: "Attention!",
-            message: "Your profile received multiple reports. Please edit your profile to continue playing.",
-            action: { type: "link", url: "/profile" },
-            createdAt: new Date().toISOString()
-          });
+        emitToSocialUser(resolvedTargetId, "notifications:new", {
+          type: "profile_warning",
+          title: "Attention!",
+          message: "Your profile received multiple reports. Please edit your profile to continue playing.",
+          action: { type: "link", url: "/profile" },
+          createdAt: new Date().toISOString(),
+        });
 
-          io.to(targetSocketId).emit("profile:blocked", {
-            reason: "reports",
-            message: "Your profile is blocked due to reports. Edit your profile to continue."
-          });
-        }
+        emitToSocialUser(resolvedTargetId, "profile:blocked", {
+          reason: "reports",
+          message: "Your profile is blocked due to reports. Edit your profile to continue.",
+        });
 
         // Send email notification
         try {
@@ -6010,15 +6123,23 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const { conversationId, partnerId, limit, before, after } = payload || {};
+    const { conversationId, partnerId, odlerId, limit, before, after } = payload || {};
 
     let result;
     if (conversationId) {
       result = await getMessages(prisma, userId, conversationId, { limit, before, after });
-    } else if (partnerId) {
-      result = await getMessagesByPartner(prisma, userId, partnerId, { limit, before, after });
     } else {
-      result = { success: false, error: "conversationId or partnerId required" };
+      const rawPartnerId = partnerId || odlerId;
+      if (!rawPartnerId) {
+        result = { success: false, error: "conversationId or partnerId required" };
+      } else {
+        const resolvedPartnerId = await resolveUserId(prisma, rawPartnerId);
+        if (!resolvedPartnerId) {
+          result = { success: false, error: "Пользователь не найден" };
+        } else {
+          result = await getMessagesByPartner(prisma, userId, resolvedPartnerId, { limit, before, after });
+        }
+      }
     }
 
     if (ack) ack(result);
@@ -6032,25 +6153,29 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const { receiverId, content, type = "text", metadata } = payload || {};
+    const { receiverId, odlerId, content, type = "text", metadata } = payload || {};
 
-    if (!receiverId || !content) {
+    const rawReceiverId = receiverId || odlerId;
+    if (!rawReceiverId || !content) {
       if (ack) ack({ success: false, error: "receiverId and content required" });
       return;
     }
 
-    const result = await sendMessage(prisma, userId, receiverId, content, type, metadata);
+    const resolvedReceiverId = await resolveUserId(prisma, rawReceiverId);
+    if (!resolvedReceiverId) {
+      if (ack) ack({ success: false, error: "Пользователь не найден" });
+      return;
+    }
+
+    const result = await sendMessage(prisma, userId, resolvedReceiverId, content, type, metadata);
 
     if (result.success) {
       // Notify receiver in real-time
-      const receiverSocketId = userSockets.get(receiverId);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit("messages:received", {
-          message: result.message,
-          conversationId: result.conversationId,
-          senderId: userId,
-        });
-      }
+      emitToSocialUser(resolvedReceiverId, "messages:received", {
+        message: result.message,
+        conversationId: result.conversationId,
+        senderId: userId,
+      });
     }
 
     if (ack) ack(result);
@@ -6082,16 +6207,14 @@ io.on("connection", (socket) => {
 
       if (conv) {
         const partnerId = conv.participant1Id === userId ? conv.participant2Id : conv.participant1Id;
-        const partnerSocketId = userSockets.get(partnerId);
-
         // Notify sender that messages were read
-        if (partnerSocketId) {
-          io.to(partnerSocketId).emit("messages:read:confirmed", {
+        forEachSocialUserSocket(partnerId, (sid) => {
+          io.to(sid).emit("messages:read:confirmed", {
             conversationId,
             readBy: userId,
             count: result.count,
           });
-        }
+        });
       }
     }
 
@@ -6137,32 +6260,36 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const { receiverId, gameType, roomCode } = payload || {};
+    const { receiverId, odlerId, gameType, roomCode } = payload || {};
 
-    if (!receiverId || !gameType || !roomCode) {
+    const rawReceiverId = receiverId || odlerId;
+    if (!rawReceiverId || !gameType || !roomCode) {
       if (ack) ack({ success: false, error: "receiverId, gameType, and roomCode required" });
       return;
     }
 
-    const result = await sendGameInvite(prisma, userId, receiverId, gameType, roomCode);
+    const resolvedReceiverId = await resolveUserId(prisma, rawReceiverId);
+    if (!resolvedReceiverId) {
+      if (ack) ack({ success: false, error: "Пользователь не найден" });
+      return;
+    }
+
+    const result = await sendGameInvite(prisma, userId, resolvedReceiverId, gameType, roomCode);
 
     if (result.success) {
       // Notify receiver
-      const receiverSocketId = userSockets.get(receiverId);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit("messages:received", {
-          message: result.message,
-          conversationId: result.conversationId,
-          senderId: userId,
-        });
-        // Also send special game invite notification
-        io.to(receiverSocketId).emit("game:invite:received", {
-          from: userId,
-          gameType,
-          roomCode,
-          message: result.message,
-        });
-      }
+      emitToSocialUser(resolvedReceiverId, "messages:received", {
+        message: result.message,
+        conversationId: result.conversationId,
+        senderId: userId,
+      });
+
+      emitToSocialUser(resolvedReceiverId, "game:invite:received", {
+        from: userId,
+        gameType,
+        roomCode,
+        message: result.message,
+      });
     }
 
     if (ack) ack(result);
@@ -6360,15 +6487,12 @@ io.on("connection", (socket) => {
 
     if (result.success) {
       // Notify the kicked user
-      const kickedSocketId = userSockets.get(targetUserId);
-      if (kickedSocketId) {
-        io.to(kickedSocketId).emit("clans:kicked", { clanId });
-        // Remove from Socket.IO room
-        const kickedSocket = io.sockets.sockets.get(kickedSocketId);
-        if (kickedSocket) {
-          kickedSocket.leave(`clan:${clanId}`);
-        }
-      }
+      const resolvedTargetId = await resolveUserId(prisma, targetUserId);
+      const kickedUserId = resolvedTargetId || targetUserId;
+      forEachSocialUserSocket(kickedUserId, (sid) => {
+        io.to(sid).emit("clans:kicked", { clanId });
+        io.sockets.sockets.get(sid)?.leave(`clan:${clanId}`);
+      });
       // Notify clan members
       io.to(`clan:${clanId}`).emit("clans:member:kicked", {
         clanId,
@@ -6440,18 +6564,13 @@ io.on("connection", (socket) => {
 
     if (result.success) {
       // Notify the accepted user
-      const acceptedSocketId = userSockets.get(result.userId);
-      if (acceptedSocketId) {
-        io.to(acceptedSocketId).emit("clans:request:accepted", {
+      forEachSocialUserSocket(result.userId, (sid) => {
+        io.to(sid).emit("clans:request:accepted", {
           clanId: result.clanId,
           membership: result.membership,
         });
-        // Add user to clan room
-        const acceptedSocket = io.sockets.sockets.get(acceptedSocketId);
-        if (acceptedSocket) {
-          acceptedSocket.join(`clan:${result.clanId}`);
-        }
-      }
+        io.sockets.sockets.get(sid)?.join(`clan:${result.clanId}`);
+      });
       // Notify clan members about new member
       io.to(`clan:${result.clanId}`).emit("clans:member:joined", {
         clanId: result.clanId,
@@ -6481,12 +6600,7 @@ io.on("connection", (socket) => {
 
     if (result.success) {
       // Notify the rejected user
-      const rejectedSocketId = userSockets.get(result.userId);
-      if (rejectedSocketId) {
-        io.to(rejectedSocketId).emit("clans:request:rejected", {
-          clanId: result.clanId,
-        });
-      }
+      emitToSocialUser(result.userId, "clans:request:rejected", { clanId: result.clanId });
     }
 
     if (ack) ack(result);
@@ -6857,19 +6971,18 @@ io.on("connection", (socket) => {
       });
 
       // Notify target user
-      const targetSocketId = userSockets.get(targetUserId);
-      if (targetSocketId) {
-        io.to(targetSocketId).emit("clan:invite:received", {
-          invite: {
-            id: invite.id,
-            clan: invite.clan,
-            inviter: invite.inviter,
-            message: invite.message,
-            expiresAt: invite.expiresAt,
-            createdAt: invite.createdAt
-          }
-        });
-      }
+      const resolvedTargetId = await resolveUserId(prisma, targetUserId);
+      const resolvedInviteeId = resolvedTargetId || targetUserId;
+      emitToSocialUser(resolvedInviteeId, "clan:invite:received", {
+        invite: {
+          id: invite.id,
+          clan: invite.clan,
+          inviter: invite.inviter,
+          message: invite.message,
+          expiresAt: invite.expiresAt,
+          createdAt: invite.createdAt,
+        },
+      });
 
       if (ack) ack({ ok: true, invite });
     } catch (e) {
@@ -6963,13 +7076,10 @@ io.on("connection", (socket) => {
       });
 
       for (const member of clanMembers) {
-        const memberSocketId = userSockets.get(member.userId);
-        if (memberSocketId) {
-          io.to(memberSocketId).emit("clan:member:joined", {
-            clanId: invite.clanId,
-            member: newMember
-          });
-        }
+        emitToSocialUser(member.userId, "clan:member:joined", {
+          clanId: invite.clanId,
+          member: newMember,
+        });
       }
 
       if (ack) ack({ ok: true, clanId: invite.clanId });
@@ -8969,36 +9079,53 @@ io.on("connection", (socket) => {
     // Update user online status on disconnect
     if (socket.data.userId) {
       const disconnectedUserId = socket.data.userId;
-      userSockets.delete(disconnectedUserId);
-      
-      try {
-        await prisma.user.update({
-          where: { id: disconnectedUserId },
-          data: { 
-            onlineStatus: "offline",
-            lastSeenAt: new Date(),
-            currentGameType: null,
-            currentRoomCode: null
-          }
-        });
-        // Notify friends about status change
-        const friendships = await prisma.friendship.findMany({
-          where: { friendId: disconnectedUserId },
-          select: { userId: true }
-        });
-        for (const f of friendships) {
-          const friendSocketId = userSockets.get(f.userId);
-          if (friendSocketId) {
-            io.to(friendSocketId).emit("friends:status:update", {
+      // remove only current socket from presence set
+      const remaining = removeSocialUserSocket(disconnectedUserId, socket.id);
+
+      // If some sockets remain (multi-tab), keep user online.
+      if (remaining > 0) {
+        return;
+      }
+
+      // Grace period to avoid offline flicker on reconnect
+      const existingTimer = userOfflineTimers.get(disconnectedUserId);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+
+      const timeoutId = setTimeout(async () => {
+        try {
+          userOfflineTimers.delete(disconnectedUserId);
+
+          await prisma.user.update({
+            where: { id: disconnectedUserId },
+            data: {
+              onlineStatus: "offline",
+              lastSeenAt: new Date(),
+              currentGameType: null,
+              currentRoomCode: null,
+            },
+          });
+
+          // Notify friends about status change
+          const friendships = await prisma.friendship.findMany({
+            where: { friendId: disconnectedUserId },
+            select: { userId: true },
+          });
+
+          for (const f of friendships) {
+            emitToSocialUser(f.userId, "friends:status:update", {
               userId: disconnectedUserId,
               onlineStatus: "offline",
-              lastSeenAt: new Date()
+              lastSeenAt: new Date(),
             });
           }
+        } catch (e) {
+          // Ignore errors
         }
-      } catch (e) {
-        // Ignore errors
-      }
+      }, 5000);
+
+      userOfflineTimers.set(disconnectedUserId, timeoutId);
     }
 
     // Handle Truth or Dare disconnect
@@ -9037,6 +9164,22 @@ io.on("connection", (socket) => {
       playerSockets.delete(playerId);
     }
   });
+});
+
+server.on("error", (err) => {
+  if (err && err.code === "EADDRINUSE") {
+    console.error(
+      `\n[Ошибка] Порт ${PORT} уже занят.\n` +
+        `Закройте процесс, который слушает порт ${PORT}, и запустите снова: npm run dev\n` +
+        `Подсказка (Windows PowerShell):\n` +
+        `  netstat -ano | findstr :${PORT}\n` +
+        `  taskkill /PID <PID> /F\n`
+    );
+    process.exit(1);
+  }
+
+  console.error("[Server error]", err);
+  process.exit(1);
 });
 
 server.listen(PORT, () => {

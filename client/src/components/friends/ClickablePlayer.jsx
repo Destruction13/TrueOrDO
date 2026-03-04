@@ -114,7 +114,7 @@ export default function ClickablePlayer({
     setMoreMenuProfile(null);
   }, []);
 
-  const isSelf = relationshipStatus === "self" || currentUserId === odlerId;
+  const isSelf = relationshipStatus === "self" || String(currentUserId) === String(odlerId);
 
   return (
     <>
