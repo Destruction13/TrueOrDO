@@ -1,0 +1,243 @@
+.bug-list {
+  width: 100%;
+}
+
+.bug-list-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1.5rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.1);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+.filter-group input,
+.filter-group select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+  outline: none;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px hsl(var(--ring) / 0.1);
+}
+
+.bug-list-info {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.bug-table-container {
+  overflow-x: auto;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.1);
+}
+
+.bug-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bug-table thead {
+  background: hsl(var(--muted));
+  border-bottom: 2px solid hsl(var(--border));
+}
+
+.bug-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.bug-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.bug-table th.sortable:hover {
+  background: hsl(var(--muted) / 0.8);
+}
+
+.bug-table tbody tr {
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.bug-table tbody tr.bug-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.bug-table tbody tr.bug-row:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+
+.bug-table tbody tr.bug-row:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.bug-table td {
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+}
+
+.bug-id {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.bug-title {
+  font-weight: 500;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priority-badge,
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.priority-badge.priority-low {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.priority-badge.priority-medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.priority-badge.priority-high {
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.priority-badge.priority-critical {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge.status-open {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge.status-in-progress {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.status-resolved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.status-closed {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.bug-tags {
+  max-width: 200px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  background: hsl(var(--muted));
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.tag-more {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+}
+
+.no-tags {
+  color: hsl(var(--muted-foreground) / 0.6);
+}
+
+.bug-date {
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.no-results {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+@media (max-width: 1024px) {
+  .bug-list-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .bug-title {
+    max-width: 200px;
+  }
+
+  .bug-tags {
+    max-width: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  .bug-table-container {
+    overflow-x: scroll;
+  }
+
+  .bug-table {
+    min-width: 800px;
+  }
+}

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLofiPlayer } from "../../context/LofiPlayerContext";
-import { useSocial } from "../social";
+import { useSocial } from "../social/SocialIntegration";
+
 import "./LofiPlayer.css";
 
 // Иконки как компоненты
@@ -89,7 +90,7 @@ export default function LofiPlayer() {
     setStation,
   } = useLofiPlayer();
 
-  const { isCompactChatOpen } = useSocial();
+  const { isMessengerModalOpen } = useSocial();
 
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isStationDropdownOpen, setIsStationDropdownOpen] = useState(false);
@@ -144,7 +145,7 @@ export default function LofiPlayer() {
     setIsStationDropdownOpen(false);
   };
 
-  if (isCompactChatOpen) return null;
+  if (isMessengerModalOpen) return null;
 
   return (
     <div className="lofi-player-container">

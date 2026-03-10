@@ -104,23 +104,31 @@ export function NotificationProvider({ children, socket, isChatOpen, activeChatP
     };
 
     const handleGameInvite = (data) => {
+      const GAME_CONFIG = {
+        tod: "Правда или Действие",
+        alias: "Alias",
+        emotional: "Крокодил Эмоций",
+        codenames: "Codenames"
+      };
+      const readableGameName = data.gameName || GAME_CONFIG[data.gameType] || data.gameType;
+
       addNotification({
         type: "social",
         title: "Приглашение в игру",
-        message: `${data.fromNickname || "Друг"} приглашает вас в ${data.gameType}`,
+        message: `${data.fromNickname || "Игрок"} приглашает в ${readableGameName}`,
         avatar: data.fromAvatar,
         duration: 30000,
         actions: [
           {
             label: "Присоединиться",
             onClick: () => {
-              window.location.href = `/${data.gameType}?room=${data.roomCode}`;
+              window.location.href = `/${data.gameType}/${data.roomCode}`;
             },
             variant: "primary",
           },
           {
             label: "Отклонить",
-            onClick: () => {},
+            onClick: () => { },
           },
         ],
       });
@@ -178,7 +186,7 @@ export function NotificationProvider({ children, socket, isChatOpen, activeChatP
   return (
     <NotificationContext.Provider value={value}>
       {children}
-      
+
       {/* Toast Container */}
       <div className="toast-container">
         <AnimatePresence mode="popLayout">

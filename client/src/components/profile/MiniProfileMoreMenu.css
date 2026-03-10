@@ -4,7 +4,7 @@
 
 .mini-profile-more-menu {
   position: fixed;
-  z-index: 10002;
+  z-index: 12002;
   min-width: 200px;
   background: linear-gradient(180deg, #1e1e2e 0%, #181825 100%);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -85,7 +85,7 @@
 .mini-profile-report-modal__overlay {
   position: fixed;
   inset: 0;
-  z-index: 10003;
+  z-index: 12003;
   background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;

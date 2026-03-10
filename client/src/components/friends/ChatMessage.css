@@ -45,13 +45,9 @@
 }
 
 .chat-message__status--read {
-  color: rgba(124, 255, 107, 0.95);
+  color: #53bdeb;
 }
 
 .chat-message__status-icon {
   display: block;
-}
-
-.chat-message__status-icon--double {
-  transform: translateX(-1px);
 }

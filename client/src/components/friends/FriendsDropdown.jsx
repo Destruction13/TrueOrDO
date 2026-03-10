@@ -38,7 +38,7 @@ export default function FriendsDropdown({
   // Загрузка друзей
   const loadFriends = useCallback((filter = "all") => {
     if (!socket) return;
-    
+
     setLoading(true);
     socket.emit("friends:list", { filter }, (response) => {
       if (response.success) {
@@ -177,8 +177,8 @@ export default function FriendsDropdown({
   // Фильтрация друзей по поиску
   const filteredFriends = searchQuery
     ? friends.filter((f) =>
-        f.nickname?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      f.nickname?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : friends;
 
   return (
@@ -275,7 +275,7 @@ export default function FriendsDropdown({
                     user={friend}
                     onRemove={() => handleRemoveFriend(friend.odlerId)}
                     onMessage={() => {
-                      openChat?.(friend.id, friend.nickname, friend.avatar);
+                      openChat?.(friend.id || friend.odlerId, friend.nickname, friend.avatarUrl || friend.avatar);
                       onClose?.();
                     }}
                     onInvite={() => {

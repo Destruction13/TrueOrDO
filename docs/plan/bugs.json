@@ -1,0 +1,28 @@
+{
+  "bugs": [
+    {
+      "id": 2,
+      "title": "Ошибка очистки комнат после выхода всех игроков",
+      "description": "Все комнаты во всех играх должны удаляться сразу, как только все игроки выходят из комнаты. В играх Truth or Dare и Alias комнаты застревали в БД.",
+      "tags": [
+        "backend",
+        "socket",
+        "rooms"
+      ],
+      "priority": "high",
+      "status": "resolved",
+      "reporter": "Даня",
+      "assignee": "Antigravity Agent",
+      "createdAt": "2026-03-09T17:15:00.000Z",
+      "updatedAt": "2026-03-09T17:15:00.000Z",
+      "resolution": "Исправлены обработчики `room:leave` (Truth or Dare) и `alias:room:leave` (Alias) в server/src/index.js. Добавлен подсчет `remainingPlayers`. Если игроков 0, вызываются соответствующие методы `prisma.room.delete` и `prisma.aliasRoom.delete`. Теперь пустые комнаты корректно удаляются."
+    }
+  ],
+  "nextId": 3,
+  "metadata": {
+    "lastUpdated": "2026-03-09T17:15:00.000Z",
+    "totalBugs": 1,
+    "openBugs": 0,
+    "resolvedBugs": 1
+  }
+}

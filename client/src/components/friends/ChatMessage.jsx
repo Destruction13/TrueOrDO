@@ -1,58 +1,55 @@
+import GameInviteCard from "./GameInviteCard";
 import "./ChatMessage.css";
 
 function CheckIcon({ double = false }) {
   return (
     <svg
       className={`chat-message__status-icon ${double ? "chat-message__status-icon--double" : ""}`}
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
+      width={double ? "22" : "16"}
+      height="15"
+      viewBox={double ? "0 0 22 15" : "0 0 16 15"}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
       {double ? (
         <>
-          <path
-            d="M7 13.5L10 16.5L16.5 10"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.9"
-          />
-          <path
-            d="M3.5 13.5L6.5 16.5L13 10"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <path d="M1.5 8.5L5.5 12.5L14.5 3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M8.5 12.5L17.5 3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </>
       ) : (
-        <path
-          d="M4 12.5L9 17.5L20 6.5"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d="M2.5 8.5L6.5 12.5L15.5 3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       )}
     </svg>
   );
 }
 
-export default function ChatMessage({ message, isOwn }) {
+export default function ChatMessage({ message, isOwn, id, socket }) {
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
   };
 
   const isRead = Boolean(message?.readAt);
+  const isGameInvite = message?.type === "game_invite";
+
+  // Parse metadata (could be JSON string or object)
+  let metadata = message?.metadata;
+  if (typeof metadata === "string") {
+    try { metadata = JSON.parse(metadata); } catch { metadata = null; }
+  }
 
   return (
-    <div className={`chat-message ${isOwn ? "chat-message--own" : ""}`}>
+    <div
+      id={id}
+      className={`chat-message ${isOwn ? "chat-message--own" : "chat-message--incoming"}`}
+      data-seq={message.seq}
+    >
       <div className="chat-message__bubble">
-        <div className="chat-message__content">{message.content}</div>
+        {isGameInvite && metadata ? (
+          <GameInviteCard metadata={metadata} isOwn={isOwn} socket={socket} />
+        ) : (
+          <div className="chat-message__content">{message.content}</div>
+        )}
         <div className="chat-message__meta">
           <div className="chat-message__time">{formatTime(message.createdAt)}</div>
           {isOwn && (

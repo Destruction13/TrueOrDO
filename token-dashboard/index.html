@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus | Token Analytics</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Initial Loader -->
+    <div class="loader-overlay" id="loader">
+        <div class="loader-spinner"></div>
+    </div>
+
+    <!-- Header -->
+    <header>
+        <div class="header-title">
+            <div class="logo-icon">
+                <i class="fa-solid fa-cube" style="color: white; font-size: 14px;"></i>
+            </div>
+            <h1>Nexus Token Analytics</h1>
+        </div>
+
+        <div class="model-selector" id="model-selector">
+            <button class="model-btn active" data-model="gemini">
+                <div class="model-indicator"></div>
+                Gemini 3.1 Pro
+            </button>
+            <button class="model-btn" data-model="claude">
+                <div class="model-indicator"></div>
+                Claude Sonnet 4.6
+            </button>
+            <button class="model-btn" data-model="codex">
+                <div class="model-indicator"></div>
+                GPT-OSS 120B
+            </button>
+        </div>
+        <div class="quota-countdown" id="quota-countdown" title="Time until quota refreshes">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span id="quota-timer">--:--</span>
+            <span class="quota-label">до обновления квоты</span>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main class="dashboard-container">
+
+        <!-- Key Metrics Grid -->
+        <section class="metrics-grid">
+
+            <!-- Used Tokens -->
+            <div class="glass-panel metric-card card-used">
+                <div class="metric-header">
+                    <span>Used Tokens</span>
+                    <div class="metric-icon"><i class="fa-solid fa-fire-flame-curved"></i></div>
+                </div>
+                <div class="metric-value">
+                    <span id="val-used">---</span>
+                    <span class="metric-unit">k</span>
+                </div>
+                <div class="metric-subtext">
+                    <i class="fa-solid fa-arrow-trend-up"></i>
+                    <span id="val-used-percent">-%</span> of total limit
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="bar-used"></div>
+                </div>
+            </div>
+
+            <!-- Context Read (Cache) -->
+            <div class="glass-panel metric-card card-cache">
+                <div class="metric-header">
+                    <span>Context Cache Read</span>
+                    <div class="metric-icon"><i class="fa-solid fa-database"></i></div>
+                </div>
+                <div class="metric-value">
+                    <span id="val-cache-read">---</span>
+                    <span class="metric-unit">k</span>
+                </div>
+                <div class="metric-subtext">
+                    <span id="val-cache-savings">-$0.00</span> estimated savings
+                </div>
+            </div>
+
+            <!-- Input Tokens -->
+            <div class="glass-panel metric-card card-input">
+                <div class="metric-header">
+                    <span>Input Context</span>
+                    <div class="metric-icon"><i class="fa-solid fa-right-to-bracket"></i></div>
+                </div>
+                <div class="metric-value">
+                    <span id="val-input">---</span>
+                    <span class="metric-unit">k</span>
+                </div>
+                <div class="metric-subtext">Avg <span id="val-input-avg">--</span>k per turn</div>
+            </div>
+
+            <!-- Output Tokens -->
+            <div class="glass-panel metric-card card-output">
+                <div class="metric-header">
+                    <span>Generated Output</span>
+                    <div class="metric-icon"><i class="fa-solid fa-bolt"></i></div>
+                </div>
+                <div class="metric-value">
+                    <span id="val-output">---</span>
+                    <span class="metric-unit">k</span>
+                </div>
+                <div class="metric-subtext">Avg <span id="val-output-avg">--</span> words/min</div>
+            </div>
+
+            <!-- Remaining Quota -->
+            <div class="glass-panel metric-card card-remaining">
+                <div class="metric-header">
+                    <span>Квота Остаток</span>
+                    <div class="metric-icon"><i class="fa-solid fa-gauge-high"></i></div>
+                </div>
+                <div class="metric-value">
+                    <span id="val-remaining">---</span>
+                    <span class="metric-unit">k</span>
+                </div>
+                <div class="metric-subtext">Из <span id="val-window">---</span>k токенов / 5ч</div>
+            </div>
+
+            <!-- Estimated Cost -->
+            <div class="glass-panel metric-card card-cost">
+                <div class="metric-header">
+                    <span>Session Cost</span>
+                    <div class="metric-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                </div>
+                <div class="metric-value">
+                    <span class="metric-unit">$</span>
+                    <span id="val-cost">-.--</span>
+                </div>
+                <div class="metric-subtext">Based on current rates</div>
+            </div>
+
+        </section>
+
+        <!-- Graphs and Details -->
+        <section class="graph-section">
+
+            <!-- Main Memory Graph -->
+            <div class="glass-panel main-graph-container">
+                <div class="graph-header">
+                    <h3>Context Memory Graph</h3>
+                    <div class="graph-controls">
+                        <button class="control-btn active" data-view="turns">Turns</button>
+                        <button class="control-btn" data-view="time">Time</button>
+                    </div>
+                </div>
+                <div class="canvas-wrapper">
+                    <canvas id="memoryChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Side Panel Details -->
+            <div class="details-panel">
+
+                <div class="glass-panel">
+                    <h3 style="margin-bottom: 16px;">Session Details</h3>
+
+                    <div class="detail-item">
+                        <span class="detail-label">Total Turns</span>
+                        <span class="detail-value" id="val-turns">--</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Cache Creation</span>
+                        <span class="detail-value" id="val-cache-create">--k tokens</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Time Elapsed</span>
+                        <span class="detail-value" id="val-time">-- min</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Avg Latency</span>
+                        <span class="detail-value" id="val-latency">--ms</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel tools-section">
+                    <h3>Tool Execution</h3>
+                    <p class="detail-label" style="margin-top: 8px;">Breakdown of tools used in this session:</p>
+
+                    <div class="tool-list" id="tool-container">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- App Logic -->
+    <script src="app.js"></script>
+</body>
+
+</html>

@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import ChatMessage from "./ChatMessage";
 import "./ChatWindow.css";
 
-export default function ChatWindow({ 
+export default function ChatWindow({
   partnerId, partnerNickname, partnerAvatar, socket, currentUserId,
   onClose, isMinimized, onToggleMinimize, style,
   onActivate,
@@ -16,18 +16,62 @@ export default function ChatWindow({
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // === Throttled readUpTo: отправляем частичное прочтение не чаще 300ms ===
+  const lastSentSeqRef = useRef(0);
+  const readUpToTimerRef = useRef(null);
+
+  const sendReadUpTo = useCallback((convId, seq) => {
+    if (!socket || !convId || typeof seq !== "number" || seq <= 0) return;
+    // Не отправляем если вкладка не видна
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    // Монотонность: не отправляем если seq не увеличился
+    if (seq <= lastSentSeqRef.current) return;
+
+    lastSentSeqRef.current = seq;
+    socket.emit("messages:readUpTo", { conversationId: convId, seq });
+  }, [socket]);
+
+  const throttledReadUpTo = useCallback((convId, seq) => {
+    if (readUpToTimerRef.current) clearTimeout(readUpToTimerRef.current);
+    readUpToTimerRef.current = setTimeout(() => {
+      sendReadUpTo(convId, seq);
+    }, 300);
+  }, [sendReadUpTo]);
+
+  // Cleanup throttle timer
+  useEffect(() => {
+    return () => {
+      if (readUpToTimerRef.current) clearTimeout(readUpToTimerRef.current);
+    };
+  }, []);
+
+  // Вычисляем максимальный seq входящих сообщений и вызываем readUpTo
+  const markVisibleAsRead = useCallback((msgs, convId) => {
+    if (!convId || !msgs || msgs.length === 0) return;
+    // Находим максимальный seq среди входящих сообщений
+    let maxSeq = 0;
+    for (const m of msgs) {
+      if (String(m.senderId) !== String(currentUserId) && m.seq > maxSeq) {
+        maxSeq = m.seq;
+      }
+    }
+    if (maxSeq > 0) {
+      throttledReadUpTo(convId, maxSeq);
+    }
+  }, [currentUserId, throttledReadUpTo]);
+
   useEffect(() => {
     if (!socket || !partnerId) return;
 
-    socket.emit("messages:history", { odlerId: partnerId, limit: 50 }, (response) => {  
+    socket.emit("messages:history", { odlerId: partnerId, limit: 50 }, (response) => {
 
       if (response?.success) {
         setMessages(response.messages || []);
 
         if (response.conversationId) {
           setConversationId(response.conversationId);
-          // Если есть conversationId — отмечаем прочитанным
-          socket.emit("messages:read", { conversationId: response.conversationId });
+          // Отправляем readUpTo для всех загруженных сообщений (вместо messages:read)
+          markVisibleAsRead(response.messages || [], response.conversationId);
         } else {
           setConversationId(null);
         }
@@ -46,16 +90,18 @@ export default function ChatWindow({
       if (payloadConvId && localConvId && payloadConvId === localConvId) {
         setMessages((prev) => [...prev, msg]);
         if (String(payload?.senderId) !== String(currentUserId)) {
-          socket.emit("messages:read", { conversationId: payload.conversationId });
+          // Partial read: отправляем readUpTo для нового сообщения
+          if (msg.seq) {
+            throttledReadUpTo(payload.conversationId, msg.seq);
+          } else {
+            socket.emit("messages:read", { conversationId: payload.conversationId });
+          }
         }
         return;
       }
 
       // 2) Если conversationId еще не известен (новый диалог) — определяем по partnerId
-      // Ожидаем, что senderId в payload — это userId отправителя.
       const senderId = payload?.senderId;
-      // В модели Prisma Message нет receiverId, поэтому определяем принадлежность по senderId.
-      // Для входящих сообщений: senderId должен совпадать с partnerId этого окна.
       const isForThisChat = senderId && String(senderId) === String(partnerId);
 
       if (!localConvId && isForThisChat) {
@@ -63,14 +109,18 @@ export default function ChatWindow({
         if (payload?.conversationId) {
           setConversationId(payload.conversationId);
           if (String(senderId) !== String(currentUserId)) {
-            socket.emit("messages:read", { conversationId: payload.conversationId });
+            if (msg.seq) {
+              throttledReadUpTo(payload.conversationId, msg.seq);
+            } else {
+              socket.emit("messages:read", { conversationId: payload.conversationId });
+            }
           }
         }
       }
     };
 
     const handleReadConfirmed = (payload) => {
-      // Когда партнёр прочитал  проставляем readAt для своих сообщений
+      // Когда партнёр прочитал — проставляем readAt для своих сообщений
       if (!payload?.conversationId) return;
       if (!conversationId) return;
       if (String(payload.conversationId) !== String(conversationId)) return;
@@ -98,7 +148,7 @@ export default function ChatWindow({
       socket.off("messages:received", handleNewMessage);
       socket.off("messages:read:confirmed", handleReadConfirmed);
     };
-  }, [socket, partnerId, currentUserId, conversationId]);
+  }, [socket, partnerId, currentUserId, conversationId, markVisibleAsRead, throttledReadUpTo]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

@@ -580,6 +580,8 @@ model Conversation {
   participant1Id String  // Первый участник
   participant2Id String  // Второй участник
   lastMessageAt DateTime? // Время последнего сообщения для сортировки
+  readSeqParticipant1 Int @default(0) // До какого seq прочитал participant1
+  readSeqParticipant2 Int @default(0) // До какого seq прочитал participant2
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
@@ -602,11 +604,13 @@ model Message {
   type           String    @default("text") // "text" | "game_invite" | "system"
   metadata       String?   // JSON для доп. данных (например, данные приглашения в игру)
   readAt         DateTime? // Время прочтения получателем
+  seq            Int       @default(0) // Порядковый номер в рамках диалога (для partial read cursor)
   createdAt      DateTime  @default(now())
   
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   
+  @@index([conversationId, seq])
   @@index([conversationId, createdAt])
   @@index([senderId])
 }

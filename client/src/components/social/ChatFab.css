@@ -1,7 +1,8 @@
 .chat-fab-container {
   position: fixed;
   bottom: 24px;
-  right: 96px; /* слева от кнопки музыки */
+  right: 96px;
+  /* слева от кнопки музыки */
   z-index: 9999;
 }
 
@@ -37,14 +38,21 @@
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: #ef4444;
-  color: #fff;
+  background: rgba(46, 230, 255, 0.85);
+  color: #0a0a1a;
   font-size: 11px;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 8px rgba(46, 230, 255, 0.35);
+}
+
+.chat-fab--active {
+  border-color: rgba(46, 230, 255, 0.5);
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.22) 0%, rgba(46, 230, 255, 0.30) 100%);
+  box-shadow: 0 6px 28px rgba(46, 230, 255, 0.25);
 }
 
 @media (max-width: 640px) {

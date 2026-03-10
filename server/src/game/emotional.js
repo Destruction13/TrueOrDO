@@ -224,29 +224,29 @@ function drawFromDeck(room, count) {
  */
 function drawFromDeckByCategory(room, count, referenceEmotion) {
   if (!room.emotionDeck || room.emotionDeck.length === 0) return [];
-  
+
   // Убираем soft hyphens для поиска категории
   const cleanEmotion = referenceEmotion?.replace(/\u00AD/g, "") || "";
   const targetCategory = EMOTION_TO_CATEGORY[cleanEmotion] || "other";
-  
+
   const drawn = [];
-  
+
   // Сначала ищем карты той же категории
   for (let i = room.emotionDeck.length - 1; i >= 0 && drawn.length < count; i--) {
     const emotion = room.emotionDeck[i];
     const emotionClean = emotion?.replace(/\u00AD/g, "") || "";
     const emotionCategory = EMOTION_TO_CATEGORY[emotionClean];
-    
+
     if (emotionCategory === targetCategory) {
       drawn.push(room.emotionDeck.splice(i, 1)[0]);
     }
   }
-  
+
   // Если не хватило карт той же категории — добираем любые
   while (drawn.length < count && room.emotionDeck.length > 0) {
     drawn.push(room.emotionDeck.pop());
   }
-  
+
   return drawn;
 }
 
@@ -306,7 +306,7 @@ function joinRoom(code, name, avatarUrl, visitorId, frameSlug, nicknameStyle) {
 
   // Не нашли существующего игрока для reconnect — создаём нового
   console.log("[Emotional joinRoom] Creating NEW player. visitorId:", visitorId, "existing players:", room.players.map(p => ({ id: p.id, visitorId: p.visitorId, status: p.connectionStatus })));
-  
+
   const takenNames = room.players
     .filter((p) => p.connectionStatus !== "left")
     .map((p) => (p.name || "").toLowerCase());
@@ -373,11 +373,8 @@ function leaveRoom(code, playerId) {
 
   const hasActive = room.players.some((p) => p.connectionStatus === "online");
   if (!hasActive) {
-    // Не удаляем комнату мгновенно — иначе приглашения по ссылке/коду ломаются.
-    // Даём комнате "grace period".
-    room.emptySince = Date.now();
-    room.updatedAt = new Date();
-    return { room, deleted: false, empty: true };
+    // Direct deletion, no grace period.
+    return { room, deleted: true, empty: true };
   }
 
   room.emptySince = null;
@@ -390,13 +387,13 @@ function buildRoomState(room, meId) {
   // Публичный стол: playerId не отправляем (анонимность)
   const publicTable = Array.isArray(room.table)
     ? room.table.map((slot) => ({
-        slotId: slot.slotId,
-        emotion: slot.emotion,
-      }))
+      slotId: slot.slotId,
+      emotion: slot.emotion,
+    }))
     : [];
 
   const deckCount = Array.isArray(room.emotionDeck) ? room.emotionDeck.length : 0;
-  
+
   // Получаем состояние паузы
   const pauseState = emotionalPausedRooms.get(room.code);
   const isPaused = pauseState?.isPaused || false;
@@ -571,7 +568,7 @@ function kickPlayer(code, actorId, targetPlayerId) {
     shuffleInPlace(room.emotionDeck);
   }
   delete room.hands[targetPlayerId];
-  
+
   // Очищаем данные раунда
   if (room.submissions) delete room.submissions[targetPlayerId];
   if (room.votes) delete room.votes[targetPlayerId];
@@ -596,7 +593,7 @@ function disconnectPlayer(code, playerId) {
 
   const player = room.players.find((p) => p.id === playerId);
   if (!player) return { error: "Игрок не найден" };
-  
+
   // Если игрок уже ушёл или кикнут — не меняем статус
   if (player.connectionStatus === "left" || player.connectionStatus === "kicked") {
     return { room };
@@ -619,7 +616,6 @@ function disconnectPlayer(code, playerId) {
   // Проверяем, остались ли активные игроки
   const hasActive = room.players.some((p) => p.connectionStatus === "online");
   if (!hasActive) {
-    room.emptySince = Date.now();
     return { room, empty: true };
   }
 
@@ -646,7 +642,7 @@ function startGame(code, actorId, nowMs = Date.now()) {
   room.phase = "submit";
   room.round = (room.round || 0) + 1;
   room.leaderId = room.leaderId || room.hostId;
-  
+
   // Запоминаем время начала игры для статистики
   if (!room.gameStartedAt) {
     room.gameStartedAt = nowMs;
@@ -791,7 +787,7 @@ function advanceToVote(room, nowMs = Date.now()) {
   } else if (activeCount === 3) {
     extraCardsNeeded = 1;
   }
-  
+
   if (extraCardsNeeded > 0) {
     const extraEmotions = drawFromDeckByCategory(room, extraCardsNeeded, room.secretEmotionByLeader);
     extraEmotions.forEach((emotion) => {
@@ -999,7 +995,7 @@ function finalizeRound(room) {
 
   // Вычисляем очки за этот раунд
   const roundScores = {};
-  
+
   // Ведущий получает +2 если победил
   if (leaderWon) {
     roundScores[leaderId] = (roundScores[leaderId] || 0) + 2;
@@ -1048,7 +1044,7 @@ function finalizeRound(room) {
   });
 
   const leaderPlayer = room.players.find((p) => p.id === leaderId);
-  
+
   if (!room.roundHistory) room.roundHistory = [];
   room.roundHistory.push({
     roundNumber: room.round,
@@ -1222,19 +1218,19 @@ function pauseGame(code, playerId) {
   if (!room) return { error: "Комната не найдена" };
   if (room.hostId !== playerId) return { error: "Только хост может ставить игру на паузу" };
   if (room.status !== "playing") return { error: "Игра не активна" };
-  
+
   // Проверяем, не на паузе ли уже
   const existingPause = emotionalPausedRooms.get(code);
   if (existingPause?.isPaused) return { error: "Игра уже на паузе" };
 
   const now = Date.now();
-  
+
   // Вычисляем оставшееся время фазы
   let remainingPhaseTime = null;
   if (room.phaseEndsAt && room.phaseEndsAt > now) {
     remainingPhaseTime = room.phaseEndsAt - now;
   }
-  
+
   // Вычисляем оставшееся время autoAdvance (для фазы results)
   let remainingAutoAdvanceTime = null;
   if (room.phase === "results" && room.resultsShownAt && room.settings?.autoAdvance) {
@@ -1244,7 +1240,7 @@ function pauseGame(code, playerId) {
       remainingAutoAdvanceTime = autoAdvanceDelay - elapsed;
     }
   }
-  
+
   // Вычисляем оставшееся время для reveal анимации
   let remainingRevealTime = null;
   if (room.phase === "reveal" && room.revealStartedAt) {
@@ -1295,13 +1291,13 @@ function resumeGame(code, playerId) {
   if (pauseState.remainingPhaseTime !== null) {
     room.phaseEndsAt = now + pauseState.remainingPhaseTime;
   }
-  
+
   // Восстанавливаем время начала reveal (сдвигаем на время паузы)
   if (pauseState.phase === "reveal" && pauseState.revealStartedAt !== null) {
     const pauseDuration = now - pauseState.pausedAt;
     room.revealStartedAt = pauseState.revealStartedAt + pauseDuration;
   }
-  
+
   // Восстанавливаем время показа результатов (для autoAdvance)
   if (pauseState.phase === "results" && pauseState.resultsShownAt !== null) {
     const pauseDuration = now - pauseState.pausedAt;

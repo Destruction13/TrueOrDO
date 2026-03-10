@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { io } from "socket.io-client";
 import { useAuth } from "../../context/AuthContext";
 import { NotificationProvider, useNotification } from "../../context/NotificationContext";
-import { FriendsIcon, FriendsModal, ChatContainer } from "../friends";
+import { FriendsIcon, FriendsModal, MessengerModal } from "../friends";
 import "./SocialIntegration.css";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -28,13 +28,14 @@ export function SocialProvider({ children }) {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
-  
+
   // UI state
   const [isFriendsModalOpen, setIsFriendsModalOpen] = useState(false);
   const [friendsModalTab, setFriendsModalTab] = useState("friends");
-  const [openChats, setOpenChats] = useState([]);
+  const [isMessengerModalOpen, setIsMessengerModalOpen] = useState(false);
+  const [messengerInitialPartner, setMessengerInitialPartner] = useState(null);
 
-  // legacy compact messenger: active chat partner for unread suppression
+  // active chat partner for unread suppression
   const [activePartnerId, setActivePartnerId] = useState(null);
 
   // refs, чтобы не пересоздавать сокет при изменениях UI
@@ -43,7 +44,7 @@ export function SocialProvider({ children }) {
   useEffect(() => {
     activePartnerIdRef.current = activePartnerId;
   }, [activePartnerId]);
-  
+
   // Counters
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -128,6 +129,18 @@ export function SocialProvider({ children }) {
       }
     });
 
+    // === Unread sync: сервер сообщает актуальный unread после прочтения ===
+    newSocket.on("messages:unread:sync", (data) => {
+      if (typeof data?.totalUnread === "number") {
+        setUnreadMessagesCount(data.totalUnread);
+      } else {
+        // fallback: запрашиваем актуальное значение
+        newSocket.emit("messages:unread:count", {}, (res) => {
+          if (res?.success) setUnreadMessagesCount(res.count || 0);
+        });
+      }
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -135,43 +148,30 @@ export function SocialProvider({ children }) {
     };
   }, [isAuthenticated, user?.id]);
 
-  // Открыть мессенджер и сразу выбрать диалог
-  // Открыть компактный чат (окна снизу справа)
+  // Открыть MessengerModal с конкретным другом
   const openChat = useCallback((odlerId, nickname, avatar) => {
-    setOpenChats((prev) => {
-      const exists = prev.some((c) => String(c.odlerId) === String(odlerId));
-      if (exists) return prev;
-      return [...prev, { odlerId, nickname, avatar }];
-    });
-    setActivePartnerId(odlerId);
+    setMessengerInitialPartner({ odlerId, nickname, avatar });
+    setIsMessengerModalOpen(true);
   }, []);
 
-  // Для совместимости (если где-то вызывается) 
   const openMessenger = useCallback(() => {
-    setIsFriendsModalOpen(true);
-    setFriendsModalTab("friends");
+    setMessengerInitialPartner(null);
+    setIsMessengerModalOpen(true);
   }, []);
 
   const closeMessenger = useCallback(() => {
-    // компактный режим: закрытие мессенджера = закрыть все чаты
-    setOpenChats([]);
+    setIsMessengerModalOpen(false);
+    setMessengerInitialPartner(null);
     setActivePartnerId(null);
   }, []);
 
   const toggleMessenger = useCallback(() => {
-    setIsFriendsModalOpen((v) => !v);
-    setFriendsModalTab("friends");
-  }, []);
-
-  // Close chat (legacy popups)
-  const closeChat = useCallback((odlerId) => {
-    setOpenChats((prev) => {
-      const next = prev.filter((c) => String(c.odlerId) !== String(odlerId));
-      // если закрыли активный чат — сбрасываем activePartnerId
-      if (String(activePartnerIdRef.current) === String(odlerId)) {
-        setActivePartnerId(next.length ? next[next.length - 1].odlerId : null);
+    setIsMessengerModalOpen((v) => {
+      if (v) {
+        setMessengerInitialPartner(null);
+        setActivePartnerId(null);
       }
-      return next;
+      return !v;
     });
   }, []);
 
@@ -192,16 +192,15 @@ export function SocialProvider({ children }) {
     isConnected,
     connectionError,
     user,
-    
+
     // Counters
     pendingRequestsCount,
     unreadMessagesCount,
     onlineFriendsCount,
     totalNotifications: pendingRequestsCount + unreadMessagesCount,
-    
+
     // Actions
     openChat,
-    closeChat,
     openFriendsModal,
     inviteToGame,
     openMessenger,
@@ -209,8 +208,8 @@ export function SocialProvider({ children }) {
     toggleMessenger,
 
     // UI state
-    isMessengerOpen: openChats.length > 0,
-    isCompactChatOpen: openChats.length > 0,
+    isMessengerOpen: isMessengerModalOpen,
+    isMessengerModalOpen,
 
     // UI state setters
     setIsFriendsModalOpen,
@@ -222,11 +221,11 @@ export function SocialProvider({ children }) {
     <SocialContext.Provider value={value}>
       <NotificationProvider
         socket={socket}
-        isChatOpen={openChats.length > 0}
+        isChatOpen={isMessengerModalOpen}
         activeChatPartnerId={activePartnerId}
       >
         {children}
-        
+
         {/* Global social UI components */}
         {isAuthenticated && socket && (
           <>
@@ -237,14 +236,16 @@ export function SocialProvider({ children }) {
               initialTab={friendsModalTab}
               onOpenChat={openChat}
             />
-            
-            {/* Compact chat windows (bottom-right) */}
-            <ChatContainer
-              chats={openChats}
-              onClose={closeChat}
+
+            {/* Мессенджер (заменяет ChatContainer) */}
+            <MessengerModal
+              isOpen={isMessengerModalOpen}
+              onClose={closeMessenger}
               socket={socket}
               currentUserId={user?.id}
+              initialPartner={messengerInitialPartner}
               onActivePartnerChange={setActivePartnerId}
+              onUnreadCount={setUnreadMessagesCount}
             />
           </>
         )}
@@ -258,13 +259,13 @@ export function SocialProvider({ children }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function SocialHeaderIcons({ className = "" }) {
-  const { 
-    socket, 
-    isConnected, 
-    pendingRequestsCount, 
+  const {
+    socket,
+    isConnected,
+    pendingRequestsCount,
     unreadMessagesCount,
     onlineFriendsCount,
-    openFriendsModal 
+    openFriendsModal
   } = useSocial();
   const { user } = useAuth();
 

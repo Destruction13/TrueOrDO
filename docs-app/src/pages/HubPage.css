@@ -1,0 +1,112 @@
+/**
+ * HubPage styles
+ * Main landing page with hero section and section cards
+ */
+
+.hub-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 4rem 2rem;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hero section */
+.hub-hero {
+  text-align: center;
+  margin-bottom: 4rem;
+  animation: slideDown 0.6s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hub-hero-title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  margin: 0 0 1.5rem 0;
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+}
+
+.hub-hero-description {
+  font-size: 1.25rem;
+  color: hsl(var(--muted-foreground));
+  margin: 0 auto;
+  max-width: 700px;
+  line-height: 1.7;
+}
+
+/* Sections grid */
+.hub-sections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  animation: staggerIn 0.8s ease-out;
+}
+
+@keyframes staggerIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hub-page {
+    padding: 2rem 1rem;
+  }
+
+  .hub-hero {
+    margin-bottom: 3rem;
+  }
+
+  .hub-hero-title {
+    font-size: 2.5rem;
+  }
+
+  .hub-hero-description {
+    font-size: 1rem;
+  }
+
+  .hub-sections-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hub-hero-title {
+    font-size: 2rem;
+  }
+
+  .hub-hero-description {
+    font-size: 0.95rem;
+  }
+}
