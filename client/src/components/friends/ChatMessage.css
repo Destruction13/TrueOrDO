@@ -10,11 +10,13 @@
 .chat-message__bubble {
   padding: 8px 12px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .chat-message--own .chat-message__bubble {
-  background: #8b5cf6;
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.18) 0%, rgba(46, 230, 255, 0.28) 100%);
+  border-color: rgba(46, 230, 255, 0.22);
 }
 
 .chat-message__content {
@@ -23,9 +25,29 @@
   word-break: break-word;
 }
 
+.chat-message__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
 .chat-message__time {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 4px;
-  text-align: right;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.chat-message__status {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.chat-message__status--read {
+  color: #53bdeb;
+}
+
+.chat-message__status-icon {
+  display: block;
 }

@@ -1,0 +1,206 @@
+.technical-page {
+  display: flex;
+  min-height: 100vh;
+  background: hsl(var(--background));
+}
+
+.technical-sidebar {
+  width: 280px;
+  background: hsl(var(--card));
+  border-right: 1px solid hsl(var(--border));
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.technical-sidebar-header {
+  padding: 2rem 1.5rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.technical-sidebar-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 0;
+}
+
+.technical-nav {
+  padding: 1rem 0;
+}
+
+.technical-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.technical-nav-item:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+
+.technical-nav-item.active {
+  background: hsl(var(--accent));
+  color: hsl(var(--primary));
+  border-left-color: hsl(var(--primary));
+  font-weight: 500;
+}
+
+.technical-nav-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.technical-nav-label {
+  flex: 1;
+}
+
+.technical-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Hub view */
+.technical-hub {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+}
+
+.technical-hub-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.technical-hub-header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  margin: 0 0 1rem;
+}
+
+.technical-hub-description {
+  font-size: 1.125rem;
+  color: hsl(var(--muted-foreground));
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.technical-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.technical-hub-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  min-height: 150px;
+}
+
+.technical-hub-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px hsl(var(--foreground) / 0.1);
+  border-color: hsl(var(--primary));
+}
+
+.technical-hub-card-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.technical-hub-card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  margin: 0;
+  text-align: center;
+}
+
+/* Subsection content */
+.technical-subsection {
+  display: flex;
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+}
+
+.technical-subsection-main {
+  flex: 1;
+  min-width: 0; /* Prevent flex item from overflowing */
+}
+
+.technical-subsection-toc {
+  width: 280px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 2rem;
+  align-self: flex-start;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
+.technical-subsection-header {
+  margin-bottom: 2rem;
+}
+
+.technical-subsection-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  margin: 0 0 0.5rem;
+}
+
+.technical-subsection-description {
+  font-size: 1.125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.technical-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  color: hsl(var(--muted-foreground));
+}
+
+.technical-markdown-content {
+  color: hsl(var(--foreground));
+}
+
+/* Responsive */
+@media (max-width: 1440px) {
+  .technical-subsection-toc {
+    display: none;
+  }
+  
+  .technical-subsection {
+    max-width: 900px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .technical-sidebar {
+    display: none;
+  }
+  
+  .technical-hub-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}

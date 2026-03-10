@@ -1,0 +1,129 @@
+.tree-node-container {
+  width: 100%;
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  user-select: none;
+  position: relative;
+}
+
+.tree-node:hover {
+  background-color: hsl(var(--muted));
+}
+
+.tree-node.focused {
+  background-color: hsl(var(--accent));
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: -2px;
+}
+
+.tree-node.endpoint {
+  font-weight: 500;
+}
+
+.tree-node-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: hsl(var(--foreground));
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tree-node-toggle:hover {
+  background-color: hsl(var(--muted));
+  border-radius: 2px;
+}
+
+.tree-node-toggle.expanded {
+  transform: rotate(90deg);
+}
+
+.tree-node-toggle svg {
+  display: block;
+}
+
+.tree-node-spacer {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.tree-node-method-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  min-width: 60px;
+  justify-content: center;
+}
+
+.tree-node-method-icon {
+  font-size: 0.875rem;
+  font-weight: bold;
+}
+
+.tree-node-method-text {
+  letter-spacing: 0.025em;
+}
+
+.tree-node-label {
+  flex: 1;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-node-children {
+  animation: expandNode 0.2s ease-out;
+  transform-origin: top;
+}
+
+@keyframes expandNode {
+  from {
+    opacity: 0;
+    transform: scaleY(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* Accessibility improvements */
+.tree-node:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+.tree-node-toggle:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Dark theme adjustments */
+.dark .tree-node-method-badge {
+  filter: brightness(0.9);
+}

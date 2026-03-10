@@ -12,7 +12,7 @@
 .toast-notification--error { border-left: 4px solid #ef4444; }
 .toast-notification--warning { border-left: 4px solid #eab308; }
 .toast-notification--info { border-left: 4px solid #3b82f6; }
-.toast-notification--social { border-left: 4px solid #8b5cf6; }
+.toast-notification--social { border-left: 4px solid var(--accent); }
 
 .toast-notification__content {
   display: flex;
@@ -85,9 +85,9 @@
 }
 
 .toast-notification__action--primary {
-  background: #8b5cf6;
+  background: var(--accent);
 }
 
 .toast-notification__action--primary:hover {
-  background: #7c3aed;
+  filter: brightness(1.05);
 }

@@ -1,0 +1,83 @@
+/**
+ * SectionCard styles
+ * Card component for documentation sections with hover animations
+ */
+
+.section-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.section-card {
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.section-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.05), hsl(var(--accent) / 0.05));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 0;
+}
+
+.section-card:hover::before {
+  opacity: 1;
+}
+
+.section-card-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  position: relative;
+  z-index: 1;
+}
+
+.section-card-title {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  position: relative;
+  z-index: 1;
+  transition: color 0.3s ease;
+}
+
+.section-card:hover .section-card-title {
+  color: hsl(var(--primary));
+}
+
+.section-card-description {
+  margin: 0;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.6;
+  position: relative;
+  z-index: 1;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .section-card {
+    padding: 1.5rem;
+  }
+
+  .section-card-icon {
+    font-size: 2.5rem;
+  }
+
+  .section-card-title {
+    font-size: 1.25rem;
+  }
+}

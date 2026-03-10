@@ -11,5 +11,6 @@ export { default as ChatWindow } from "./ChatWindow";
 export { default as ChatMessage } from "./ChatMessage";
 export { default as ConversationsList } from "./ConversationsList";
 export { default as ChatContainer } from "./ChatContainer";
+export { default as MessengerModal } from "./MessengerModal";
 export { default as GameInviteNotification } from "./GameInviteNotification";
 export { default as ClickablePlayerWrapper } from "./ClickablePlayerWrapper";

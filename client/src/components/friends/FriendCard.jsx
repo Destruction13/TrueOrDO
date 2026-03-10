@@ -42,6 +42,7 @@ export default function FriendCard({
     id,
     nickname,
     avatarUrl,
+    avatar,
     frameSlug,
     nicknameStyle,
     onlineStatus = "offline",
@@ -98,8 +99,8 @@ export default function FriendCard({
       {/* Аватар */}
       <div className="friend-card__avatar">
         <AvatarFrame size="xs" frameSlug={frameSlug}>
-          {avatarUrl ? (
-            <img src={avatarUrl} alt={nickname} className="friend-card__avatar-img" />
+          {avatarUrl || avatar ? (
+            <img src={avatarUrl || avatar} alt={nickname} className="friend-card__avatar-img" />
           ) : (
             <div className="friend-card__avatar-placeholder">{initial}</div>
           )}

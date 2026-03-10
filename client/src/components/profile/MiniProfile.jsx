@@ -16,6 +16,13 @@ const GAME_CONFIG = {
   emotional: { name: "Emotional", icon: "\uD83D\uDE0A", color: "#9b59b6" },
 };
 
+// Базовые эмодзи для чата
+const BASIC_EMOJIS = [
+  "\uD83D\uDE00", "\uD83D\uDE01", "\uD83D\uDE02", "\uD83D\uDE03", "\uD83D\uDE04", "\uD83D\uDE05", "\uD83D\uDE06", "\uD83D\uDE09",
+  "\uD83D\uDE0A", "\uD83D\uDE0D", "\uD83E\uDD70", "\uD83D\uDE18", "\uD83D\uDE1C", "\uD83E\uDD14", "\uD83D\uDE0E", "\uD83E\uDD29",
+  "\uD83D\uDE22", "❤️", "\uD83D\uDC4D", "\uD83D\uDC4E", "\uD83D\uDC4C", "\uD83D\uDD25", "\uD83C\uDF89", "\uD83C\uDF1F"
+];
+
 // Статусы онлайн
 const ONLINE_STATUS_CONFIG = {
   online: { label: "Онлайн", color: "#2ecc71", icon: "\uD83D\uDFE2" },
@@ -35,15 +42,15 @@ const USER_SELECTABLE_STATUSES = ["online", "dnd", "invisible"];
  */
 function parseFormattedText(text) {
   if (!text) return null;
-  
+
   const lines = text.split('\n');
   const elements = [];
-  
+
   lines.forEach((line, lineIndex) => {
     if (lineIndex > 0) {
       elements.push(<br key={`br-${lineIndex}`} />);
     }
-    
+
     // Проверка на цитату
     if (line.startsWith('> ')) {
       elements.push(
@@ -53,10 +60,10 @@ function parseFormattedText(text) {
       );
       return;
     }
-    
+
     elements.push(...parseInlineFormatting(line, lineIndex));
   });
-  
+
   return elements;
 }
 
@@ -68,17 +75,17 @@ function parseInlineFormatting(text, keyPrefix = 0) {
   // Регулярка для поиска разметки и URL
   // Добавлена поддержка автоматических ссылок (https?://...)
   const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(\~\~(.+?)\~\~)|(\[(.+?)\]\((.+?)\))|(https?:\/\/[^\s<>"\[\]]+)/g;
-  
+
   let lastIndex = 0;
   let match;
   let matchIndex = 0;
-  
+
   while ((match = regex.exec(text)) !== null) {
     // Добавляем текст до совпадения
     if (match.index > lastIndex) {
       elements.push(text.slice(lastIndex, match.index));
     }
-    
+
     if (match[1]) {
       // **bold**
       elements.push(<strong key={`b-${keyPrefix}-${matchIndex}`}>{match[2]}</strong>);
@@ -91,10 +98,10 @@ function parseInlineFormatting(text, keyPrefix = 0) {
     } else if (match[7]) {
       // [text](url)
       elements.push(
-        <a 
-          key={`a-${keyPrefix}-${matchIndex}`} 
-          href={match[9]} 
-          target="_blank" 
+        <a
+          key={`a-${keyPrefix}-${matchIndex}`}
+          href={match[9]}
+          target="_blank"
           rel="noopener noreferrer"
           className="mini-profile__biography-link"
         >
@@ -108,10 +115,10 @@ function parseInlineFormatting(text, keyPrefix = 0) {
       const cleanUrl = url.replace(/[.,;:!?)]+$/, '');
       const trailingChars = url.slice(cleanUrl.length);
       elements.push(
-        <a 
-          key={`url-${keyPrefix}-${matchIndex}`} 
-          href={cleanUrl} 
-          target="_blank" 
+        <a
+          key={`url-${keyPrefix}-${matchIndex}`}
+          href={cleanUrl}
+          target="_blank"
           rel="noopener noreferrer"
           className="mini-profile__biography-link"
         >
@@ -122,16 +129,16 @@ function parseInlineFormatting(text, keyPrefix = 0) {
         elements.push(trailingChars);
       }
     }
-    
+
     lastIndex = match.index + match[0].length;
     matchIndex++;
   }
-  
+
   // Добавляем оставшийся текст
   if (lastIndex < text.length) {
     elements.push(text.slice(lastIndex));
   }
-  
+
   return elements.length > 0 ? elements : [text];
 }
 
@@ -169,7 +176,7 @@ function TagBadge({ nickname, tag }) {
   const handleClick = () => {
     const fullTag = `${nickname}#${tag}`;
     navigator.clipboard.writeText(fullTag);
-    
+
     // Позиция всплывашки справа от бейджика
     if (badgeRef.current) {
       const rect = badgeRef.current.getBoundingClientRect();
@@ -177,7 +184,7 @@ function TagBadge({ nickname, tag }) {
     }
     setShowTooltip(true);
     setShowHoverTooltip(false);
-    
+
     // Скрыть через 1 секунду
     setTimeout(() => setShowTooltip(false), 1000);
   };
@@ -203,7 +210,7 @@ function TagBadge({ nickname, tag }) {
 
   return (
     <>
-      <button 
+      <button
         ref={badgeRef}
         className="mini-profile__tag-badge"
         onClick={handleClick}
@@ -213,7 +220,7 @@ function TagBadge({ nickname, tag }) {
         #{tag}
       </button>
       {showHoverTooltip && (
-        <div 
+        <div
           className="mini-profile__tag-tooltip"
           style={{ left: hoverTooltipPos.x, top: hoverTooltipPos.y }}
         >
@@ -221,7 +228,7 @@ function TagBadge({ nickname, tag }) {
         </div>
       )}
       {showTooltip && (
-        <div 
+        <div
           className="mini-profile__copy-tooltip"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
@@ -266,7 +273,7 @@ function DiscordBadge({ discordId, discordUsername }) {
   const handleClick = (e) => {
     e.stopPropagation();
     e.preventDefault();
-    
+
     if (badgeRef.current) {
       const rect = badgeRef.current.getBoundingClientRect();
       setMenuPos({ x: rect.right + 8, y: rect.top });
@@ -293,13 +300,13 @@ function DiscordBadge({ discordId, discordUsername }) {
   // Закрытие меню при клике вне
   useEffect(() => {
     if (!showMenu) return;
-    
+
     const handleClickOutside = (e) => {
       if (badgeRef.current && !badgeRef.current.contains(e.target)) {
         setShowMenu(false);
       }
     };
-    
+
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showMenu]);
@@ -314,11 +321,11 @@ function DiscordBadge({ discordId, discordUsername }) {
         onMouseLeave={handleMouseLeave}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
         </svg>
       </button>
       {showTooltip && (
-        <div 
+        <div
           className="mini-profile__action-tooltip"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
@@ -326,7 +333,7 @@ function DiscordBadge({ discordId, discordUsername }) {
         </div>
       )}
       {showMenu && (
-        <div 
+        <div
           className="mini-profile__discord-menu"
           style={{ left: menuPos.x, top: menuPos.y }}
         >
@@ -405,7 +412,7 @@ function EditProfileButton({ onClick }) {
         </svg>
       </button>
       {showTooltip && (
-        <div 
+        <div
           className="mini-profile__tag-tooltip"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
@@ -422,16 +429,16 @@ function EditProfileButton({ onClick }) {
 function BioStatus({ text, isSelf, onEdit, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const [actionTooltip, setActionTooltip] = useState({ visible: false, text: '', x: 0, y: 0 });
-  
+
   // Определяем touch-устройство
   const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  
+
   if (!text && !isSelf) return null;
-  
+
   // Если нет текста и это свой профиль — показываем placeholder
   if (!text && isSelf) {
     return (
-      <div 
+      <div
         className="mini-profile__bio-bubble mini-profile__bio-bubble--empty"
         onClick={onEdit}
       >
@@ -474,7 +481,7 @@ function BioStatus({ text, isSelf, onEdit, onDelete }) {
   };
 
   return (
-    <div 
+    <div
       className={`mini-profile__bio-bubble ${expanded ? "mini-profile__bio-bubble--expanded" : ""}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -483,7 +490,7 @@ function BioStatus({ text, isSelf, onEdit, onDelete }) {
       {/* Кнопки редактирования и удаления (появляются при раскрытии) */}
       {isSelf && expanded && (
         <div className="mini-profile__bio-actions">
-          <button 
+          <button
             className="mini-profile__bio-action-btn mini-profile__bio-action-btn--edit"
             onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
             onMouseEnter={(e) => handleActionMouseEnter(e, 'Редактировать статус')}
@@ -494,7 +501,7 @@ function BioStatus({ text, isSelf, onEdit, onDelete }) {
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
-          <button 
+          <button
             className="mini-profile__bio-action-btn mini-profile__bio-action-btn--delete"
             onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
             onMouseEnter={(e) => handleActionMouseEnter(e, 'Удалить статус')}
@@ -508,7 +515,7 @@ function BioStatus({ text, isSelf, onEdit, onDelete }) {
         </div>
       )}
       {actionTooltip.visible && (
-        <div 
+        <div
           className="mini-profile__action-tooltip"
           style={{ left: actionTooltip.x, top: actionTooltip.y }}
         >
@@ -559,14 +566,14 @@ function BiographyPreview({ text, onOpenFullProfile }) {
   const [hasManyLines, setHasManyLines] = useState(false);
   const containerRef = useRef(null);
   const textRef = useRef(null);
-  
+
   // Определяем touch-устройство
   const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  
+
   // Проверка реального количества строк после рендера
   useEffect(() => {
     if (!textRef.current || !containerRef.current || !text) return;
-    
+
     // Создаём временный клон для измерения высоты текста
     const el = textRef.current;
     const clone = el.cloneNode(true);
@@ -576,31 +583,31 @@ function BiographyPreview({ text, onOpenFullProfile }) {
     clone.style.maxHeight = 'none';
     clone.style.overflow = 'visible';
     clone.style.width = el.offsetWidth + 'px';
-    
+
     document.body.appendChild(clone);
-    
+
     const style = window.getComputedStyle(el);
     const lineHeight = parseFloat(style.lineHeight) || 19.2; // fallback: 12px * 1.6
     const fullHeight = clone.scrollHeight;
-    
+
     document.body.removeChild(clone);
-    
+
     // Считаем количество строк
     const actualLines = Math.ceil(fullHeight / lineHeight);
-    
-    console.log('[BiographyPreview] Измерения:', { 
-      text: text.substring(0, 50) + '...', 
-      fullHeight, 
-      lineHeight, 
+
+    console.log('[BiographyPreview] Измерения:', {
+      text: text.substring(0, 50) + '...',
+      fullHeight,
+      lineHeight,
       actualLines,
-      hasManyLines: actualLines > 6 
+      hasManyLines: actualLines > 6
     });
-    
+
     setHasManyLines(actualLines > 6);
   }, [text]);
-  
+
   if (!text) return null;
-  
+
   // Клик для раскрытия на touch-устройствах
   const handleClick = () => {
     if (isTouchDevice) {
@@ -623,7 +630,7 @@ function BiographyPreview({ text, onOpenFullProfile }) {
   console.log('[BiographyPreview] render:', { expanded, hasManyLines, showButton: expanded && hasManyLines });
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`mini-profile__biography ${expanded ? "mini-profile__biography--expanded" : ""} ${hasManyLines ? "mini-profile__biography--truncated" : ""}`}
       onMouseEnter={handleMouseEnter}
@@ -635,7 +642,7 @@ function BiographyPreview({ text, onOpenFullProfile }) {
         <div className="mini-profile__biography-fade" />
       )}
       {expanded && hasManyLines && (
-        <button 
+        <button
           className="mini-profile__biography-full-btn"
           onClick={(e) => {
             e.stopPropagation();
@@ -661,6 +668,7 @@ export default function MiniProfile({
   onOpenChat,
   onOpenFullProfile,
   onMoreMenu,
+  onMessageSent,
 }) {
   const navigate = useNavigate();
   const popupRef = useRef(null);
@@ -674,13 +682,16 @@ export default function MiniProfile({
   const [showFullProfile, setShowFullProfile] = useState(false);
   const [avatarTooltip, setAvatarTooltip] = useState({ show: false, x: 0, y: 0 });
   const [nicknameExpanded, setNicknameExpanded] = useState(false);
+  const [quickMessage, setQuickMessage] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const quickMessageInputRef = useRef(null);
   const nicknameExpandTimeoutRef = useRef(null);
   const isHoveringNicknameRef = useRef(false);
   const avatarTooltipTimeoutRef = useRef(null);
 
   // Определяем "свой профиль"
-  const isSelf = currentUserId && targetUserId 
-    ? String(currentUserId) === String(targetUserId) 
+  const isSelf = currentUserId && targetUserId
+    ? String(currentUserId) === String(targetUserId)
     : profile?.isSelf || false;
 
   // Загрузка профиля
@@ -743,7 +754,7 @@ export default function MiniProfile({
     const handleClickOutside = (e) => {
       // Игнорируем клики по FullProfileModal
       if (e.target.closest('.full-profile-modal')) return;
-      
+
       if (popupRef.current && !popupRef.current.contains(e.target)) {
         onClose?.();
       }
@@ -767,6 +778,56 @@ export default function MiniProfile({
     };
   }, [onClose, showFullProfile]);
 
+  // Глобальный перехват нажатий клавиш для начала ввода сообщения
+  useEffect(() => {
+    // Если профиль не загружен, не друзья или открыт FullProfile - игнорируем
+    if (!profile || profile.friendshipStatus !== "friends" || showFullProfile) return;
+
+    const handleGlobalKeyDown = (e) => {
+      // Игнорируем нажатия с модификаторами (кроме Shift)
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+      // Игнорируем спецсимволы (длина > 1, кроме Backspace)
+      if (e.key.length > 1 && e.key !== "Backspace") return;
+
+      // Проверяем, в фокусе ли уже какое-то поле ввода
+      const activeElement = document.activeElement;
+      if (
+        activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.isContentEditable)
+      ) {
+        return;
+      }
+
+      // Фокусируем наше поле
+      quickMessageInputRef.current?.focus();
+    };
+
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [profile, showFullProfile]);
+
+  // Закрытие эмодзи-пикера при клике вне
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.mini-profile__emoji-picker') &&
+        !e.target.closest('.mini-profile__emoji-trigger')) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showEmojiPicker]);
+
+  const insertEmoji = useCallback((emoji) => {
+    setQuickMessage(prev => prev + emoji);
+    setShowEmojiPicker(false);
+    quickMessageInputRef.current?.focus();
+  }, []);
+
   // Добавление в друзья
   const handleAddFriend = useCallback(() => {
     if (!socket || !targetUserId) return;
@@ -786,10 +847,19 @@ export default function MiniProfile({
     });
   }, [socket, profile?.friendshipRequestId]);
 
-  const handleSendMessage = useCallback(() => {
-    onOpenChat?.(targetUserId);
-    onClose?.();
-  }, [onOpenChat, targetUserId, onClose]);
+  const handleSendQuickMessage = useCallback((e) => {
+    e.preventDefault();
+    if (!socket || !targetUserId || !quickMessage.trim()) return;
+
+    socket.emit("messages:send", { odlerId: targetUserId, content: quickMessage.trim() }, (res) => {
+      if (res?.success) {
+        setQuickMessage("");
+        if (onMessageSent) {
+          onMessageSent(res.message, res.conversationId);
+        }
+      }
+    });
+  }, [socket, targetUserId, quickMessage, onMessageSent]);
 
   const handleEditProfile = useCallback(() => {
     navigate("/profile");
@@ -886,13 +956,13 @@ export default function MiniProfile({
               {/* Левое крыло */}
               <div className="mini-profile__achievement-wing mini-profile__achievement-wing--left">
                 <svg viewBox="0 0 24 40" fill="none">
-                  <path d="M24 20C24 20 20 8 8 4C8 4 12 12 12 20C12 28 8 36 8 36C20 32 24 20 24 20Z" fill="url(#wingGradLeft)"/>
-                  <path d="M20 20C20 20 16 10 6 6" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5"/>
-                  <path d="M20 20C20 20 16 30 6 34" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5"/>
+                  <path d="M24 20C24 20 20 8 8 4C8 4 12 12 12 20C12 28 8 36 8 36C20 32 24 20 24 20Z" fill="url(#wingGradLeft)" />
+                  <path d="M20 20C20 20 16 10 6 6" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" />
+                  <path d="M20 20C20 20 16 30 6 34" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" />
                   <defs>
                     <linearGradient id="wingGradLeft" x1="24" y1="20" x2="8" y2="20">
-                      <stop offset="0%" stopColor="var(--achievement-color)"/>
-                      <stop offset="100%" stopColor="transparent"/>
+                      <stop offset="0%" stopColor="var(--achievement-color)" />
+                      <stop offset="100%" stopColor="transparent" />
                     </linearGradient>
                   </defs>
                 </svg>
@@ -901,13 +971,13 @@ export default function MiniProfile({
               {/* Правое крыло */}
               <div className="mini-profile__achievement-wing mini-profile__achievement-wing--right">
                 <svg viewBox="0 0 24 40" fill="none">
-                  <path d="M0 20C0 20 4 8 16 4C16 4 12 12 12 20C12 28 16 36 16 36C4 32 0 20 0 20Z" fill="url(#wingGradRight)"/>
-                  <path d="M4 20C4 20 8 10 18 6" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5"/>
-                  <path d="M4 20C4 20 8 30 18 34" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5"/>
+                  <path d="M0 20C0 20 4 8 16 4C16 4 12 12 12 20C12 28 16 36 16 36C4 32 0 20 0 20Z" fill="url(#wingGradRight)" />
+                  <path d="M4 20C4 20 8 10 18 6" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" />
+                  <path d="M4 20C4 20 8 30 18 34" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" />
                   <defs>
                     <linearGradient id="wingGradRight" x1="0" y1="20" x2="16" y2="20">
-                      <stop offset="0%" stopColor="var(--achievement-color)"/>
-                      <stop offset="100%" stopColor="transparent"/>
+                      <stop offset="0%" stopColor="var(--achievement-color)" />
+                      <stop offset="100%" stopColor="transparent" />
                     </linearGradient>
                   </defs>
                 </svg>
@@ -916,15 +986,15 @@ export default function MiniProfile({
               {/* Правое крыло */}
               <div className="mini-profile__achievement-crown">
                 <svg viewBox="0 0 32 20" fill="none">
-                  <path d="M16 0L20 8L28 4L24 14H8L4 4L12 8L16 0Z" fill="url(#crownGrad)" stroke="#ffd700" strokeWidth="0.5"/>
-                  <circle cx="16" cy="2" r="2" fill="#ff6b6b"/>
-                  <circle cx="6" cy="6" r="1.5" fill="#4ecdc4"/>
-                  <circle cx="26" cy="6" r="1.5" fill="#4ecdc4"/>
+                  <path d="M16 0L20 8L28 4L24 14H8L4 4L12 8L16 0Z" fill="url(#crownGrad)" stroke="#ffd700" strokeWidth="0.5" />
+                  <circle cx="16" cy="2" r="2" fill="#ff6b6b" />
+                  <circle cx="6" cy="6" r="1.5" fill="#4ecdc4" />
+                  <circle cx="26" cy="6" r="1.5" fill="#4ecdc4" />
                   <defs>
                     <linearGradient id="crownGrad" x1="16" y1="0" x2="16" y2="14">
-                      <stop offset="0%" stopColor="#ffd700"/>
-                      <stop offset="50%" stopColor="#ffaa00"/>
-                      <stop offset="100%" stopColor="#cc8800"/>
+                      <stop offset="0%" stopColor="#ffd700" />
+                      <stop offset="50%" stopColor="#ffaa00" />
+                      <stop offset="100%" stopColor="#cc8800" />
                     </linearGradient>
                   </defs>
                 </svg>
@@ -942,14 +1012,14 @@ export default function MiniProfile({
               {/* Правое крыло */}
               <div className="mini-profile__achievement-ribbon">
                 <svg viewBox="0 0 48 12" fill="none">
-                  <path d="M0 4L8 0V8L0 12V4Z" fill="url(#ribbonGrad)"/>
-                  <path d="M48 4L40 0V8L48 12V4Z" fill="url(#ribbonGrad)"/>
-                  <rect x="6" y="0" width="36" height="8" rx="1" fill="url(#ribbonGrad)"/>
-                  <rect x="6" y="1" width="36" height="2" fill="rgba(255,255,255,0.3)"/>
+                  <path d="M0 4L8 0V8L0 12V4Z" fill="url(#ribbonGrad)" />
+                  <path d="M48 4L40 0V8L48 12V4Z" fill="url(#ribbonGrad)" />
+                  <rect x="6" y="0" width="36" height="8" rx="1" fill="url(#ribbonGrad)" />
+                  <rect x="6" y="1" width="36" height="2" fill="rgba(255,255,255,0.3)" />
                   <defs>
                     <linearGradient id="ribbonGrad" x1="24" y1="0" x2="24" y2="8">
-                      <stop offset="0%" stopColor="var(--achievement-color)"/>
-                      <stop offset="100%" stopColor="color-mix(in srgb, var(--achievement-color) 60%, black)"/>
+                      <stop offset="0%" stopColor="var(--achievement-color)" />
+                      <stop offset="100%" stopColor="color-mix(in srgb, var(--achievement-color) 60%, black)" />
                     </linearGradient>
                   </defs>
                 </svg>
@@ -1001,16 +1071,65 @@ export default function MiniProfile({
     return (
       <div className="mini-profile__actions">
         {friendshipStatus === "friends" && (
-          <Button
-            variant="secondary"
-            size="small"
-            className="mini-profile__action-btn"
-            onClick={handleSendMessage}
-          >
-            💬 Отправить сообщение
-          </Button>
+          <form className="mini-profile__quick-message-form" onSubmit={handleSendQuickMessage}>
+            <input
+              type="text"
+              ref={quickMessageInputRef}
+              className="mini-profile__quick-message-input"
+              placeholder={`Сообщение для ${profile.nickname}`}
+              value={quickMessage}
+              onChange={(e) => setQuickMessage(e.target.value)}
+            />
+
+            <button
+              type="button"
+              className="mini-profile__emoji-trigger"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              title="Эмодзи"
+            >
+              {"\uD83D\uDE0A"}
+            </button>
+
+            <AnimatePresence>
+              {showEmojiPicker && (
+                <motion.div
+                  className="mini-profile__emoji-picker"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 6 }}
+                  transition={{
+                    duration: 0.18,
+                    ease: "easeOut",
+                  }}
+                >
+                  {BASIC_EMOJIS.map((emoji, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="mini-profile__emoji-btn"
+                      onClick={() => insertEmoji(emoji)}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <button
+              type="submit"
+              className="mini-profile__quick-message-submit"
+              disabled={!quickMessage.trim()}
+              title="Отправить"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
         )}
-        
+
         {friendshipStatus === "pending_received" && (
           <Button
             variant="primary"
@@ -1021,20 +1140,12 @@ export default function MiniProfile({
             ✓ Принять заявку в друзья
           </Button>
         )}
-        
+
         {friendshipStatus === "pending_sent" && (
           <div className="mini-profile__pending-status">
             \u23F3 Заявка отправлена
           </div>
         )}
-
-        {/* Кнопка полного профиля */}
-        <button
-          className="mini-profile__action-btn mini-profile__action-btn--full-profile"
-          onClick={handleOpenFullProfile}
-        >
-          👤 Полный профиль
-        </button>
       </div>
     );
   };
@@ -1042,9 +1153,9 @@ export default function MiniProfile({
   // Рендер иконки добавления в друзья
   const renderFriendIcon = () => {
     if (isSelf || !profile) return null;
-    
+
     const { friendshipStatus } = profile;
-    
+
     if (friendshipStatus === "none") {
       return (
         <button
@@ -1061,7 +1172,7 @@ export default function MiniProfile({
         </button>
       );
     }
-    
+
     if (friendshipStatus === "friends") {
       return (
         <div className="mini-profile__friend-badge" title="В друзьях">
@@ -1073,7 +1184,7 @@ export default function MiniProfile({
         </div>
       );
     }
-    
+
     if (friendshipStatus === "pending_sent") {
       return (
         <div className="mini-profile__friend-badge mini-profile__friend-badge--pending" title="Любимые игры">
@@ -1085,7 +1196,7 @@ export default function MiniProfile({
         </div>
       );
     }
-    
+
     if (friendshipStatus === "pending_received") {
       return (
         <button
@@ -1101,7 +1212,7 @@ export default function MiniProfile({
         </button>
       );
     }
-    
+
     return null;
   };
 
@@ -1122,10 +1233,10 @@ export default function MiniProfile({
           {isSelf && (
             <EditProfileButton onClick={handleEditProfile} />
           )}
-          
+
           {/* Иконка добавления в друзья для чужих профилей */}
           {renderFriendIcon()}
-          
+
           {/* Кнопка "Ещё" для чужих профилей */}
           {!isSelf && (
             <button
@@ -1163,7 +1274,7 @@ export default function MiniProfile({
             <div className="mini-profile__header">
               {/* Левая колонка: аватар */}
               <div className="mini-profile__left-column">
-                <div 
+                <div
                   className="mini-profile__avatar-wrapper mini-profile__avatar-wrapper--clickable"
                   onClick={handleOpenFullProfile}
                   onMouseEnter={(e) => {
@@ -1191,9 +1302,9 @@ export default function MiniProfile({
                       </div>
                     )}
                   </AvatarFrame>
-                  
+
                   {/* Индикатор статуса на аватаре */}
-                  <div 
+                  <div
                     className={`mini-profile__status-indicator ${isSelf ? "mini-profile__status-indicator--clickable" : ""}`}
                     style={{ backgroundColor: ONLINE_STATUS_CONFIG[profile.onlineStatus || "offline"].color }}
                     onClick={isSelf ? (e) => { e.stopPropagation(); setShowStatusSelector(!showStatusSelector); } : undefined}
@@ -1201,7 +1312,7 @@ export default function MiniProfile({
                   >
                     {profile.onlineStatus === "invisible" && isSelf && "??"}
                   </div>
-                  
+
                 </div>
               </div>
 
@@ -1209,7 +1320,7 @@ export default function MiniProfile({
               {isSelf && showStatusSelector && (
                 <>
                   {/* Прозрачный overlay для закрытия при клике вне */}
-                  <div 
+                  <div
                     className="mini-profile__status-overlay"
                     onClick={() => setShowStatusSelector(false)}
                   />
@@ -1247,13 +1358,13 @@ export default function MiniProfile({
                       rows={4}
                     />
                     <div className="mini-profile__bio-editor-actions">
-                      <button 
+                      <button
                         className="mini-profile__bio-editor-btn mini-profile__bio-editor-btn--save"
                         onClick={handleSaveBio}
                       >
                         ?
                       </button>
-                      <button 
+                      <button
                         className="mini-profile__bio-editor-btn mini-profile__bio-editor-btn--cancel"
                         onClick={() => setEditingBio(false)}
                       >
@@ -1262,8 +1373,8 @@ export default function MiniProfile({
                     </div>
                   </div>
                 ) : (
-                  <BioStatus 
-                    text={profile.bio} 
+                  <BioStatus
+                    text={profile.bio}
                     isSelf={isSelf}
                     onEdit={handleEditBio}
                     onDelete={handleDeleteBio}
@@ -1271,9 +1382,9 @@ export default function MiniProfile({
                 )}
               </div>
             </div>
-            
+
             {/* Никнейм под header, центрирован по аватару */}
-            <div 
+            <div
               className={`mini-profile__nickname-row ${profile.nickname?.length > 12 ? "mini-profile__nickname-row--long" : ""} ${nicknameExpanded ? "mini-profile__nickname-row--expanded" : ""}`}
               onMouseLeave={() => {
                 // При переходе на бейджики — сбрасываем флаг и отменяем таймер
@@ -1284,7 +1395,7 @@ export default function MiniProfile({
                 setNicknameExpanded(false);
               }}
             >
-              <div 
+              <div
                 className="mini-profile__nickname-clickable"
                 onClick={handleOpenFullProfile}
                 onMouseEnter={() => {
@@ -1315,7 +1426,7 @@ export default function MiniProfile({
                 />
               </div>
               {(profile.tag || profile.discordId) && (
-                <div 
+                <div
                   className="mini-profile__nickname-badges"
                   onMouseEnter={() => {
                     // При переходе на бейджики — сбрасываем флаг и отменяем таймер
@@ -1361,17 +1472,17 @@ export default function MiniProfile({
             </div>
           </>
         ) : null}
-        
+
         {/* Кнопки действий */}
         {avatarTooltip.show && (
-          <div 
+          <div
             className="mini-profile__tag-tooltip"
             style={{ left: avatarTooltip.x, top: avatarTooltip.y }}
           >
             Открыть полный профиль
           </div>
         )}
-        
+
       </motion.div>
     </AnimatePresence>
   );
@@ -1380,7 +1491,7 @@ export default function MiniProfile({
     <>
       {/* MiniProfile скрывается когда открыт FullProfile */}
       {!showFullProfile && createPortal(content, document.body)}
-      
+
       {/* Full Profile Modal */}
       <FullProfileModal
         isOpen={showFullProfile}

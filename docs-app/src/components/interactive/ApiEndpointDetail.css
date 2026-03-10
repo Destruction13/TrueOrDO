@@ -1,0 +1,232 @@
+/**
+ * ApiEndpointDetail component styles
+ */
+
+.api-endpoint-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1.5rem;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+}
+
+/* Header with method and URL */
+.api-endpoint-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.http-method-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  text-transform: uppercase;
+  border-radius: 0.25rem;
+  letter-spacing: 0.05em;
+}
+
+.method-get {
+  background: hsl(142, 76%, 36%);
+  color: white;
+}
+
+.method-post {
+  background: hsl(217, 91%, 60%);
+  color: white;
+}
+
+.method-put {
+  background: hsl(45, 100%, 51%);
+  color: hsl(222.2, 84%, 4.9%);
+}
+
+.method-delete {
+  background: hsl(0, 84%, 60%);
+  color: white;
+}
+
+.method-patch {
+  background: hsl(280, 67%, 60%);
+  color: white;
+}
+
+.method-default {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.api-endpoint-url {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 1rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Description */
+.api-endpoint-description {
+  color: hsl(var(--muted-foreground));
+  line-height: 1.6;
+}
+
+.api-endpoint-description p {
+  margin: 0;
+}
+
+/* Authentication */
+.api-endpoint-auth {
+  padding: 1rem;
+  background: hsl(var(--muted) / 0.5);
+  border-left: 3px solid hsl(var(--primary));
+  border-radius: 0.25rem;
+}
+
+.api-endpoint-auth h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--primary));
+}
+
+.api-endpoint-auth p {
+  margin: 0;
+  color: hsl(var(--foreground));
+}
+
+/* Section headings */
+.api-endpoint-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.api-endpoint-section h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* Parameters table */
+.parameters-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+}
+
+.parameters-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.parameters-table thead {
+  background: hsl(var(--muted));
+}
+
+.parameters-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.parameters-table tbody tr {
+  border-bottom: 1px solid hsl(var(--border));
+  transition: background-color 0.15s ease;
+}
+
+.parameters-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.parameters-table tbody tr:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+
+.parameters-table td {
+  padding: 0.75rem 1rem;
+  color: hsl(var(--foreground));
+}
+
+.param-name,
+.param-type {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.8125rem;
+  background: hsl(var(--muted));
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.param-name {
+  color: hsl(217, 91%, 60%);
+  font-weight: 500;
+}
+
+.param-type {
+  color: hsl(280, 67%, 60%);
+}
+
+.param-required {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.param-required.required {
+  background: hsl(0, 84%, 60% / 0.15);
+  color: hsl(0, 84%, 60%);
+}
+
+.param-required.optional {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .api-endpoint-detail {
+    padding: 1rem;
+    gap: 1.5rem;
+  }
+
+  .api-endpoint-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .api-endpoint-url {
+    width: 100%;
+  }
+
+  .parameters-table {
+    font-size: 0.8125rem;
+  }
+
+  .parameters-table th,
+  .parameters-table td {
+    padding: 0.5rem 0.75rem;
+  }
+}

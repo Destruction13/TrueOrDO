@@ -39,6 +39,7 @@ export default function ClickablePlayer({
   onOpenChat,
   onOpenProfile,
   onInviteToGame,
+  onMessageSent,
   children,
   disabled = false,
   className = "",
@@ -56,15 +57,18 @@ export default function ClickablePlayer({
     if (onOpenProfile) {
       onOpenProfile(userId);
     } else {
+      // Открываем свой внутренний FullProfileModal
       setFullProfileOpen(true);
     }
+    // Закрываем MiniProfile и MoreMenu
     setMiniProfileOpen(false);
+    setMoreMenuOpen(false);
   }, [onOpenProfile]);
 
   // Обработчик клика — открывает MiniProfile
   const handleClick = useCallback((e) => {
     if (disabled) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -82,7 +86,7 @@ export default function ClickablePlayer({
   // Обработчик контекстного меню — также открывает MiniProfile
   const handleContextMenu = useCallback((e) => {
     if (disabled) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -114,7 +118,7 @@ export default function ClickablePlayer({
     setMoreMenuProfile(null);
   }, []);
 
-  const isSelf = relationshipStatus === "self" || currentUserId === odlerId;
+  const isSelf = relationshipStatus === "self" || String(currentUserId) === String(odlerId);
 
   return (
     <>
@@ -145,6 +149,7 @@ export default function ClickablePlayer({
           onOpenChat={onOpenChat}
           onOpenFullProfile={handleOpenFullProfile}
           onMoreMenu={handleMoreMenu}
+          onMessageSent={onMessageSent}
         />
       )}
 

@@ -7,16 +7,25 @@ import "./FriendsIcon.css";
 /**
  * FriendsIcon — иконка друзей в хедере с бейджами
  * Показывает количество онлайн друзей и непрочитанных заявок
+ *
+ * unreadCount и pendingCount приходят из SocialProvider (единый источник истины),
+ * чтобы не было двойного счётчика.
  */
-export default function FriendsIcon({ socket }) {
+export default function FriendsIcon({
+  socket,
+  pendingCount = 0,
+  unreadCount = 0,
+  onlineFriendsCount: onlineFriendsCountProp,
+  onClick,
+  isConnected,
+}) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [onlineFriendsCount, setOnlineFriendsCount] = useState(0);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
-  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [hasNewInvite, setHasNewInvite] = useState(false);
 
-  // Загрузка начальных данных
+  // Загрузка начальных данных (только заявки и онлайн — unread берём из пропов)
   const loadCounts = useCallback(() => {
     if (!socket || !user) return;
 
@@ -31,13 +40,6 @@ export default function FriendsIcon({ socket }) {
     socket.emit("friends:requests:pending", {}, (response) => {
       if (response.success) {
         setPendingRequestsCount(response.requests?.length || 0);
-      }
-    });
-
-    // Получаем непрочитанные сообщения
-    socket.emit("messages:unread:count", {}, (response) => {
-      if (response.success) {
-        setUnreadMessagesCount(response.count || 0);
       }
     });
   }, [socket, user]);
@@ -69,17 +71,8 @@ export default function FriendsIcon({ socket }) {
       loadCounts();
     };
 
-    // Новое сообщение
-    const handleMessageReceived = () => {
-      setUnreadMessagesCount((prev) => prev + 1);
-    };
-
-    // Сообщения прочитаны
-    const handleMessagesRead = (data) => {
-      if (data.count) {
-        setUnreadMessagesCount((prev) => Math.max(0, prev - data.count));
-      }
-    };
+    // unread: теперь управляется через SocialProvider + messages:unread:sync,
+    // здесь больше не нужен отдельный обработчик messages:read:confirmed для unread.
 
     // Приглашение в игру
     const handleGameInvite = () => {
@@ -90,16 +83,12 @@ export default function FriendsIcon({ socket }) {
     socket.on("friends:request:received", handleRequestReceived);
     socket.on("friends:request:accepted", handleRequestAccepted);
     socket.on("friends:status:update", handleStatusUpdate);
-    socket.on("messages:received", handleMessageReceived);
-    socket.on("messages:read:confirmed", handleMessagesRead);
     socket.on("game:invite:received", handleGameInvite);
 
     return () => {
       socket.off("friends:request:received", handleRequestReceived);
       socket.off("friends:request:accepted", handleRequestAccepted);
       socket.off("friends:status:update", handleStatusUpdate);
-      socket.off("messages:received", handleMessageReceived);
-      socket.off("messages:read:confirmed", handleMessagesRead);
       socket.off("game:invite:received", handleGameInvite);
     };
   }, [socket, loadCounts]);
@@ -107,7 +96,12 @@ export default function FriendsIcon({ socket }) {
   // Не показываем если не авторизован
   if (!user) return null;
 
-  const totalBadge = pendingRequestsCount + unreadMessagesCount;
+  // Используем пропы из SocialProvider, если переданы, иначе — локальный state
+  const effectiveOnline = typeof onlineFriendsCountProp === "number" ? onlineFriendsCountProp : onlineFriendsCount;
+  const effectivePending = pendingCount || pendingRequestsCount;
+  const effectiveUnread = unreadCount;
+
+  const totalBadge = effectivePending + effectiveUnread;
 
   return (
     <div className="friends-icon-wrapper">
@@ -119,11 +113,11 @@ export default function FriendsIcon({ socket }) {
         title="Друзья"
       >
         {/* Иконка */}
-        <svg 
-          className="friends-icon__svg" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
+        <svg
+          className="friends-icon__svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
           strokeWidth="2"
         >
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -147,8 +141,8 @@ export default function FriendsIcon({ socket }) {
         </AnimatePresence>
 
         {/* Индикатор онлайн друзей (маленькая точка) */}
-        {onlineFriendsCount > 0 && totalBadge === 0 && (
-          <span className="friends-icon__online-dot" title={`${onlineFriendsCount} онлайн`} />
+        {effectiveOnline > 0 && totalBadge === 0 && (
+          <span className="friends-icon__online-dot" title={`${effectiveOnline} онлайн`} />
         )}
       </motion.button>
 
@@ -158,7 +152,7 @@ export default function FriendsIcon({ socket }) {
           <FriendsDropdown
             socket={socket}
             onClose={() => setIsOpen(false)}
-            pendingRequestsCount={pendingRequestsCount}
+            pendingRequestsCount={effectivePending}
             onRequestsChange={(count) => setPendingRequestsCount(count)}
             onMessagesRead={() => loadCounts()}
           />

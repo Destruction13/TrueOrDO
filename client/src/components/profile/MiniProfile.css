@@ -4,7 +4,7 @@
 
 .mini-profile {
   position: fixed;
-  z-index: 10001;
+  z-index: 12001;
   width: 300px;
   background: linear-gradient(180deg, #1a1a2e 0%, #16162a 100%);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -135,8 +135,15 @@
 }
 
 @keyframes mini-profile-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* Бейдж статуса дружбы */
@@ -184,7 +191,9 @@
 }
 
 @keyframes mini-profile-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Error State */
@@ -302,7 +311,7 @@
 .mini-profile__status-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 11999;
   background: transparent;
 }
 
@@ -311,7 +320,7 @@
   position: absolute;
   top: 115px;
   left: 16px;
-  z-index: 10000;
+  z-index: 12002;
 }
 
 /* Селектор статуса */
@@ -410,7 +419,8 @@
 
 /* При раскрытом состоянии (JS управление) - раскрываем никнейм */
 .mini-profile__nickname-row--expanded .mini-profile__nickname-clickable {
-  max-width: calc(300px - 48px); /* ширина мини-профиля минус паддинги */
+  max-width: calc(300px - 48px);
+  /* ширина мини-профиля минус паддинги */
 }
 
 .mini-profile__nickname-row--expanded .mini-profile__nickname-clickable .mini-profile__nickname {
@@ -445,7 +455,7 @@
   transition: all 0.25s ease;
   text-shadow: 0 0 8px rgba(102, 126, 234, 0.5);
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2),
-              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 /* Tooltip для хэштега */
@@ -493,8 +503,8 @@ div.mini-profile__tag-tooltip {
   transform: scale(1.08);
   text-shadow: 0 0 12px rgba(157, 78, 221, 0.8);
   box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4),
-              0 0 20px rgba(157, 78, 221, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 0 20px rgba(157, 78, 221, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .mini-profile__tag-badge:active {
@@ -505,7 +515,7 @@ div.mini-profile__tag-tooltip {
 /* Всплывашка "Никнейм скопирован" */
 .mini-profile__copy-tooltip {
   position: fixed;
-  z-index: 10010;
+  z-index: 12010;
   padding: 6px 12px;
   background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
   color: #fff;
@@ -523,6 +533,7 @@ div.mini-profile__tag-tooltip {
     opacity: 0;
     transform: translateY(5px) scale(0.9);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -533,6 +544,7 @@ div.mini-profile__tag-tooltip {
   from {
     opacity: 1;
   }
+
   to {
     opacity: 0;
   }
@@ -583,7 +595,8 @@ div.mini-profile__tag-tooltip {
   overflow: hidden;
   word-break: break-word;
   white-space: pre-wrap;
-  max-height: 42px; /* ~2 строки при line-height 1.5 и font-size 13px */
+  max-height: 42px;
+  /* ~2 строки при line-height 1.5 и font-size 13px */
   transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -626,7 +639,8 @@ div.mini-profile__tag-tooltip {
 /* При наведении текст плавно раскрывается с задержкой 0.3с */
 .mini-profile__bio-bubble:hover .mini-profile__bio-text,
 .mini-profile__bio-bubble--expanded .mini-profile__bio-text {
-  max-height: 300px; /* достаточно для ~10 строк */
+  max-height: 300px;
+  /* достаточно для ~10 строк */
   transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.3s;
 }
 
@@ -908,7 +922,8 @@ div.mini-profile__action-tooltip {
   border: 1px solid rgba(255, 255, 255, 0.08);
   cursor: pointer;
   transition: all 0.25s ease;
-  max-height: 54px; /* ~2 строки */
+  max-height: 54px;
+  /* ~2 строки */
   overflow: hidden;
   width: 100%;
   box-sizing: border-box;
@@ -925,13 +940,15 @@ div.mini-profile__action-tooltip {
 
 /* Ограничение до 6 строк для длинных биографий */
 .mini-profile__biography--expanded.mini-profile__biography--truncated {
-  max-height: none; /* Убираем ограничение с контейнера */
+  max-height: none;
+  /* Убираем ограничение с контейнера */
   overflow: hidden;
 }
 
 /* Ограничиваем высоту текста до 6 строк (line-height 1.6, font-size 12px ≈ 19.2px на строку) */
 .mini-profile__biography--expanded.mini-profile__biography--truncated .mini-profile__biography-text {
-  max-height: 115px; /* ~6 строк */
+  max-height: 115px;
+  /* ~6 строк */
   overflow: hidden;
 }
 
@@ -989,11 +1006,9 @@ div.mini-profile__action-tooltip {
   left: 0;
   right: 0;
   height: 28px;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    rgba(30, 30, 30, 0.95)
-  );
+  background: linear-gradient(to bottom,
+      transparent,
+      rgba(30, 30, 30, 0.95));
   pointer-events: none;
   border-radius: 0 0 8px 8px;
 }
@@ -1120,16 +1135,14 @@ div.mini-profile__action-tooltip {
   left: 0;
   width: 41px;
   height: 46px;
-  filter: 
-    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5))
-    drop-shadow(0 0 10px var(--achievement-glow));
+  filter:
+    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 10px var(--achievement-glow));
   transition: filter 0.3s ease;
 }
 
 .mini-profile__achievement:hover .mini-profile__achievement-shield {
-  filter: 
-    drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6))
-    drop-shadow(0 0 25px var(--achievement-glow));
+  filter:
+    drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 25px var(--achievement-glow));
 }
 
 /* Wings - скрыты */
@@ -1163,35 +1176,28 @@ div.mini-profile__action-tooltip {
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  filter: 
-    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6))
-    drop-shadow(0 0 8px rgba(255, 215, 0, 0.6))
-    drop-shadow(0 0 16px rgba(255, 165, 0, 0.4));
+  filter:
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px rgba(255, 215, 0, 0.6)) drop-shadow(0 0 16px rgba(255, 165, 0, 0.4));
   transition: all 0.3s ease;
   animation: crownGlow 2s ease-in-out infinite alternate;
 }
 
 @keyframes crownGlow {
   0% {
-    filter: 
-      drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6))
-      drop-shadow(0 0 8px rgba(255, 215, 0, 0.5))
-      drop-shadow(0 0 12px rgba(255, 165, 0, 0.3));
+    filter:
+      drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px rgba(255, 215, 0, 0.5)) drop-shadow(0 0 12px rgba(255, 165, 0, 0.3));
   }
+
   100% {
-    filter: 
-      drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6))
-      drop-shadow(0 0 14px rgba(255, 215, 0, 0.8))
-      drop-shadow(0 0 24px rgba(255, 165, 0, 0.5));
+    filter:
+      drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 14px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 24px rgba(255, 165, 0, 0.5));
   }
 }
 
 .mini-profile__achievement:hover .mini-profile__achievement-crown {
   transform: translateX(-50%) translateY(-3px) scale(1.15);
-  filter: 
-    drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5)) 
-    drop-shadow(0 0 20px rgba(255, 215, 0, 0.9))
-    drop-shadow(0 0 30px rgba(255, 165, 0, 0.6));
+  filter:
+    drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 215, 0, 0.9)) drop-shadow(0 0 30px rgba(255, 165, 0, 0.6));
   animation: none;
 }
 
@@ -1241,17 +1247,13 @@ div.mini-profile__action-tooltip {
 /* Контейнер для шиммера поверх щита */
 .mini-profile__achievement--legendary .mini-profile__achievement-shield {
   position: relative;
-  filter: 
-    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5))
-    drop-shadow(0 0 15px rgba(255, 215, 0, 0.6))
-    drop-shadow(0 0 30px rgba(255, 165, 0, 0.3));
+  filter:
+    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 15px rgba(255, 215, 0, 0.6)) drop-shadow(0 0 30px rgba(255, 165, 0, 0.3));
 }
 
 .mini-profile__achievement--legendary:hover .mini-profile__achievement-shield {
-  filter: 
-    drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6))
-    drop-shadow(0 0 25px rgba(255, 215, 0, 0.8))
-    drop-shadow(0 0 40px rgba(255, 165, 0, 0.5));
+  filter:
+    drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 25px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 40px rgba(255, 165, 0, 0.5));
 }
 
 /* Шиммер эффект через overlay на ring */
@@ -1266,12 +1268,10 @@ div.mini-profile__action-tooltip {
   left: -100%;
   width: 50%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.3) 50%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.3) 50%,
+      transparent 100%);
   animation: legendaryShimmer 2s ease-in-out infinite;
   z-index: 100;
 }
@@ -1280,6 +1280,7 @@ div.mini-profile__action-tooltip {
   0% {
     left: -100%;
   }
+
   100% {
     left: 150%;
   }
@@ -1290,9 +1291,8 @@ div.mini-profile__action-tooltip {
   position: absolute;
   inset: 0;
   clip-path: var(--shield-clip);
-  background: 
-    linear-gradient(
-      165deg,
+  background:
+    linear-gradient(165deg,
       #fff7cc 0%,
       #ffe566 8%,
       #ffd700 15%,
@@ -1302,8 +1302,7 @@ div.mini-profile__action-tooltip {
       #a67c00 70%,
       #cc9900 85%,
       #ffcc00 95%,
-      #ffe066 100%
-    );
+      #ffe066 100%);
   z-index: 0;
 }
 
@@ -1313,25 +1312,21 @@ div.mini-profile__action-tooltip {
   position: absolute;
   inset: 0;
   clip-path: var(--shield-clip);
-  background: 
+  background:
     /* Bright top highlight */
-    linear-gradient(
-      160deg,
+    linear-gradient(160deg,
       rgba(255, 255, 255, 0.9) 0%,
       rgba(255, 255, 255, 0.5) 15%,
       rgba(255, 255, 200, 0.2) 30%,
-      transparent 50%
-    ),
+      transparent 50%),
     /* Edge shine */
-    linear-gradient(
-      90deg,
+    linear-gradient(90deg,
       transparent 0%,
       rgba(255, 255, 255, 0.3) 5%,
       transparent 10%,
       transparent 90%,
       rgba(255, 255, 255, 0.2) 95%,
-      transparent 100%
-    );
+      transparent 100%);
 }
 
 /* Gold frame inner edge - darker gold for depth */
@@ -1340,14 +1335,12 @@ div.mini-profile__action-tooltip {
   position: absolute;
   inset: 2px;
   clip-path: var(--shield-clip);
-  background: linear-gradient(
-    170deg,
-    #ffdd44 0%,
-    #eebb00 20%,
-    #cc9900 50%,
-    #aa7700 80%,
-    #ddaa00 100%
-  );
+  background: linear-gradient(170deg,
+      #ffdd44 0%,
+      #eebb00 20%,
+      #cc9900 50%,
+      #aa7700 80%,
+      #ddaa00 100%);
   box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.4);
 }
 
@@ -1356,29 +1349,23 @@ div.mini-profile__action-tooltip {
   position: absolute;
   inset: 3px;
   clip-path: var(--shield-clip);
-  background: 
+  background:
     /* Bright top highlight - crystal shine */
-    linear-gradient(
-      150deg,
+    linear-gradient(150deg,
       rgba(255, 255, 255, 0.8) 0%,
       rgba(255, 255, 255, 0.4) 15%,
-      transparent 40%
-    ),
+      transparent 40%),
     /* Central glow */
-    radial-gradient(
-      ellipse 80% 60% at 50% 35%,
+    radial-gradient(ellipse 80% 60% at 50% 35%,
       color-mix(in srgb, var(--achievement-color) 90%, white) 0%,
-      transparent 70%
-    ),
+      transparent 70%),
     /* Main vibrant color gradient */
-    linear-gradient(
-      175deg,
+    linear-gradient(175deg,
       color-mix(in srgb, var(--achievement-color) 70%, white) 0%,
       color-mix(in srgb, var(--achievement-color) 95%, white) 20%,
       var(--achievement-color) 40%,
       color-mix(in srgb, var(--achievement-color) 85%, black) 70%,
-      color-mix(in srgb, var(--achievement-color) 60%, black) 100%
-    );
+      color-mix(in srgb, var(--achievement-color) 60%, black) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1391,7 +1378,7 @@ div.mini-profile__action-tooltip {
   content: "";
   position: absolute;
   inset: 0;
-  background: 
+  background:
     /* Strong center highlight line */
     linear-gradient(90deg, transparent 46%, rgba(255, 255, 255, 0.25) 50%, transparent 54%),
     /* Diamond facets */
@@ -1410,20 +1397,17 @@ div.mini-profile__action-tooltip {
   left: 0;
   right: 0;
   height: 50%;
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.5) 0%,
-    rgba(0, 0, 0, 0.2) 40%,
-    transparent 100%
-  );
+  background: linear-gradient(to top,
+      rgba(0, 0, 0, 0.5) 0%,
+      rgba(0, 0, 0, 0.2) 40%,
+      transparent 100%);
   pointer-events: none;
 }
 
 .mini-profile__achievement-icon {
   font-size: 16px;
-  filter: 
-    drop-shadow(0 0 2px rgba(255, 255, 255, 0.9))
-    drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  filter:
+    drop-shadow(0 0 2px rgba(255, 255, 255, 0.9)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
   z-index: 2;
   position: relative;
 }
@@ -1561,6 +1545,141 @@ div.mini-profile__action-tooltip {
   color: rgba(241, 196, 15, 0.9);
   font-size: 14px;
 }
+
+/* Quick Message Form (Discord style) */
+.mini-profile__quick-message-form {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 4px 12px;
+  margin-top: 4px;
+  transition: all 0.2s ease;
+}
+
+.mini-profile__quick-message-form:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mini-profile__quick-message-input {
+  flex: 1;
+  background: transparent !important;
+  border: none !important;
+  color: white;
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mini-profile__quick-message-input:focus {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.mini-profile__quick-message-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.mini-profile__quick-message-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: #5ea5f5;
+  /* Telegram blue */
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+  margin-left: 6px;
+}
+
+.mini-profile__quick-message-submit svg {
+  width: 20px;
+  height: 20px;
+  transform: translateX(-1px) translateY(1px);
+  fill: currentColor;
+}
+
+.mini-profile__quick-message-submit:not(:disabled):hover {
+  background: rgba(94, 165, 245, 0.15);
+  /* Match accent color */
+  color: #488ecc;
+}
+
+.mini-profile__quick-message-submit:disabled {
+  opacity: 0.5;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: not-allowed;
+  background: transparent;
+}
+
+/* Emoji Trigger */
+.mini-profile__emoji-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  opacity: 0.7;
+  padding: 0;
+}
+
+.mini-profile__emoji-trigger:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Emoji Picker Popup */
+.mini-profile__emoji-picker {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  background: #2b2d31;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  z-index: 1000;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  will-change: transform, opacity;
+  transform-origin: bottom left;
+  backface-visibility: hidden;
+}
+
+.mini-profile__emoji-btn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: transform 0.1s, background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-profile__emoji-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.15);
+}
+
+
 
 /* Mobile Styles */
 @media (max-width: 480px) {

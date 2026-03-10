@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
+import { useSocial } from "../social";
 import FriendCard from "./FriendCard";
 import FriendRequestCard from "./FriendRequestCard";
 import "./FriendsDropdown.css";
@@ -14,6 +15,7 @@ const TABS = [
 /**
  * FriendsDropdown — выпадающее меню со списком друзей
  */
+
 export default function FriendsDropdown({
   socket,
   onClose,
@@ -21,6 +23,7 @@ export default function FriendsDropdown({
   onRequestsChange,
   onMessagesRead,
 }) {
+  const { openChat } = useSocial();
   const [activeTab, setActiveTab] = useState("all");
   const [friends, setFriends] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -35,7 +38,7 @@ export default function FriendsDropdown({
   // Загрузка друзей
   const loadFriends = useCallback((filter = "all") => {
     if (!socket) return;
-    
+
     setLoading(true);
     socket.emit("friends:list", { filter }, (response) => {
       if (response.success) {
@@ -123,10 +126,10 @@ export default function FriendsDropdown({
   }, [onClose]);
 
   // Действия с друзьями
-  const handleRemoveFriend = (friendId) => {
-    socket.emit("friends:remove", { friendId }, (response) => {
+  const handleRemoveFriend = (odlerId) => {
+    socket.emit("friends:remove", { odlerId }, (response) => {
       if (response.success) {
-        setFriends((prev) => prev.filter((f) => f.id !== friendId));
+        setFriends((prev) => prev.filter((f) => f.odlerId !== odlerId));
       }
     });
   };
@@ -174,8 +177,8 @@ export default function FriendsDropdown({
   // Фильтрация друзей по поиску
   const filteredFriends = searchQuery
     ? friends.filter((f) =>
-        f.nickname?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      f.nickname?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
     : friends;
 
   return (
@@ -268,11 +271,16 @@ export default function FriendsDropdown({
               <div className="friends-dropdown__list">
                 {filteredFriends.map((friend) => (
                   <FriendCard
-                    key={friend.id}
+                    key={friend.id || friend.odlerId}
                     user={friend}
-                    onRemove={() => handleRemoveFriend(friend.id)}
-                    onMessage={() => {/* TODO: открыть чат */}}
-                    onInvite={() => {/* TODO: пригласить в игру */}}
+                    onRemove={() => handleRemoveFriend(friend.odlerId)}
+                    onMessage={() => {
+                      openChat?.(friend.id || friend.odlerId, friend.nickname, friend.avatarUrl || friend.avatar);
+                      onClose?.();
+                    }}
+                    onInvite={() => {
+                      // TODO: пригласить в игру (требует gameType/roomCode)
+                    }}
                   />
                 ))}
               </div>

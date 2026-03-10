@@ -1,0 +1,171 @@
+{
+  "version": "1.0.0",
+  "sections": [
+    {
+      "id": "api",
+      "title": {
+        "ru": "API Документация",
+        "en": "API Documentation"
+      },
+      "description": {
+        "ru": "Полное описание REST API",
+        "en": "Complete REST API reference"
+      },
+      "path": "/api",
+      "icon": "code"
+    },
+    {
+      "id": "technical",
+      "title": {
+        "ru": "Технические разделы",
+        "en": "Technical Sections"
+      },
+      "description": {
+        "ru": "Архитектура и технические детали",
+        "en": "Architecture and technical details"
+      },
+      "path": "/technical",
+      "icon": "cog",
+      "children": [
+        {
+          "id": "auth",
+          "title": { "ru": "Аутентификация", "en": "Authentication" },
+          "description": { "ru": "Система аутентификации", "en": "Authentication system" },
+          "path": "/technical/auth",
+          "icon": "lock"
+        },
+        {
+          "id": "client",
+          "title": { "ru": "Клиент", "en": "Client" },
+          "description": { "ru": "Клиентская часть", "en": "Client-side" },
+          "path": "/technical/client",
+          "icon": "desktop"
+        },
+        {
+          "id": "server",
+          "title": { "ru": "Сервер", "en": "Server" },
+          "description": { "ru": "Серверная часть", "en": "Server-side" },
+          "path": "/technical/server",
+          "icon": "server"
+        },
+        {
+          "id": "database",
+          "title": { "ru": "База данных", "en": "Database" },
+          "description": { "ru": "Структура БД", "en": "Database structure" },
+          "path": "/technical/database",
+          "icon": "database"
+        },
+        {
+          "id": "games",
+          "title": { "ru": "Игры", "en": "Games" },
+          "description": { "ru": "Игровая логика", "en": "Game logic" },
+          "path": "/technical/games",
+          "icon": "gamepad"
+        },
+        {
+          "id": "social",
+          "title": { "ru": "Социальные функции", "en": "Social Features" },
+          "description": { "ru": "Кланы и чат", "en": "Clans and chat" },
+          "path": "/technical/social",
+          "icon": "users"
+        },
+        {
+          "id": "stats",
+          "title": { "ru": "Статистика", "en": "Statistics" },
+          "description": { "ru": "Система статистики", "en": "Statistics system" },
+          "path": "/technical/stats",
+          "icon": "chart"
+        },
+        {
+          "id": "subscription",
+          "title": { "ru": "Подписка", "en": "Subscription" },
+          "description": { "ru": "Премиум подписка", "en": "Premium subscription" },
+          "path": "/technical/subscription",
+          "icon": "star"
+        },
+        {
+          "id": "deploy",
+          "title": { "ru": "Развертывание", "en": "Deployment" },
+          "description": { "ru": "Деплой и CI/CD", "en": "Deploy and CI/CD" },
+          "path": "/technical/deploy",
+          "icon": "rocket"
+        },
+        {
+          "id": "design",
+          "title": { "ru": "Дизайн", "en": "Design" },
+          "description": { "ru": "UI/UX дизайн", "en": "UI/UX design" },
+          "path": "/technical/design",
+          "icon": "palette"
+        }
+      ]
+    },
+    {
+      "id": "guides",
+      "title": {
+        "ru": "Руководства",
+        "en": "Guides"
+      },
+      "description": {
+        "ru": "Пошаговые руководства",
+        "en": "Step-by-step guides"
+      },
+      "path": "/guides",
+      "icon": "book"
+    },
+    {
+      "id": "plan",
+      "title": {
+        "ru": "План развития",
+        "en": "Development Plan"
+      },
+      "description": {
+        "ru": "Баг-трекер и планы",
+        "en": "Bug tracker and plans"
+      },
+      "path": "/plan",
+      "icon": "clipboard"
+    }
+  ],
+  "theme": {
+    "defaultTheme": "dark",
+    "colors": {
+      "light": {
+        "background": "0 0% 100%",
+        "foreground": "222.2 84% 4.9%",
+        "primary": "222.2 47.4% 11.2%",
+        "secondary": "210 40% 96.1%",
+        "accent": "210 40% 96.1%",
+        "muted": "210 40% 96.1%",
+        "border": "214.3 31.8% 91.4%",
+        "card": "0 0% 100%",
+        "cardForeground": "222.2 84% 4.9%"
+      },
+      "dark": {
+        "background": "222.2 84% 4.9%",
+        "foreground": "210 40% 98%",
+        "primary": "210 40% 98%",
+        "secondary": "217.2 32.6% 17.5%",
+        "accent": "217.2 32.6% 17.5%",
+        "muted": "217.2 32.6% 17.5%",
+        "border": "217.2 32.6% 17.5%",
+        "card": "222.2 84% 4.9%",
+        "cardForeground": "210 40% 98%"
+      }
+    }
+  },
+  "search": {
+    "debounceMs": 200,
+    "maxResults": 20,
+    "minQueryLength": 2,
+    "indexingEnabled": true
+  },
+  "animations": {
+    "enabled": true,
+    "duration": {
+      "fast": 150,
+      "normal": 300,
+      "slow": 500
+    },
+    "easing": "cubic-bezier(0.4, 0, 0.2, 1)"
+  }
+}

@@ -32,7 +32,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.22), rgba(255, 122, 217, 0.18));
   color: white;
   font-weight: 600;
   font-size: 14px;
@@ -61,8 +61,8 @@
 }
 
 .friend-card__status-dot--in_game {
-  background: #8b5cf6;
-  box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
+  background: rgba(46, 230, 255, 0.22);
+  box-shadow: 0 0 6px rgba(46, 230, 255, 0.35);
 }
 
 .friend-card__status-dot--offline {
@@ -113,7 +113,7 @@
 }
 
 .friend-card__status-text--in_game {
-  color: #8b5cf6;
+  color: var(--accent);
 }
 
 .friend-card__last-seen {
@@ -121,7 +121,7 @@
 }
 
 .friend-card__game {
-  color: #a78bfa;
+  color: var(--accent);
   font-weight: 500;
 }
 
@@ -161,13 +161,13 @@
 }
 
 .friend-card__action--primary {
-  background: rgba(139, 92, 246, 0.2);
-  color: #a78bfa;
+  background: rgba(46, 230, 255, 0.14);
+  color: rgba(46, 230, 255, 0.92);
 }
 
 .friend-card__action--primary:hover {
-  background: rgba(139, 92, 246, 0.3);
-  color: #c4b5fd;
+  background: rgba(46, 230, 255, 0.20);
+  color: #fff;
 }
 
 .friend-card__action--danger {

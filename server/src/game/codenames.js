@@ -1308,7 +1308,7 @@ function shuffleTeams(code, playerId) {
   }
 
   const activePlayers = room.players.filter(
-    p => p.connectionStatus !== "left" && p.connectionStatus !== "kicked"
+    p => p.connectionStatus !== "left" && p.connectionStatus !== "kicked" && p.team !== TEAMS.SPECTATOR
   );
 
   // Shuffle (Fisher-Yates)

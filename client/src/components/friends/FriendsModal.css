@@ -72,8 +72,8 @@
 }
 
 .friends-modal__tab.active {
-  color: #8b5cf6;
-  border-bottom-color: #8b5cf6;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .friends-modal__filters {

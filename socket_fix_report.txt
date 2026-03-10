@@ -1,0 +1,24 @@
+Socket/presence/messenger fix report
+Date: 2026-03-04
+
+Goal:
+- Real-time delivery in messenger without refresh/reopen chat.
+- Correct online/offline presence when user is online on site.
+
+Progress log:
+- Adjusted server Socket.IO pingInterval/pingTimeout to 25000/20000 (avoid false disconnects).
+- Added helpers in server/src/index.js to treat userSockets as Map<userId, Set<socketId>> consistently: get/add/remove/emit.
+- Replaced multiple io.to(userSockets.get(...)) usages with emitToSocialUser / forEachSocialUserSocket.
+- Fixed messages:game:invite bug (used undefined sid) by emitting to receiver via emitToSocialUser.
+- Reworked disconnect: remove only current socketId, grace 5s before setting offline, notify friends via emitToSocialUser.
+
+Next:
+- Done: fixed remaining wrong usages, fixed ChatWindow realtime for new dialogs.
+- Done: fixed server SyntaxError in messages:read handler.
+- Added: production cookies SameSite=None (required for cross-domain websockets).
+
+Manual QA checklist:
+1) Open site in 2 browsers / 2 accounts.
+2) Ensure FriendsIcon shows online for online friend (friends:status:update).
+3) Send message A->B: message must appear immediately in open chat without reopening.
+4) If B is on site, status should stay online (no offline flicker on reconnect).

@@ -134,9 +134,12 @@ export default function FriendsModal({ isOpen, onClose, socket, initialTab = "fr
                 ) : (
                   filteredFriends.map((friend) => (
                     <FriendCard
-                      key={friend.odlerId}
-                      friend={friend}
-                      onMessage={() => onOpenChat?.(friend.odlerId, friend.nickname, friend.avatar)}
+                      key={friend.id || friend.odlerId}
+                      user={friend}
+                      onMessage={() => {
+                        onOpenChat?.(friend.id, friend.nickname, friend.avatar);
+                        onClose?.();
+                      }}
                       onRemove={() => handleRemoveFriend(friend.odlerId)}
                     />
                   ))

@@ -1,0 +1,112 @@
+/**
+ * ResponsiveLayout Styles
+ * Desktop-optimized responsive layout with sidebar and TOC
+ */
+
+/* Viewport warning for narrow screens */
+.viewport-warning {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.viewport-warning-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.viewport-warning-icon {
+  flex-shrink: 0;
+}
+
+.viewport-warning p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Main responsive layout */
+.responsive-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  max-width: 1920px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: calc(100vh - 80px);
+}
+
+/* Layout with sidebar (1280px+) */
+@media (min-width: 1280px) {
+  .responsive-layout {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+/* Layout with sidebar and TOC (1440px+) */
+@media (min-width: 1440px) {
+  .responsive-layout {
+    grid-template-columns: 280px 1fr 280px;
+  }
+}
+
+/* Narrow viewport - reduce opacity */
+.responsive-layout.narrow-viewport {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Sidebar */
+.responsive-layout-sidebar {
+  position: sticky;
+  top: 80px;
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+  padding-right: 1rem;
+}
+
+/* Main content */
+.responsive-layout-main {
+  min-width: 0; /* Prevent overflow */
+  max-width: 100%;
+}
+
+/* Table of Contents */
+.responsive-layout-toc {
+  position: sticky;
+  top: 80px;
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+  padding-left: 1rem;
+}
+
+/* Scrollbar styling for sidebar and TOC */
+.responsive-layout-sidebar::-webkit-scrollbar,
+.responsive-layout-toc::-webkit-scrollbar {
+  width: 6px;
+}
+
+.responsive-layout-sidebar::-webkit-scrollbar-track,
+.responsive-layout-toc::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.responsive-layout-sidebar::-webkit-scrollbar-thumb,
+.responsive-layout-toc::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+.responsive-layout-sidebar::-webkit-scrollbar-thumb:hover,
+.responsive-layout-toc::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}

@@ -97,7 +97,7 @@
 
 .chat-window__input button {
   padding: 8px 16px;
-  background: #8b5cf6;
+  background: rgba(46, 230, 255, 0.22);
   border: none;
   border-radius: 20px;
   color: white;

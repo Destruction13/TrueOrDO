@@ -95,14 +95,14 @@
 
 /* Add Button */
 .search-user-btn--add {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
-  border-color: rgba(139, 92, 246, 0.3);
-  color: #a78bfa;
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.16), rgba(255, 122, 217, 0.12));
+  border-color: rgba(46, 230, 255, 0.24);
+  color: rgba(46, 230, 255, 0.92);
 }
 
 .search-user-btn--add:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3));
-  border-color: rgba(139, 92, 246, 0.5);
+  background: linear-gradient(135deg, rgba(46, 230, 255, 0.22), rgba(255, 122, 217, 0.16));
+  border-color: rgba(46, 230, 255, 0.35);
 }
 
 /* Friends Status */

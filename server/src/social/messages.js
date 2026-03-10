@@ -3,6 +3,8 @@
  * Handles private messaging between users
  */
 
+const { toPublicUser } = require("./userPublic");
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ПОЛУЧЕНИЕ ИЛИ СОЗДАНИЕ ДИАЛОГА
 // ═══════════════════════════════════════════════════════════════════════════
@@ -20,8 +22,8 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
     const blocked = await prisma.blockedUser.findFirst({
       where: {
         OR: [
-          { blockerId: userId1, blockedId: userId2 },
-          { blockerId: userId2, blockedId: userId1 },
+          { userId: userId1, blockedId: userId2 },
+          { userId: userId2, blockedId: userId1 },
         ],
       },
     });
@@ -44,8 +46,15 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
           },
         },
@@ -54,8 +63,15 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
           },
         },
@@ -75,8 +91,15 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true,
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              },
               onlineStatus: true,
             },
           },
@@ -85,14 +108,25 @@ async function getOrCreateConversation(prisma, userId1, userId2) {
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true,
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              },
               onlineStatus: true,
             },
           },
         },
       });
     }
+
+    // frameSlug compatibility
+    conversation.participant1 = toPublicUser(conversation.participant1);
+    conversation.participant2 = toPublicUser(conversation.participant2);
 
     return { success: true, conversation };
   } catch (error) {
@@ -134,8 +168,8 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
     const blocked = await prisma.blockedUser.findFirst({
       where: {
         OR: [
-          { blockerId: senderId, blockedId: receiverId },
-          { blockerId: receiverId, blockedId: senderId },
+          { userId: senderId, blockedId: receiverId },
+          { userId: receiverId, blockedId: senderId },
         ],
       },
     });
@@ -152,7 +186,14 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
 
     // Создаём сообщение и обновляем диалог в транзакции
     const result = await prisma.$transaction(async (tx) => {
-      // Создаём сообщение
+      // Вычисляем следующий seq для данного диалога
+      const maxSeqResult = await tx.message.aggregate({
+        where: { conversationId: convResult.conversation.id },
+        _max: { seq: true },
+      });
+      const nextSeq = (maxSeqResult._max.seq || 0) + 1;
+
+      // Создаём сообщение с seq
       const message = await tx.message.create({
         data: {
           conversationId: convResult.conversation.id,
@@ -160,6 +201,7 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
           content: content.trim(),
           type,
           metadata: metadata ? JSON.stringify(metadata) : null,
+          seq: nextSeq,
         },
         include: {
           sender: {
@@ -167,8 +209,15 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
               id: true,
               nickname: true,
               avatarUrl: true,
-              frameSlug: true,
-              nicknameStyle: true,
+              customization: {
+                select: {
+                  frameAll: true,
+                  nicknameColorType: true,
+                  nicknameCustomColor: true,
+                  nicknameGradient: { select: { cssValue: true } },
+                  nicknameGlow: { select: { cssValue: true } },
+                },
+              },
             },
           },
         },
@@ -183,10 +232,11 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
       return message;
     });
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       message: {
         ...result,
+        sender: toPublicUser(result.sender),
         metadata: result.metadata ? JSON.parse(result.metadata) : null,
       },
       conversationId: convResult.conversation.id,
@@ -258,8 +308,15 @@ async function getMessages(prisma, userId, conversationId, options = {}) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
           },
         },
       },
@@ -278,6 +335,7 @@ async function getMessages(prisma, userId, conversationId, options = {}) {
     // Парсим metadata
     const parsedMessages = messages.map((m) => ({
       ...m,
+      sender: toPublicUser(m.sender),
       metadata: m.metadata ? JSON.parse(m.metadata) : null,
     }));
 
@@ -402,8 +460,15 @@ async function getConversations(prisma, userId, options = {}) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
             lastSeenAt: true,
           },
@@ -413,8 +478,15 @@ async function getConversations(prisma, userId, options = {}) {
             id: true,
             nickname: true,
             avatarUrl: true,
-            frameSlug: true,
-            nicknameStyle: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: { select: { cssValue: true } },
+                nicknameGlow: { select: { cssValue: true } },
+              },
+            },
             onlineStatus: true,
             lastSeenAt: true,
           },
@@ -454,17 +526,17 @@ async function getConversations(prisma, userId, options = {}) {
 
         return {
           id: conv.id,
-          partner,
+          partner: toPublicUser(partner),
           lastMessage: lastMessage
             ? {
-                id: lastMessage.id,
-                content: lastMessage.content,
-                type: lastMessage.type,
-                senderId: lastMessage.senderId,
-                senderNickname: lastMessage.sender.nickname,
-                createdAt: lastMessage.createdAt,
-                isOwn: lastMessage.senderId === userId,
-              }
+              id: lastMessage.id,
+              content: lastMessage.content,
+              type: lastMessage.type,
+              senderId: lastMessage.senderId,
+              senderNickname: lastMessage.sender.nickname,
+              createdAt: lastMessage.createdAt,
+              isOwn: lastMessage.senderId === userId,
+            }
             : null,
           unreadCount,
           lastMessageAt: conv.lastMessageAt,
@@ -604,6 +676,98 @@ async function sendGameInvite(prisma, senderId, receiverId, gameType, roomCode) 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ЧАСТИЧНОЕ ПРОЧТЕНИЕ (TELEGRAM-LIKE PARTIAL READ)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Отметить сообщения как прочитанные до указанного seq (partial read)
+ * @param {PrismaClient} prisma
+ * @param {string} userId - ID читателя
+ * @param {string} conversationId - ID диалога
+ * @param {number} seq - seq-курсор (прочитано до этого включительно)
+ * @returns {Promise<{success, conversationId, unreadCount, cursorApplied, count, error?}>}
+ */
+async function readUpTo(prisma, userId, conversationId, seq) {
+  try {
+    if (!conversationId || typeof seq !== "number" || seq < 0) {
+      return { success: false, error: "conversationId и корректный seq обязательны" };
+    }
+
+    // Проверяем участие пользователя в диалоге
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        OR: [
+          { participant1Id: userId },
+          { participant2Id: userId },
+        ],
+      },
+    });
+
+    if (!conversation) {
+      return { success: false, error: "Диалог не найден" };
+    }
+
+    // Определяем, какое поле readSeq обновлять
+    const isParticipant1 = conversation.participant1Id === userId;
+    const currentReadSeq = isParticipant1
+      ? conversation.readSeqParticipant1
+      : conversation.readSeqParticipant2;
+
+    // Удалено раннее прекращение, чтобы старые сообщения (seq=0) также помечались прочитанными
+    // Транзакция: помечаем сообщения прочитанными + обновляем readSeq
+    const result = await prisma.$transaction(async (tx) => {
+      // Помечаем readAt для входящих сообщений с seq <= seq и readAt IS NULL
+      const updated = await tx.message.updateMany({
+        where: {
+          conversationId,
+          senderId: { not: userId },
+          seq: { lte: seq },
+          readAt: null,
+        },
+        data: {
+          readAt: new Date(),
+        },
+      });
+
+      // Обновляем readSeq в Conversation только если курсор вырос
+      if (seq > currentReadSeq) {
+        const updateData = isParticipant1
+          ? { readSeqParticipant1: seq }
+          : { readSeqParticipant2: seq };
+
+        await tx.conversation.update({
+          where: { id: conversationId },
+          data: updateData,
+        });
+      }
+
+      // Считаем оставшиеся непрочитанные
+      const unreadCount = await tx.message.count({
+        where: {
+          conversationId,
+          senderId: { not: userId },
+          readAt: null,
+        },
+      });
+
+      return { count: updated.count, unreadCount };
+    });
+
+    return {
+      success: true,
+      conversationId,
+      unreadCount: result.unreadCount,
+      cursorApplied: Math.max(seq, currentReadSeq),
+      count: result.count,
+    };
+  } catch (error) {
+    console.error("[messages] readUpTo error:", error);
+    return { success: false, error: "Ошибка при частичном прочтении" };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ЭКСПОРТ
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -618,6 +782,7 @@ module.exports = {
   getMessages,
   getMessagesByPartner,
   markAsRead,
+  readUpTo,
   getUnreadCount,
 
   // Приглашения в игру

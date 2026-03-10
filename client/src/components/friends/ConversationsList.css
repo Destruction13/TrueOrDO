@@ -1,1 +1,142 @@
-﻿/* ConversationsList styles - placeholder */
+﻿.conversations-list {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.conversations-list__empty {
+  color: rgba(255, 255, 255, 0.6);
+  padding: 14px;
+  text-align: center;
+}
+
+.conversations-list__item {
+  display: flex;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.conversations-list__item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.conversations-list__item.active {
+  background: rgba(46, 230, 255, 0.10);
+}
+
+.conversations-list__item img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.conversations-list__item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  /* Prevent interacting when hidden */
+}
+
+/* When the sidebar is expanded (via toggle), show the content */
+.messenger-modal__sidebar.expanded .conversations-list__item-content {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  transition-delay: 0.1s;
+  /* Slight delay to wait for sidebar expansion */
+}
+
+.conversations-list__item-name {
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversations-list__item-preview {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.conversations-list__item-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(46, 230, 255, 0.9);
+  color: #0a0a1a;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border: 2px solid #1a1a2e;
+  /* Creates a cutout effect against background */
+  box-shadow: 0 0 10px rgba(46, 230, 255, 0.4);
+  z-index: 2;
+}
+
+/* Неоновая подсветка аватара для друзей с непрочитанными */
+.conversations-list__item--unread .conversations-list__avatar-wrap img {
+  box-shadow: 0 0 8px rgba(46, 230, 255, 0.4);
+  border: 1.5px solid rgba(46, 230, 255, 0.5);
+}
+
+/* Обёртка аватара (для позиционирования бейджа и online-dot) */
+.conversations-list__avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Online-dot */
+.conversations-list__online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid #1a1a2e;
+}
+
+/* Подтекст для друзей без переписки */
+.conversations-list__item-preview--placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+/* Clickable elements in list */
+.conversations-list__avatar-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: block;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.conversations-list__item-name-clickable {
+  display: inline-block;
+  max-width: 100%;
+}
