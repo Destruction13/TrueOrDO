@@ -1,9 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import BoardTab from "./BoardTab";
-import ActivityTab from "./ActivityTab";
+import LoadingSpinner from "../ui/LoadingSpinner";
 import WishlistTab from "./WishlistTab";
 import "./FullProfileTabs.css";
+
+// Lazy loading для тяжелых компонентов
+const BoardTab = lazy(() => import("./BoardTab"));
+const ActivityTab = lazy(() => import("./ActivityTab"));
 
 // Конфигурация вкладок
 const TABS_CONFIG = [
@@ -27,21 +30,25 @@ function FullProfileTabs({ profileData, isSelf, initialTab = "board", onProfileU
     switch (activeTab) {
       case "board":
         return (
-          <BoardTab 
-            profileData={profileData} 
-            isSelf={isSelf} 
-            onProfileUpdate={onProfileUpdate}
-            socket={socket}
-          />
+          <Suspense fallback={<LoadingSpinner text="Загрузка..." />}>
+            <BoardTab 
+              profileData={profileData} 
+              isSelf={isSelf} 
+              onProfileUpdate={onProfileUpdate}
+              socket={socket}
+            />
+          </Suspense>
         );
       case "activity":
         return (
-          <ActivityTab 
-            profileData={profileData} 
-            isSelf={isSelf}
-            socket={socket}
-            userId={profileData?.userId || profileData?.id}
-          />
+          <Suspense fallback={<LoadingSpinner text="Загрузка..." />}>
+            <ActivityTab 
+              profileData={profileData} 
+              isSelf={isSelf}
+              socket={socket}
+              userId={profileData?.userId || profileData?.id}
+            />
+          </Suspense>
         );
       case "wishlist":
         return (

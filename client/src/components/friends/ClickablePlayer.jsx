@@ -17,7 +17,6 @@ import "./ClickablePlayer.css";
  * @param {string} relationshipStatus - статус отношений (none/friends/pending_sent/pending_received/blocked/self)
  * @param {object} socket - Socket.IO instance
  * @param {string} currentUserId - ID текущего пользователя (для определения "свой профиль")
- * @param {function} onOpenChat - callback при открытии чата
  * @param {function} onOpenProfile - callback при открытии полного профиля
  * @param {function} onInviteToGame - callback при приглашении в игру
  * @param {ReactNode} children - содержимое (никнейм)
@@ -36,7 +35,6 @@ export default function ClickablePlayer({
   relationshipStatus = "none",
   socket,
   currentUserId,
-  onOpenChat,
   onOpenProfile,
   onInviteToGame,
   onMessageSent,
@@ -146,7 +144,6 @@ export default function ClickablePlayer({
           currentUserId={currentUserId}
           position={miniProfilePosition}
           onClose={handleCloseMiniProfile}
-          onOpenChat={onOpenChat}
           onOpenFullProfile={handleOpenFullProfile}
           onMoreMenu={handleMoreMenu}
           onMessageSent={onMessageSent}
@@ -172,7 +169,6 @@ export default function ClickablePlayer({
         isSelf={isSelf}
         socket={socket}
         onClose={() => setFullProfileOpen(false)}
-        onOpenChat={onOpenChat}
       />
     </>
   );

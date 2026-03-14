@@ -109,6 +109,11 @@ export function SocialProvider({ children }) {
     });
 
     newSocket.on("messages:received", (data) => {
+      // Не увеличиваем unread для игнорируемых пользователей
+      if (data?.message?.isIgnored) {
+        return;
+      }
+      
       // Не увеличиваем unread, если прямо сейчас открыт компактный чат с этим собеседником
       const senderId = data?.senderId;
       const isActive =

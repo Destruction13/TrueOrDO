@@ -83,12 +83,12 @@ export function NotificationProvider({ children, socket, isChatOpen, activeChatP
         actions: [
           {
             label: "Принять",
-            onClick: () => socket.emit("friends:request:accept", { requestId: data.requestId }),
+            onClick: () => socket.emit("social:friends:accept", { requestId: data.requestId }),
             variant: "primary",
           },
           {
             label: "Отклонить",
-            onClick: () => socket.emit("friends:request:reject", { requestId: data.requestId }),
+            onClick: () => socket.emit("social:friends:reject", { requestId: data.requestId }),
           },
         ],
       });
@@ -138,6 +138,11 @@ export function NotificationProvider({ children, socket, isChatOpen, activeChatP
       // server payload: { message, conversationId, senderId }
       const msg = data?.message;
       const senderId = data?.senderId;
+      
+      // Не показываем уведомление, если сообщение от игнорируемого пользователя
+      if (msg?.isIgnored) {
+        return;
+      }
 
       // Не показываем toast, если чат сейчас открыт и это сообщение от активного собеседника
       if (isChatOpen && activeChatPartnerId && senderId && String(activeChatPartnerId) === String(senderId)) {

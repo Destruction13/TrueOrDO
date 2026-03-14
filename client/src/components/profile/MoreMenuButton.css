@@ -1,0 +1,208 @@
+/* Кнопка "Ещё" (три точки горизонтально) */
+.more-menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  max-width: 32px;
+  max-height: 32px;
+  padding: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(157, 78, 221, 0.3) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  color: #a8b4ff;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.more-menu-button__icon {
+  width: 20px;
+  height: 20px;
+}
+
+.more-menu-button:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.5) 0%, rgba(157, 78, 221, 0.5) 100%);
+  border-color: rgba(157, 78, 221, 0.7);
+  color: #c5d0ff;
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.more-menu-button:active {
+  transform: scale(0.95);
+  box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
+}
+
+/* Keyboard focus styles */
+.more-menu-button:focus-visible {
+  outline: 2px solid #00A8FC;
+  outline-offset: 2px;
+}
+
+/* Выпадающее меню */
+.more-menu-button__menu {
+  position: fixed !important;
+  transform: translateY(-50%);
+  z-index: 99999 !important;
+  min-width: 200px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.95) 0%, rgba(30, 25, 50, 0.95) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 8px;
+  display: flex !important;
+  flex-direction: column;
+  gap: 4px;
+  animation: popupSlideIn 0.2s ease-out;
+  pointer-events: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+@keyframes popupSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+/* Элемент меню */
+.more-menu-button__item {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  width: 100%;
+  white-space: nowrap;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.more-menu-button__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.more-menu-button__item:active {
+  transform: translateY(0);
+}
+
+/* Keyboard focus styles for menu items */
+.more-menu-button__item:focus-visible {
+  outline: 2px solid #5865f2;
+  outline-offset: -2px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Опасное действие (блокировка) */
+.more-menu-button__item--danger {
+  color: #ff6b6b !important;
+}
+
+.more-menu-button__item--danger:hover {
+  background: rgba(255, 107, 107, 0.15);
+}
+
+.more-menu-button__item--danger:focus-visible {
+  outline-color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.15);
+}
+
+/* Иконка элемента меню */
+.more-menu-button__item-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 768px) {
+  /* Кнопка "Ещё" остается 44x44px на мобильных */
+  .more-menu-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .more-menu-button__menu {
+    min-width: 180px;
+  }
+
+  /* Элементы меню - минимум 44x44px для touch */
+  .more-menu-button__item {
+    padding: 12px;
+    font-size: 15px;
+    min-height: 44px;
+  }
+}
+
+/* Backdrop для мобильной версии */
+.more-menu-button__backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  backdrop-filter: blur(2px);
+}
+
+/* Мобильная версия: Bottom Sheet */
+.more-menu-button__menu--mobile {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  min-width: unset;
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 16px 16px 0 0;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* Handle для bottom sheet (визуальный индикатор что можно свайпнуть вниз) */
+.more-menu-button__menu-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border-color, #3a3a3a);
+  border-radius: 2px;
+  margin: 0 auto 16px;
+}
+
+/* Увеличенные touch targets для мобильных */
+@media (max-width: 768px) {
+  .more-menu-button__menu--mobile .more-menu-button__item {
+    padding: 16px;
+    font-size: 16px;
+    min-height: 56px;
+  }
+
+  .more-menu-button__menu--mobile .more-menu-button__item-icon {
+    width: 20px;
+    height: 20px;
+  }
+}

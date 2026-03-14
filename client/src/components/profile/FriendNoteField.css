@@ -1,0 +1,155 @@
+/* ============================================
+   FriendNoteField — Mobile-first approach
+   ============================================ */
+
+.friend-note-field {
+  margin-top: 16px;
+  width: 100%;
+}
+
+/* Discord-style wrapper - без бордера по умолчанию */
+.friend-note-field__wrapper {
+  position: relative;
+  background: var(--bg-secondary, #2f3136);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: all 0.15s ease;
+  border: 2px solid transparent;
+}
+
+/* Бордер при hover */
+.friend-note-field__wrapper:hover {
+  border-color: var(--border-hover, #4e5058);
+}
+
+/* Бордер при фокусе/редактировании */
+.friend-note-field__wrapper--editing {
+  border-color: var(--primary, #5865f2);
+  background: var(--bg-tertiary, #36393f);
+}
+
+/* Textarea — Mobile: увеличенный размер шрифта */
+.friend-note-field__textarea {
+  width: 100%;
+  min-height: 80px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary, #dcddde);
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  padding: 0;
+}
+
+.friend-note-field__textarea::placeholder {
+  color: var(--text-muted, #72767d);
+}
+
+/* Keyboard focus styles */
+.friend-note-field__textarea:focus-visible {
+  outline: none; /* Outline handled by wrapper */
+}
+
+.friend-note-field__wrapper:has(.friend-note-field__textarea:focus-visible) {
+  border-color: var(--primary, #5865f2);
+  background: var(--bg-tertiary, #36393f);
+}
+
+/* Индикатор сохранения — Mobile: увеличенный размер */
+.friend-note-field__saving {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary, #b9bbbe);
+}
+
+.friend-note-field__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--text-muted, #72767d);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.friend-note-field__saving-text {
+  font-weight: 500;
+}
+
+/* Footer с подсказкой и счетчиком — Mobile: увеличенный размер */
+.friend-note-field__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding: 0 4px;
+}
+
+.friend-note-field__hint {
+  font-size: 13px;
+  color: var(--text-muted, #72767d);
+  font-style: italic;
+}
+
+.friend-note-field__counter {
+  font-size: 13px;
+  color: var(--text-secondary, #b9bbbe);
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+/* Предупреждение при приближении к лимиту */
+.friend-note-field__counter--warning {
+  color: var(--warning, #faa61a);
+}
+
+/* Анимация спиннера */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================
+   Responsive — Tablet (768px+)
+   ============================================ */
+@media (min-width: 768px) {
+  .friend-note-field__wrapper {
+    padding: 8px 12px;
+  }
+
+  .friend-note-field__textarea {
+    font-size: 14px;
+    min-height: 60px;
+  }
+
+  .friend-note-field__saving {
+    top: 8px;
+    right: 12px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .friend-note-field__spinner {
+    width: 14px;
+    height: 14px;
+  }
+
+  .friend-note-field__footer {
+    margin-top: 6px;
+  }
+
+  .friend-note-field__hint,
+  .friend-note-field__counter {
+    font-size: 12px;
+  }
+}

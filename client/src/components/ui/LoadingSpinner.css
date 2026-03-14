@@ -1,0 +1,108 @@
+/* ============================================
+   LoadingSpinner — универсальный спиннер загрузки
+   ============================================ */
+
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--text-secondary, #a0a0a0);
+}
+
+/* Размеры */
+.loading-spinner--sm {
+  padding: 12px;
+  gap: 8px;
+}
+
+.loading-spinner--sm .loading-spinner__icon {
+  width: 20px;
+  height: 20px;
+}
+
+.loading-spinner--sm .loading-spinner__text {
+  font-size: 12px;
+}
+
+.loading-spinner--md {
+  padding: 24px;
+  gap: 12px;
+}
+
+.loading-spinner--md .loading-spinner__icon {
+  width: 32px;
+  height: 32px;
+}
+
+.loading-spinner--md .loading-spinner__text {
+  font-size: 14px;
+}
+
+.loading-spinner--lg {
+  padding: 48px;
+  gap: 16px;
+}
+
+.loading-spinner--lg .loading-spinner__icon {
+  width: 48px;
+  height: 48px;
+}
+
+.loading-spinner--lg .loading-spinner__text {
+  font-size: 16px;
+}
+
+/* Иконка спиннера */
+.loading-spinner__icon {
+  width: 32px;
+  height: 32px;
+  color: var(--primary-color, #7c3aed);
+  animation: loading-spinner-rotate 1s linear infinite;
+}
+
+.loading-spinner__icon circle {
+  animation: loading-spinner-dash 1.5s ease-in-out infinite;
+}
+
+/* Текст */
+.loading-spinner__text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary, #a0a0a0);
+}
+
+/* Анимации */
+@keyframes loading-spinner-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-spinner-dash {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dashoffset: 15.7;
+  }
+  100% {
+    stroke-dashoffset: 31.4;
+  }
+}
+
+/* Темная тема */
+@media (prefers-color-scheme: dark) {
+  .loading-spinner {
+    color: #808080;
+  }
+  
+  .loading-spinner__text {
+    color: #808080;
+  }
+}

@@ -31,12 +31,16 @@ export default function ChatMessage({ message, isOwn, id, socket }) {
 
   const isRead = Boolean(message?.readAt);
   const isGameInvite = message?.type === "game_invite";
+  const isIgnored = Boolean(message?.isIgnored);
 
   // Parse metadata (could be JSON string or object)
   let metadata = message?.metadata;
   if (typeof metadata === "string") {
     try { metadata = JSON.parse(metadata); } catch { metadata = null; }
   }
+
+  // Сообщения от игнорируемых пользователей показываем в чате
+  // Убрали фильтрацию, чтобы можно было видеть историю переписки
 
   return (
     <div

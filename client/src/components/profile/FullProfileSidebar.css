@@ -1,16 +1,21 @@
 /* ============================================
    FullProfileSidebar — Левая колонка профиля
    Структура как в MiniProfile
+   Mobile-first approach
    ============================================ */
 
 .full-profile-sidebar {
   background: linear-gradient(180deg, rgba(30, 30, 50, 0.95) 0%, rgba(20, 20, 35, 0.98) 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(124, 58, 237, 0.3) transparent;
+  scrollbar-color: rgba(88, 101, 242, 0.3) transparent;
+  padding: 16px;
+  gap: 16px;
+  border-radius: 0;
 }
 
 .full-profile-sidebar::-webkit-scrollbar {
@@ -22,7 +27,7 @@
 }
 
 .full-profile-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(124, 58, 237, 0.3);
+  background: rgba(88, 101, 242, 0.3);
   border-radius: 3px;
 }
 
@@ -31,51 +36,60 @@
    ============================================ */
 .full-profile-sidebar__banner {
   position: relative;
-  width: 100%;
+  width: calc(100% + 32px);
   height: 120px;
   overflow: hidden;
   flex-shrink: 0;
+  user-select: none;
+  margin: -16px -16px 0 -16px;
+  border-radius: 12px 12px 0 0;
 }
 
 .full-profile-sidebar__banner-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  user-select: none;
 }
 
 .full-profile-sidebar__banner-default {
   width: 100%;
   height: 100%;
   background: linear-gradient(135deg, #0d0d1a 0%, #1a1a3e 50%, #0f0f2a 100%);
+  user-select: none;
 }
 
 /* ============================================
    Header: Аватар слева, Bio справа (как MiniProfile)
+   Mobile: вертикальная компоновка
    ============================================ */
 .full-profile-sidebar__header {
   display: flex;
-  align-items: flex-start;
-  gap: 0;
-  padding: 12px 16px 12px;
+  align-items: center;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px 0;
   position: relative;
   overflow: visible;
-  min-height: 120px;
+  min-height: auto;
   margin-top: -70px;
 }
 
-/* Левая колонка: аватар */
+/* Левая колонка: аватар — Mobile: центрирован */
 .full-profile-sidebar__left-column {
   display: flex;
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
   position: relative;
-  margin-left: -8px;
+  margin-left: 0;
+  width: 100%;
 }
 
 .full-profile-sidebar__avatar-wrapper {
   position: relative;
   flex-shrink: 0;
+  user-select: none;
 }
 
 .full-profile-sidebar__avatar-img {
@@ -83,6 +97,7 @@
   height: 100%;
   object-fit: cover;
   border-radius: 50%;
+  user-select: none;
 }
 
 .full-profile-sidebar__avatar-placeholder {
@@ -96,30 +111,29 @@
   font-size: 32px;
   font-weight: 600;
   border-radius: 50%;
+  user-select: none;
 }
 
 /* Правая колонка: Bio облако 
-   Верхняя граница Bio на уровне центра аватара */
+   Mobile: статичное позиционирование, без хвостика */
 .full-profile-sidebar__right-column {
   flex: 1;
   min-width: 0;
   display: block;
   padding-left: 0;
-  padding-top: 42px;
+  padding-top: 0;
   overflow: visible;
   position: relative;
-  height: 60px;
+  height: auto;
+  width: 100%;
 }
 
 /* ============================================
    Облако статуса "о себе" (Bio bubble — копия из MiniProfile)
-   Всегда absolute чтобы не терять позицию при анимации
+   Mobile: статичное, без хвостиков
    ============================================ */
 .full-profile-sidebar__bio-bubble {
-  position: absolute;
-  top: 42px;
-  left: 0;
-  right: 0;
+  position: static;
   padding: 12px 14px;
   background: #3a3a4a;
   border-radius: 16px;
@@ -127,10 +141,12 @@
   color: rgba(255, 255, 255, 0.9);
   line-height: 1.5;
   cursor: default;
-  margin-left: -3px;
+  margin-left: 0;
   overflow: visible;
   z-index: 1;
   transition: background 0.3s ease, box-shadow 0.3s ease, z-index 0s 0.3s;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Текст Bio - ограничен 2 строками по умолчанию, с плавным раскрытием */
@@ -144,30 +160,32 @@
   transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Большой кружок — сливается с верхней частью Bio (с севера) */
+/* Большой кружок — Mobile: скрыт */
 .full-profile-sidebar__bio-bubble::before {
   content: "";
   position: absolute;
-  left: 14px;
-  top: -9px;
+  left: -6px;
+  top: 8px;
   width: 20px;
   height: 20px;
   background: #3a3a4a;
   border-radius: 50%;
   transition: all 0.25s ease;
+  display: none;
 }
 
-/* Маленький кружок — диагонально вверх-влево от большого, к аватару */
+/* Маленький кружок — Mobile: скрыт */
 .full-profile-sidebar__bio-bubble::after {
   content: "";
   position: absolute;
-  left: -2px;
-  top: -15px;
+  left: -14px;
+  top: 2px;
   width: 10px;
   height: 10px;
   background: #3a3a4a;
   border-radius: 50%;
   transition: all 0.25s ease;
+  display: none;
 }
 
 /* При наведении Bio раскрывается вниз поверх других элементов */
@@ -192,7 +210,10 @@
 }
 
 .full-profile-sidebar__bio-bubble:hover::before,
-.full-profile-sidebar__bio-bubble--expanded::before,
+.full-profile-sidebar__bio-bubble--expanded::before {
+  background: #454558;
+}
+
 .full-profile-sidebar__bio-bubble:hover::after,
 .full-profile-sidebar__bio-bubble--expanded::after {
   background: #454558;
@@ -238,16 +259,19 @@
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
+  user-select: none;
 }
 
 .full-profile-sidebar__bio-action-btn svg {
   width: 14px;
   height: 14px;
+  user-select: none;
 }
 
 .full-profile-sidebar__bio-action-btn--edit {
   background: rgba(52, 152, 219, 0.9);
   color: white;
+  user-select: none;
 }
 
 .full-profile-sidebar__bio-action-btn--edit:hover {
@@ -258,6 +282,7 @@
 .full-profile-sidebar__bio-action-btn--delete {
   background: rgba(231, 76, 60, 0.9);
   color: white;
+  user-select: none;
 }
 
 .full-profile-sidebar__bio-action-btn--delete:hover {
@@ -265,43 +290,7 @@
   transform: scale(1.1);
 }
 
-/* Tooltip для кнопок действий */
-.full-profile-sidebar__action-tooltip {
-  position: fixed;
-  padding: 6px 12px;
-  background: linear-gradient(135deg, rgba(45, 35, 65, 0.8) 0%, rgba(30, 25, 50, 0.8) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.15s ease, visibility 0.15s ease;
-  z-index: 100000;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transform: translateX(-50%);
-}
-
-.full-profile-sidebar__action-tooltip::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: rgba(38, 30, 55, 0.8);
-}
-
-/* При рендере через JS (createPortal) - всегда видимый */
-div.full-profile-sidebar__action-tooltip {
-  opacity: 1;
-  visibility: visible;
-}
+/* Tooltip для кнопок действий - используется common-tooltip из CommonTooltip.css */
 
 /* Discord dropdown меню */
 .full-profile-sidebar__discord-menu {
@@ -343,6 +332,7 @@ div.full-profile-sidebar__action-tooltip {
 .full-profile-sidebar__discord-menu-item svg {
   flex-shrink: 0;
   opacity: 0.7;
+  user-select: none;
 }
 
 /* ============================================
@@ -362,6 +352,7 @@ div.full-profile-sidebar__action-tooltip {
   align-items: center;
   justify-content: center;
   font-size: 11px;
+  user-select: none;
 }
 
 .full-profile-sidebar__status-indicator--clickable {
@@ -432,6 +423,7 @@ div.full-profile-sidebar__action-tooltip {
 
 .full-profile-sidebar__status-option-icon {
   font-size: 14px;
+  user-select: none;
 }
 
 .full-profile-sidebar__status-option-label {
@@ -467,43 +459,7 @@ div.full-profile-sidebar__action-tooltip {
               inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* Tooltip для хэштега */
-.full-profile-sidebar__tag-tooltip {
-  position: fixed;
-  padding: 6px 12px;
-  background: linear-gradient(135deg, rgba(45, 35, 65, 0.8) 0%, rgba(30, 25, 50, 0.8) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.15s ease, visibility 0.15s ease;
-  z-index: 100000;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transform: translateX(-50%);
-}
-
-.full-profile-sidebar__tag-tooltip::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: rgba(38, 30, 55, 0.8);
-}
-
-/* При рендере через JS (createPortal) - всегда видимый */
-div.full-profile-sidebar__tag-tooltip {
-  opacity: 1;
-  visibility: visible;
-}
+/* Tooltip для хэштега - используется common-tooltip из CommonTooltip.css */
 
 .full-profile-sidebar__tag-badge:hover {
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.5) 0%, rgba(157, 78, 221, 0.5) 100%);
@@ -521,39 +477,31 @@ div.full-profile-sidebar__tag-tooltip {
   box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
 }
 
-.full-profile-sidebar__copy-tooltip {
-  position: fixed;
-  z-index: 10010;
-  padding: 6px 12px;
-  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: 8px;
-  box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
-  pointer-events: none;
-  white-space: nowrap;
-}
+/* Всплывашка "Никнейм скопирован" - используется common-tooltip--success из CommonTooltip.css */
 
 /* ============================================
    Никнейм секция (отдельный блок под header — копия из MiniProfile)
+   Mobile: центрирован
    ============================================ */
 .full-profile-sidebar__nickname-section {
-  padding: 0 20px 16px;
+  padding: 0 0 16px;
+  text-align: center;
 }
 
 .full-profile-sidebar__nickname-row {
-  padding: 0 0 4px 8px;
+  padding: 0 0 4px 0;
   margin-top: -4px;
-  text-align: left;
+  text-align: center;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   transition: all 0.2s ease;
+  flex-wrap: wrap;
 }
 
 .full-profile-sidebar__nickname {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #fff;
 }
@@ -626,6 +574,7 @@ div.full-profile-sidebar__tag-tooltip {
   font-weight: 600;
   color: var(--badge-color, rgba(255, 255, 255, 0.8));
   transition: all 0.2s;
+  user-select: none;
 }
 
 .full-profile-sidebar__level-badge:hover {
@@ -646,6 +595,7 @@ div.full-profile-sidebar__tag-tooltip {
   color: #f1c40f;
   text-shadow: 0 0 8px rgba(241, 196, 15, 0.4);
   animation: premium-glow 2s ease-in-out infinite;
+  user-select: none;
 }
 
 @keyframes premium-glow {
@@ -664,6 +614,7 @@ div.full-profile-sidebar__tag-tooltip {
   font-weight: 600;
   color: #fff;
   white-space: nowrap;
+  user-select: none;
 }
 
 /* Строка статуса */
@@ -696,6 +647,7 @@ div.full-profile-sidebar__tag-tooltip {
   font-size: 12px;
   cursor: pointer;
   transition: all 0.2s;
+  user-select: none;
 }
 
 .full-profile-sidebar__join-game-btn:hover {
@@ -720,6 +672,7 @@ div.full-profile-sidebar__tag-tooltip {
   margin-left: 0;
   box-shadow: 0 2px 8px rgba(88, 101, 242, 0.2);
   cursor: pointer;
+  user-select: none;
 }
 
 .full-profile-sidebar__discord-icon:hover {
@@ -734,6 +687,7 @@ div.full-profile-sidebar__tag-tooltip {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
+  user-select: none;
 }
 
 /* ============================================
@@ -745,37 +699,60 @@ div.full-profile-sidebar__tag-tooltip {
   padding: 0 20px 16px;
   margin-top: -6px;
   flex-wrap: wrap;
+  width: 100%;
+}
+
+/* Горизонтальный ряд кнопок для чужого профиля */
+.full-profile-sidebar__action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px; /* Фиксированная высота контейнера */
+}
+
+/* MessageButton занимает основное пространство */
+.full-profile-sidebar__action-row > button:first-child,
+.full-profile-sidebar__action-row > div:first-child {
+  flex: 1;
+}
+
+/* FriendshipBadge и MoreMenuButton фиксированной ширины */
+.full-profile-sidebar__action-row .friendship-badge,
+.full-profile-sidebar__action-row .more-menu-button {
+  flex-shrink: 0;
 }
 
 .full-profile-sidebar__edit-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: linear-gradient(135deg, rgba(45, 35, 65, 0.6) 0%, rgba(30, 25, 50, 0.6) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 8px;
+  padding: 2px 16px;
+  height: 32px;
+  background: linear-gradient(135deg, #5865F2 0%, #4752C4 100%);
+  border: none;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 12px;
+  color: #FFFFFF;
+  font-size: 14px;
   font-weight: 500;
+  line-height: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
 }
 
 .full-profile-sidebar__edit-btn:hover {
-  background: linear-gradient(135deg, rgba(55, 45, 80, 0.7) 0%, rgba(40, 35, 65, 0.7) 100%);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, #6875F5 0%, #5865F2 100%);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
 }
 
 .full-profile-sidebar__edit-btn:active {
+  background: linear-gradient(135deg, #4752C4 0%, #3C45A5 100%);
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 4px rgba(88, 101, 242, 0.3);
 }
 
 .full-profile-sidebar__action-btn {
@@ -802,6 +779,7 @@ div.full-profile-sidebar__tag-tooltip {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  user-select: none;
 }
 
 .full-profile-sidebar__message-btn:hover {
@@ -814,16 +792,69 @@ div.full-profile-sidebar__tag-tooltip {
   box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
 }
 
+/* Полноразмерная кнопка "Написать" для друзей (Синий градиент с прозрачностью) */
+.full-profile-sidebar__message-btn-full {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 2px 16px;
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.7) 0%, rgba(66, 76, 184, 0.8) 100%);
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16px;
+  cursor: pointer;
+  transition: background 0.17s ease, transform 0.1s ease;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.full-profile-sidebar__message-btn-full:hover {
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.85) 0%, rgba(66, 76, 184, 0.95) 100%);
+  transform: translateY(-1px);
+}
+
+.full-profile-sidebar__message-btn-full:active {
+  background: linear-gradient(135deg, rgba(88, 101, 242, 0.6) 0%, rgba(66, 76, 184, 0.7) 100%);
+  transform: translateY(0);
+}
+
+/* Иконка сообщения внутри кнопки */
+.full-profile-sidebar__message-btn-full svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 /* ============================================
    Секция Биография
    ============================================ */
 .full-profile-sidebar__biography-section {
-  padding: 12px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px 20px 12px 14px;
+  border-top: 1px solid #3F4147;
+}
+
+@media (min-width: 768px) {
+  .full-profile-sidebar__biography-section {
+    padding-left: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .full-profile-sidebar__biography-section {
+    padding-left: 14px;
+  }
 }
 
 .full-profile-sidebar__biography-header {
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .full-profile-sidebar__biography-title-row {
@@ -850,6 +881,7 @@ div.full-profile-sidebar__tag-tooltip {
   font-size: 12px;
   transition: color 0.2s ease;
   border-radius: 4px;
+  user-select: none;
 }
 
 .full-profile-sidebar__biography-edit-btn:hover {
@@ -862,15 +894,15 @@ div.full-profile-sidebar__tag-tooltip {
 }
 
 .full-profile-sidebar__biography-content {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+  color: #DBDEE1;
   line-height: 1.5;
   word-break: break-word;
 }
 
 .full-profile-sidebar__biography-content strong {
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: #FFFFFF;
 }
 
 .full-profile-sidebar__biography-content em {
@@ -885,26 +917,26 @@ div.full-profile-sidebar__tag-tooltip {
 .full-profile-sidebar__biography-content .bio-quote {
   display: block;
   padding-left: 10px;
-  border-left: 2px solid rgba(139, 92, 246, 0.6);
+  border-left: 2px solid #5865F2;
   color: rgba(255, 255, 255, 0.6);
   font-style: italic;
   margin: 4px 0;
 }
 
 .full-profile-sidebar__biography-content .bio-link {
-  color: #8b5cf6;
+  color: #00A8FC;
   text-decoration: none;
-  transition: color 0.2s ease;
+  transition: color 0.17s ease;
 }
 
 .full-profile-sidebar__biography-content .bio-link:hover {
-  color: #a78bfa;
+  color: #00C3FF;
   text-decoration: underline;
 }
 
 .full-profile-sidebar__biography-empty {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: 14px;
+  color: #80848E;
   font-style: italic;
 }
 
@@ -949,6 +981,7 @@ div.full-profile-sidebar__tag-tooltip {
   font-size: 14px;
   cursor: pointer;
   transition: all 0.15s ease;
+  user-select: none;
 }
 
 .bio-editor__toolbar-btn:hover {
@@ -974,7 +1007,7 @@ div.full-profile-sidebar__tag-tooltip {
 }
 
 /* Кнопка эмодзи — справа сверху, текст обтекает её */
-.bio-editor__emoji-trigger {
+.full-profile-sidebar__emoji-trigger {
   float: right;
   width: 28px;
   height: 28px;
@@ -990,6 +1023,7 @@ div.full-profile-sidebar__tag-tooltip {
   transition: all 0.15s ease;
   z-index: 5;
   flex-shrink: 0;
+  user-select: none;
 }
 
 .bio-editor__emoji-trigger:hover {
@@ -1025,6 +1059,7 @@ div.full-profile-sidebar__tag-tooltip {
   font-size: 16px;
   cursor: pointer;
   transition: all 0.15s ease;
+  user-select: none;
 }
 
 .bio-editor__emoji-btn:hover {
@@ -1182,6 +1217,7 @@ div.full-profile-sidebar__tag-tooltip {
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  user-select: none;
 }
 
 .bio-editor__action-btn--save {
@@ -1325,6 +1361,7 @@ div.full-profile-sidebar__tag-tooltip {
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
+  user-select: none;
 }
 
 .full-profile-sidebar__report-btn--cancel {
@@ -1404,6 +1441,7 @@ div.full-profile-sidebar__tag-tooltip {
   font-size: 14px;
   font-weight: 600;
   transition: all 0.15s;
+  user-select: none;
 }
 
 .full-profile-sidebar__bio-editor-btn--save {
@@ -1431,17 +1469,29 @@ div.full-profile-sidebar__tag-tooltip {
    ============================================ */
 .full-profile-sidebar__section-title {
   font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
-  text-transform: uppercase;
+  font-weight: 700;
+  color: #B5BAC1;
+  text-transform: none;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
 }
 
 /* Member since */
 .full-profile-sidebar__member-since {
-  padding: 16px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 16px 20px 16px 14px;
+  border-top: 1px solid #3F4147;
+}
+
+@media (min-width: 768px) {
+  .full-profile-sidebar__member-since {
+    padding-left: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .full-profile-sidebar__member-since {
+    padding-left: 14px;
+  }
 }
 
 .full-profile-sidebar__dates {
@@ -1451,8 +1501,8 @@ div.full-profile-sidebar__tag-tooltip {
 }
 
 .full-profile-sidebar__date-item {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  color: #DBDEE1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1466,8 +1516,20 @@ div.full-profile-sidebar__tag-tooltip {
    Роли
    ============================================ */
 .full-profile-sidebar__roles {
-  padding: 16px 20px;
+  padding: 16px 20px 16px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (min-width: 768px) {
+  .full-profile-sidebar__roles {
+    padding-left: 14px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .full-profile-sidebar__roles {
+    padding-left: 14px;
+  }
 }
 
 .full-profile-sidebar__roles-list {
@@ -1486,6 +1548,7 @@ div.full-profile-sidebar__tag-tooltip {
   border-radius: 20px;
   font-size: 12px;
   color: rgba(255, 255, 255, 0.85);
+  user-select: none;
 }
 
 .full-profile-sidebar__role-dot {
@@ -1493,175 +1556,303 @@ div.full-profile-sidebar__tag-tooltip {
   height: 8px;
   border-radius: 50%;
   background: var(--role-color, #7c3aed);
+  user-select: none;
 }
 
 /* ============================================
-   Заметка
+   Заметка о друге (новый компонент FriendNoteField)
    ============================================ */
-.full-profile-sidebar__note {
-  padding: 16px 20px;
+.full-profile-sidebar__friend-note-section {
+  padding: 16px 20px 16px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.full-profile-sidebar__note-hint {
-  font-weight: 400;
-  opacity: 0.6;
+@media (min-width: 768px) {
+  .full-profile-sidebar__friend-note-section {
+    padding-left: 14px;
+  }
 }
 
-.full-profile-sidebar__note-content {
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-height: 60px;
+@media (min-width: 1024px) {
+  .full-profile-sidebar__friend-note-section {
+    padding-left: 14px;
+  }
 }
 
-.full-profile-sidebar__note-content:hover {
-  background: rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.full-profile-sidebar__note-edit textarea {
-  width: 100%;
-  min-height: 80px;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(124, 58, 237, 0.5);
-  border-radius: 8px;
-  font-size: 13px;
-  color: #fff;
-  resize: vertical;
-  font-family: inherit;
-}
-
-.full-profile-sidebar__note-edit textarea:focus {
-  outline: none;
-  border-color: #7c3aed;
-}
-
-.full-profile-sidebar__note-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.full-profile-sidebar__note-actions button {
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.full-profile-sidebar__note-actions button:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.full-profile-sidebar__note-actions button.save {
-  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
-  border-color: transparent;
-  color: #fff;
-}
-
-.full-profile-sidebar__note-actions button.save:hover {
-  transform: translateY(-1px);
+.full-profile-sidebar__friend-note-section .full-profile-sidebar__section-title {
+  margin-bottom: 12px;
 }
 
 /* ============================================
-   Responsive — Tablet
+   Responsive — Tablet (768px+)
    ============================================ */
-@media (max-width: 768px) {
+@media (min-width: 768px) {
   .full-profile-sidebar {
     padding: 20px;
     border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: none;
     max-height: none;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(30, 30, 50, 0.95) 0%, rgba(20, 20, 35, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .full-profile-sidebar__banner {
+    width: calc(100% + 40px);
+    margin: -20px -20px 0 -20px;
   }
 
   .full-profile-sidebar__header {
     flex-direction: row;
     align-items: flex-start;
-    gap: 20px;
+    gap: 0;
+    padding: 12px 0;
+    overflow: visible;
+    margin-left: 0;
   }
 
-  .full-profile-sidebar__avatar-section {
-    padding-top: 0;
+  .full-profile-sidebar__left-column {
+    margin-left: 0;
     width: auto;
-    flex-shrink: 0;
   }
 
-  .full-profile-sidebar__bio-cloud {
-    position: static;
-    max-width: 100%;
-    margin-bottom: 16px;
+  .full-profile-sidebar__right-column {
+    padding-top: 42px;
+    width: auto;
+    position: relative;
+    overflow: visible;
+    height: 60px;
+    padding-left: 12px;
   }
 
-  .full-profile-sidebar__bio-cloud-tail {
-    display: none;
+  .full-profile-sidebar__bio-bubble {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    margin-left: -3px;
+    width: auto;
+    max-width: none;
   }
 
-  .full-profile-sidebar__user-info {
+  .full-profile-sidebar__bio-bubble::before,
+  .full-profile-sidebar__bio-bubble::after {
+    display: block !important;
+    content: "" !important;
+  }
+
+  /* Большой кружок */
+  .full-profile-sidebar__bio-bubble::before {
+    left: 14px;
+    top: -9px;
+    width: 20px;
+    height: 20px;
+    background: #3a3a4a;
+    border-radius: 50%;
+  }
+
+  /* Маленький кружок */
+  .full-profile-sidebar__bio-bubble::after {
+    left: -2px;
+    top: -15px;
+    width: 10px;
+    height: 10px;
+    background: #3a3a4a;
+    border-radius: 50%;
+  }
+
+  /* Выравнивание всех элементов по левому краю аватара */
+  .full-profile-sidebar .full-profile-sidebar__nickname-section {
     text-align: left;
-    align-items: flex-start;
+    padding: 0 0 16px 15px !important;
+    margin-left: 0;
   }
 
-  .full-profile-sidebar__actions {
+  .full-profile-sidebar__nickname-row {
+    justify-content: flex-start;
+    text-align: left;
+    padding: 0;
+  }
+
+  .full-profile-sidebar__nickname {
+    font-size: 18px;
+  }
+
+  .full-profile-sidebar__badges {
     justify-content: flex-start;
   }
 
-  /* Скрываем менее важные секции на планшете */
+  .full-profile-sidebar .full-profile-sidebar__actions {
+    justify-content: flex-start;
+    padding: 0 0 16px 14px !important;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* Выравнивание всех секций по левому краю аватара */
+  .full-profile-sidebar .full-profile-sidebar__member-since,
+  .full-profile-sidebar .full-profile-sidebar__roles,
+  .full-profile-sidebar .full-profile-sidebar__friend-note-section {
+    padding-left: 14px !important;
+    padding-right: 20px;
+    margin-left: 0;
+  }
+
+  /* Показываем скрытые секции на планшете */
   .full-profile-sidebar__section--roles,
   .full-profile-sidebar__section--note {
-    display: none;
+    display: block;
   }
 }
 
 /* ============================================
-   Responsive — Mobile
+   Responsive — Desktop (1024px+)
    ============================================ */
-@media (max-width: 480px) {
-  .full-profile-sidebar {
-    padding: 16px;
-    gap: 16px;
-  }
-
+@media (min-width: 1024px) {
   .full-profile-sidebar__header {
-    flex-direction: column;
-    align-items: center;
+    gap: 0;
+    padding: 12px 0;
+    overflow: visible;
+    margin-left: 0;
   }
 
-  .full-profile-sidebar__avatar-section {
-    width: 100%;
+  .full-profile-sidebar__left-column {
+    margin-left: 0;
   }
 
-  .full-profile-sidebar__user-info {
-    text-align: center;
-    align-items: center;
-  }
-
-  .full-profile-sidebar__nickname {
-    font-size: 20px;
-  }
-
-  .full-profile-sidebar__actions {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .full-profile-sidebar__actions button {
+  .full-profile-sidebar__right-column {
+    padding-top: 42px;
+    height: 60px;
     flex: 1;
+    max-width: none;
+    padding-left: 8px;
+    position: relative;
+    overflow: visible;
   }
 
-  .full-profile-sidebar__section--dates {
-    flex-direction: column;
-    gap: 8px;
+  /* Все элементы выровнены по левому краю аватара */
+  .full-profile-sidebar .full-profile-sidebar__nickname-section {
+    padding-left: 15px !important;
+    margin-left: 0;
+  }
+
+  .full-profile-sidebar .full-profile-sidebar__actions {
+    padding-left: 14px !important;
+    margin-left: 0;
+  }
+
+  .full-profile-sidebar .full-profile-sidebar__member-since,
+  .full-profile-sidebar .full-profile-sidebar__roles,
+  .full-profile-sidebar .full-profile-sidebar__friend-note-section {
+    padding-left: 14px !important;
+    padding-right: 20px;
+    margin-left: 0;
+  }
+}
+
+  .full-profile-sidebar__bio-bubble {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    right: 0;
+    margin-left: -3px;
+    width: auto;
+    max-width: none;
+  }
+
+  .full-profile-sidebar__bio-bubble::before,
+  .full-profile-sidebar__bio-bubble::after {
+    display: block !important;
+    content: "" !important;
+  }
+
+  /* Большой кружок */
+  .full-profile-sidebar__bio-bubble::before {
+    left: 14px;
+    top: -9px;
+    width: 20px;
+    height: 20px;
+    background: #3a3a4a;
+    border-radius: 50%;
+  }
+
+  /* Маленький кружок */
+  .full-profile-sidebar__bio-bubble::after {
+    left: -2px;
+    top: -15px;
+    width: 10px;
+    height: 10px;
+    background: #3a3a4a;
+    border-radius: 50%;
+  }
+}
+
+/* ============================================
+   Touch-friendly improvements
+   ============================================ */
+@media (hover: none) and (pointer: coarse) {
+  /* Кнопки действий - минимум 44x44px */
+  .full-profile-sidebar__edit-btn,
+  .full-profile-sidebar__message-btn,
+  .full-profile-sidebar__action-btn {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  /* Кнопки действий Bio - увеличены до 44x44px */
+  .full-profile-sidebar__bio-action-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Индикатор статуса - увеличен до 44x44px */
+  .full-profile-sidebar__status-indicator {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Кнопки профильных действий - минимум 44x44px */
+  .full-profile-sidebar__profile-action-btn {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+
+  /* Увеличенные отступы между элементами на мобильных */
+  .full-profile-sidebar__actions {
+    gap: 12px;
+  }
+
+  .full-profile-sidebar__action-row {
+    gap: 12px;
+  }
+
+  /* Кнопки редактора Bio - увеличены до 44x44px */
+  .full-profile-sidebar__bio-editor-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .bio-editor__action-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Кнопка эмодзи - увеличена до 44x44px */
+  .full-profile-sidebar__emoji-trigger,
+  .bio-editor__emoji-trigger {
+    width: 44px;
+    height: 44px;
+    margin: 4px;
+  }
+
+  /* Кнопки тулбара редактора - увеличены до 44x44px */
+  .bio-editor__toolbar-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Кнопки отчета - минимум 44x44px */
+  .full-profile-sidebar__report-btn {
+    min-height: 44px;
+    padding: 12px 20px;
   }
 }

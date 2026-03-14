@@ -31,6 +31,10 @@ PartyChaos включает полноценную социальную сист
 4. Создание заявки
 5. Уведомление получателя
 
+**Rate Limiting:** 10 запросов в минуту
+
+**Audit Logging:** Логируется событие FRIEND_REQUEST_SENT
+
 ---
 
 ### Принятие заявки
@@ -51,6 +55,54 @@ PartyChaos включает полноценную социальную сист
 4. Уведомление отправителя
 5. Разблокировка достижения "Первый друг"
 
+**Rate Limiting:** 10 запросов в минуту
+
+**Audit Logging:** Логируется событие FRIEND_REQUEST_ACCEPTED
+
+---
+
+### Отклонение заявки
+
+**Socket:** `social:friends:reject`
+
+**Payload:**
+```json
+{
+  "requestId": "request-id"
+}
+```
+
+**Процесс:**
+1. Проверка заявки
+2. Обновление статуса заявки на "rejected"
+3. Уведомление отправителя
+
+**Rate Limiting:** 10 запросов в минуту
+
+**Audit Logging:** Логируется событие FRIEND_REQUEST_REJECTED
+
+---
+
+### Отмена заявки
+
+**Socket:** `social:friends:cancel`
+
+**Payload:**
+```json
+{
+  "requestId": "request-id"
+}
+```
+
+**Процесс:**
+1. Проверка заявки
+2. Удаление заявки
+3. Уведомление получателя
+
+**Rate Limiting:** 10 запросов в минуту
+
+**Audit Logging:** Логируется событие FRIEND_REQUEST_CANCELLED
+
 ---
 
 ### Удаление друга
@@ -63,6 +115,10 @@ PartyChaos включает полноценную социальную сист
   "friendId": "user-id"
 }
 ```
+
+**Rate Limiting:** 10 запросов в минуту
+
+**Audit Logging:** Логируется событие FRIEND_REMOVED
 
 ---
 
@@ -368,3 +424,139 @@ io.to(userId).emit("notification", {
 - Не отображается в поиске
 - Вступление только по приглашению
 - Заявки на вступление отключены
+
+
+---
+
+## 🔐 Безопасность и Rate Limiting
+
+### Rate Limiting
+
+Все Socket.IO обработчики друзей защищены rate limiting:
+
+- **Лимит:** 10 запросов в минуту на пользователя
+- **Окно:** 60 секунд
+- **Действия:** `friends:send`, `friends:accept`, `friends:reject`, `friends:cancel`, `friends:remove`
+
+При превышении лимита:
+```json
+{
+  "success": false,
+  "error": "Слишком много запросов. Попробуйте позже."
+}
+```
+
+### Audit Logging
+
+Все критические действия логируются для безопасности:
+
+**Логируемые события:**
+- `FRIEND_REQUEST_SENT` - отправка заявки в друзья
+- `FRIEND_REQUEST_ACCEPTED` - принятие заявки
+- `FRIEND_REQUEST_REJECTED` - отклонение заявки
+- `FRIEND_REQUEST_CANCELLED` - отмена заявки
+- `FRIEND_REMOVED` - удаление из друзей
+- `RATE_LIMIT_EXCEEDED` - превышение лимита запросов
+
+**Формат лога:**
+```javascript
+{
+  timestamp: "2026-01-15T10:30:00.000Z",
+  action: "FRIEND_REQUEST_SENT",
+  userId: "user-id",
+  receiverId: "target-user-id",
+  requestId: "request-id"
+}
+```
+
+---
+
+## 📁 Архитектура модулей
+
+### Серверные модули
+
+**`server/src/social/friends.js`**
+- Бизнес-логика управления друзьями
+- Функции: `sendFriendRequest`, `acceptFriendRequest`, `rejectFriendRequest`, `cancelFriendRequest`, `removeFriend`
+- Работа с БД через Prisma
+
+**`server/src/social/friendsHandlers.js`** ⭐ NEW
+- Socket.IO обработчики для событий друзей
+- Rate limiting для защиты от спама
+- Audit logging для безопасности
+- Регистрация через `registerFriendsHandlers(socket, io, prisma)`
+
+**`server/src/social/profile.js`**
+- Обработчик `profile:note:set` для заметок о друзьях
+- Использует upsert для предотвращения дубликатов
+
+### Интеграция
+
+Обработчики регистрируются в `server/src/index.js`:
+
+```javascript
+const { registerFriendsHandlers } = require("./social/friendsHandlers");
+
+// В обработчике connection
+registerFriendsHandlers(socket, io, prisma);
+```
+
+---
+
+## 🗄️ База данных
+
+### Модель FriendRequest
+
+```prisma
+model FriendRequest {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  sender   User @relation("SentFriendRequests")
+  receiver User @relation("ReceivedFriendRequests")
+  
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+}
+```
+
+### Модель UserNote
+
+```prisma
+model UserNote {
+  id          String   @id @default(cuid())
+  userId      String
+  targetUserId String
+  note        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user       User @relation("UserNotes")
+  targetUser User @relation("UserNotesAbout")
+  
+  @@unique([userId, targetUserId])
+  @@index([userId])
+}
+```
+
+---
+
+## ✅ Чеклист реализации
+
+- [x] Обработчик `profile:note:set` работает с upsert
+- [x] Функции друзей существуют в `friends.js`
+- [x] Socket.IO обработчики `social:friends:accept`
+- [x] Socket.IO обработчики `social:friends:reject`
+- [x] Socket.IO обработчики `social:friends:cancel`
+- [x] Модель FriendRequest с индексами
+- [x] Rate limiting (10 запросов/минуту)
+- [x] Audit logging для событий безопасности
+- [x] Все обработчики используют acknowledgements
+- [x] Русский язык для UI текстов
+- [x] Английский для кода

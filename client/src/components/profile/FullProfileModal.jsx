@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import FullProfileSidebar from "./FullProfileSidebar";
 import FullProfileTabs from "./FullProfileTabs";
+import useFocusTrap from "../../hooks/useFocusTrap";
 import "./FullProfileModal.css";
 
 /**
@@ -64,7 +65,6 @@ function FullProfileModal({
   isSelf = false,
   initialTab = "board",
   socket,
-  onOpenChat,
   onAddFriend,
   onMoreMenu,
 }) {
@@ -72,25 +72,39 @@ function FullProfileModal({
   const [error, setError] = useState(null);
   const [profileData, setProfileData] = useState(null);
   const beforeCloseCallbackRef = useRef(null);
+  
+  // Refs для focus management
+  const modalRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const triggerElementRef = useRef(null);
+
+  // Focus trap для модального окна
+  useFocusTrap(modalRef, isOpen);
 
   // Функция для регистрации колбэка сохранения при закрытии
   const handleBeforeClose = useCallback((callback) => {
     beforeCloseCallbackRef.current = callback;
   }, []);
 
-  // Закрытие с сохранением
+  // Закрытие с сохранением и возвратом фокуса
   const handleClose = useCallback(() => {
     // Если есть зарегистрированный колбэк - вызываем его для сохранения
     if (beforeCloseCallbackRef.current) {
       beforeCloseCallbackRef.current();
       beforeCloseCallbackRef.current = null;
     }
+    
+    // Возвращаем фокус на trigger элемент
+    if (triggerElementRef.current) {
+      triggerElementRef.current.focus();
+    }
+    
     onClose();
   }, [onClose]);
 
-  // Загрузка данных профиля через Socket.IO
-  useEffect(() => {
-    if (!isOpen || !userId || !socket) return;
+  // Функция загрузки профиля (вынесена для переиспользования)
+  const loadProfile = useCallback(() => {
+    if (!userId || !socket) return;
 
     let isRequestCompleted = false;
     
@@ -132,7 +146,31 @@ function FullProfileModal({
     }, 10000);
 
     return () => clearTimeout(timeout);
-  }, [isOpen, userId, socket]);
+  }, [userId, socket]);
+
+  // Загрузка данных профиля при открытии модала
+  useEffect(() => {
+    if (!isOpen) return;
+    loadProfile();
+  }, [isOpen, loadProfile]);
+
+  // Focus management при открытии модала
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Сохраняем ссылку на элемент, который открыл модал
+    triggerElementRef.current = document.activeElement;
+
+    // Переводим фокус на первый focusable элемент (кнопка закрытия)
+    // Используем небольшую задержку для завершения анимации
+    const focusTimeout = setTimeout(() => {
+      if (closeButtonRef.current) {
+        closeButtonRef.current.focus();
+      }
+    }, 100);
+
+    return () => clearTimeout(focusTimeout);
+  }, [isOpen]);
 
   // Закрытие по Escape
   useEffect(() => {
@@ -140,6 +178,7 @@ function FullProfileModal({
 
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         handleClose();
       }
     };
@@ -182,7 +221,11 @@ function FullProfileModal({
           onClick={handleBackdropClick}
         >
           <motion.div
+            ref={modalRef}
             className="full-profile-modal__container"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-modal-title"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -190,6 +233,7 @@ function FullProfileModal({
           >
             {/* Кнопка закрытия */}
             <button 
+              ref={closeButtonRef}
               className="full-profile-modal__close-btn"
               onClick={handleClose}
               aria-label="Закрыть"
@@ -220,10 +264,11 @@ function FullProfileModal({
                   isSelf={isSelf}
                   onProfileUpdate={handleProfileUpdate}
                   socket={socket}
-                  onOpenChat={onOpenChat}
+                  onClose={onClose}
                   onAddFriend={onAddFriend}
                   onMoreMenu={onMoreMenu}
                   onBeforeClose={handleBeforeClose}
+                  onReloadProfile={loadProfile}
                 />
 
                 {/* Правая колонка — Tabs */}

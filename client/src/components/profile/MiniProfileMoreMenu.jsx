@@ -108,7 +108,6 @@ export default function MiniProfileMoreMenu({
     }, (response) => {
       setActionLoading(null);
       if (response.ok) {
-        console.log("[MiniProfileMoreMenu] Clan invite sent");
         onClose?.();
       } else {
         console.error("[MiniProfileMoreMenu] Clan invite error:", response.error);
@@ -127,7 +126,6 @@ export default function MiniProfileMoreMenu({
     socket.emit(event, { targetUserId }, (response) => {
       setActionLoading(null);
       if (response.ok) {
-        console.log(`[MiniProfileMoreMenu] User ${isIgnored ? "unignored" : "ignored"}`);
         onClose?.();
       } else {
         console.error("[MiniProfileMoreMenu] Ignore error:", response.error);
@@ -146,7 +144,6 @@ export default function MiniProfileMoreMenu({
     socket.emit(event, { targetUserId }, (response) => {
       setActionLoading(null);
       if (response.success || response.ok) {
-        console.log(`[MiniProfileMoreMenu] User ${isBlocked ? "unblocked" : "blocked"}`);
         onClose?.();
       } else {
         console.error("[MiniProfileMoreMenu] Block error:", response.error);
@@ -171,7 +168,6 @@ export default function MiniProfileMoreMenu({
     }, (response) => {
       setReportLoading(false);
       if (response.ok) {
-        console.log("[MiniProfileMoreMenu] Report submitted");
         setShowReportModal(false);
         onClose?.();
       } else {

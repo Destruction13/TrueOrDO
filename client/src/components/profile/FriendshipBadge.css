@@ -1,0 +1,188 @@
+/* ============================================
+   FriendshipBadge — Бейджик статуса дружбы
+   ============================================ */
+
+.friendship-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  max-width: 32px;
+  max-height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.5);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(157, 78, 221, 0.3) 100%);
+  cursor: pointer;
+  /* Removed transition - handled by Framer Motion */
+  font-size: 16px;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+  transition: all 0.25s ease;
+}
+
+.friendship-badge:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.5) 0%, rgba(157, 78, 221, 0.5) 100%);
+  border-color: rgba(157, 78, 221, 0.7);
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.friendship-badge:active:not(:disabled) {
+  transform: scale(0.95);
+  box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
+}
+
+.friendship-badge:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Keyboard focus styles */
+.friendship-badge:focus-visible {
+  outline: 2px solid #00A8FC;
+  outline-offset: 2px;
+}
+
+/* Состояние: друзья (зеленый) */
+.friendship-badge--friends {
+  color: #4ade80; /* Bright green */
+}
+
+.friendship-badge--friends:focus-visible {
+  outline-color: #23A55A;
+}
+
+/* Состояние: не друзья (серый) */
+.friendship-badge--none {
+  color: #a8b4ff; /* Light purple-blue */
+}
+
+.friendship-badge--none:hover:not(:disabled) {
+  color: #c5d0ff;
+}
+
+/* Состояние: заявка отправлена (желтый) */
+.friendship-badge--pending-sent {
+  color: #fbbf24; /* Bright yellow */
+}
+
+.friendship-badge--pending-sent:focus-visible {
+  outline-color: #F0B232;
+}
+
+/* Состояние: заявка получена (синий) */
+.friendship-badge--pending-received {
+  color: #7aa2f7; /* Discord blue */
+}
+
+/* Loading состояние */
+.friendship-badge--loading {
+  pointer-events: none;
+}
+
+.friendship-badge__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Removed transition - handled by Framer Motion AnimatePresence */
+}
+
+.friendship-badge--loading .friendship-badge__icon {
+  opacity: 0.3;
+}
+
+/* Spinner */
+.friendship-badge__spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+
+.friendship-badge__spinner svg {
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* ============================================
+   Responsive — Tablet (768px+)
+   ============================================ */
+/* Размер остается 38px на всех устройствах для единообразия */
+
+/* ============================================
+   Popup подтверждения
+   ============================================ */
+
+.friendship-badge__popup {
+  position: fixed !important;
+  transform: translateY(-50%);
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.friendship-badge__confirm-btn {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.95) 0%, rgba(30, 25, 50, 0.95) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9) !important;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.friendship-badge__confirm-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(55, 45, 75, 0.95) 0%, rgba(40, 35, 60, 0.95) 100%) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.friendship-badge__confirm-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.friendship-badge__confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Mobile adjustments */
+@media (max-width: 767px) {
+  .friendship-badge__confirm-btn {
+    padding: 12px 18px;
+    font-size: 15px;
+  }
+}

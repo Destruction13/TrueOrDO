@@ -7,6 +7,7 @@ import StyledNickname from "../ui/StyledNickname";
 import Button from "../ui/Button";
 import FullProfileModal from "./FullProfileModal";
 import "./MiniProfile.css";
+import "./CommonTooltip.css";
 
 // Конфигурация игр
 const GAME_CONFIG = {
@@ -180,10 +181,14 @@ function TagBadge({ nickname, tag }) {
     // Позиция всплывашки справа от бейджика
     if (badgeRef.current) {
       const rect = badgeRef.current.getBoundingClientRect();
-      setTooltipPos({ x: rect.right + 8, y: rect.top + rect.height / 2 - 12 });
+      setTooltipPos({ x: rect.right + 8, y: rect.top + rect.height / 2 });
     }
     setShowTooltip(true);
     setShowHoverTooltip(false);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
 
     // Скрыть через 1 секунду
     setTimeout(() => setShowTooltip(false), 1000);
@@ -219,21 +224,26 @@ function TagBadge({ nickname, tag }) {
       >
         #{tag}
       </button>
-      {showHoverTooltip && (
+      {showHoverTooltip && createPortal(
         <div
-          className="mini-profile__tag-tooltip"
-          style={{ left: hoverTooltipPos.x, top: hoverTooltipPos.y }}
+          className="common-tooltip"
+          style={{ left: `${hoverTooltipPos.x}px`, top: `${hoverTooltipPos.y}px` }}
         >
           Скопировать никнейм
-        </div>
+        </div>,
+        document.body
       )}
-      {showTooltip && (
+      {showTooltip && createPortal(
         <div
-          className="mini-profile__copy-tooltip"
-          style={{ left: tooltipPos.x, top: tooltipPos.y }}
+          className="common-tooltip common-tooltip--success common-tooltip--notification"
+          style={{ 
+            left: `${tooltipPos.x}px`, 
+            top: `${tooltipPos.y}px`
+          }}
         >
           Никнейм скопирован
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -274,11 +284,16 @@ function DiscordBadge({ discordId, discordUsername }) {
     e.stopPropagation();
     e.preventDefault();
 
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setShowTooltip(false);
+
     if (badgeRef.current) {
       const rect = badgeRef.current.getBoundingClientRect();
       setMenuPos({ x: rect.right + 8, y: rect.top });
       setShowMenu(true);
-      setShowTooltip(false);
     }
   };
 
@@ -324,13 +339,14 @@ function DiscordBadge({ discordId, discordUsername }) {
           <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
         </svg>
       </button>
-      {showTooltip && (
+      {showTooltip && createPortal(
         <div
-          className="mini-profile__action-tooltip"
-          style={{ left: tooltipPos.x, top: tooltipPos.y }}
+          className="common-tooltip"
+          style={{ left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }}
         >
           Discord
-        </div>
+        </div>,
+        document.body
       )}
       {showMenu && (
         <div
@@ -413,7 +429,7 @@ function EditProfileButton({ onClick }) {
       </button>
       {showTooltip && (
         <div
-          className="mini-profile__tag-tooltip"
+          className="common-tooltip"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
           Редактировать профиль
@@ -516,7 +532,7 @@ function BioStatus({ text, isSelf, onEdit, onDelete }) {
       )}
       {actionTooltip.visible && (
         <div
-          className="mini-profile__action-tooltip"
+          className="common-tooltip"
           style={{ left: actionTooltip.x, top: actionTooltip.y }}
         >
           {actionTooltip.text}
@@ -595,14 +611,6 @@ function BiographyPreview({ text, onOpenFullProfile }) {
     // Считаем количество строк
     const actualLines = Math.ceil(fullHeight / lineHeight);
 
-    console.log('[BiographyPreview] Измерения:', {
-      text: text.substring(0, 50) + '...',
-      fullHeight,
-      lineHeight,
-      actualLines,
-      hasManyLines: actualLines > 6
-    });
-
     setHasManyLines(actualLines > 6);
   }, [text]);
 
@@ -626,8 +634,6 @@ function BiographyPreview({ text, onOpenFullProfile }) {
 
   // Форматируем текст
   const formattedContent = parseFormattedText(text);
-
-  console.log('[BiographyPreview] render:', { expanded, hasManyLines, showButton: expanded && hasManyLines });
 
   return (
     <div
@@ -665,7 +671,6 @@ export default function MiniProfile({
   currentUserId,
   position,
   onClose,
-  onOpenChat,
   onOpenFullProfile,
   onMoreMenu,
   onMessageSent,
@@ -709,6 +714,53 @@ export default function MiniProfile({
       }
       setLoading(false);
     });
+  }, [socket, targetUserId]);
+
+  // Слушаем обновления статуса друзей в реальном времени
+  useEffect(() => {
+    if (!socket || !targetUserId) return;
+
+    const handleFriendsUpdated = (data) => {
+      // Обновляем статус если событие касается этого пользователя
+      if (data.userId === targetUserId || data.friendId === targetUserId) {
+        setProfile(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            friendshipStatus: data.newStatus || data.status || prev.friendshipStatus,
+            friendRequestId: data.requestId || prev.friendRequestId
+          };
+        });
+      }
+    };
+
+    const handleRequestAccepted = (data) => {
+      if (data.friend?.id === targetUserId) {
+        setProfile(prev => {
+          if (!prev) return prev;
+          return { ...prev, friendshipStatus: "friends", friendRequestId: null };
+        });
+      }
+    };
+
+    const handleFriendRemoved = (data) => {
+      if (data.byUserId === targetUserId || data.userId === targetUserId) {
+        setProfile(prev => {
+          if (!prev) return prev;
+          return { ...prev, friendshipStatus: "none", friendRequestId: null };
+        });
+      }
+    };
+
+    socket.on('social:friends:updated', handleFriendsUpdated);
+    socket.on('friends:request:accepted', handleRequestAccepted);
+    socket.on('friends:removed', handleFriendRemoved);
+
+    return () => {
+      socket.off('social:friends:updated', handleFriendsUpdated);
+      socket.off('friends:request:accepted', handleRequestAccepted);
+      socket.off('friends:removed', handleFriendRemoved);
+    };
   }, [socket, targetUserId]);
 
   // Вычисление позиции popup
@@ -1066,6 +1118,20 @@ export default function MiniProfile({
     }
 
     const { friendshipStatus } = profile || {};
+    const isBlocked = friendshipStatus === "blocked" || friendshipStatus === "blocked_by";
+
+    // Если пользователь заблокирован - показываем бейдж вместо действий
+    if (isBlocked) {
+      return (
+        <div className="mini-profile__blocked-badge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+          </svg>
+          <span>Заблокирован</span>
+        </div>
+      );
+    }
 
     // Для чужих профилей — кнопка сообщения и прочие действия
     return (
@@ -1130,20 +1196,9 @@ export default function MiniProfile({
           </form>
         )}
 
-        {friendshipStatus === "pending_received" && (
-          <Button
-            variant="primary"
-            size="small"
-            className="mini-profile__action-btn"
-            onClick={handleAcceptFriend}
-          >
-            ✓ Принять заявку в друзья
-          </Button>
-        )}
-
         {friendshipStatus === "pending_sent" && (
           <div className="mini-profile__pending-status">
-            \u23F3 Заявка отправлена
+            ⏳ Ожидание ответа
           </div>
         )}
       </div>
@@ -1187,7 +1242,7 @@ export default function MiniProfile({
 
     if (friendshipStatus === "pending_sent") {
       return (
-        <div className="mini-profile__friend-badge mini-profile__friend-badge--pending" title="Любимые игры">
+        <div className="mini-profile__friend-badge mini-profile__friend-badge--pending" title="Заявка отправлена">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
             <circle cx="8.5" cy="7" r="4" />
@@ -1200,9 +1255,9 @@ export default function MiniProfile({
     if (friendshipStatus === "pending_received") {
       return (
         <button
-          className="mini-profile__friend-btn mini-profile__friend-btn--pending"
+          className="mini-profile__friend-btn mini-profile__friend-btn--accept"
           onClick={handleAcceptFriend}
-          title="Принять заявку"
+          title="Принять заявку в друзья"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -1476,7 +1531,7 @@ export default function MiniProfile({
         {/* Кнопки действий */}
         {avatarTooltip.show && (
           <div
-            className="mini-profile__tag-tooltip"
+            className="common-tooltip"
             style={{ left: avatarTooltip.x, top: avatarTooltip.y }}
           >
             Открыть полный профиль
@@ -1502,7 +1557,6 @@ export default function MiniProfile({
         userId={targetUserId}
         isSelf={isSelf}
         socket={socket}
-        onOpenChat={onOpenChat}
       />
     </>
   );

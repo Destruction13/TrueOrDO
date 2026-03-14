@@ -56,7 +56,7 @@ export default function MessengerModal({
   const [loadingFriends, setLoadingFriends] = useState(false);
 
   const [selectedConversationId, setSelectedConversationId] = useState(null);
-  const [selectedPartner, setSelectedPartner] = useState(null); // { odlerId, nickname, avatar }
+  const [selectedPartner, setSelectedPartner] = useState(null); // { odlerId, nickname, avatar, isBlocked }
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [messages, setMessages] = useState([]);
@@ -346,6 +346,7 @@ export default function MessengerModal({
             odlerId: partner.odlerId || partner.id,
             nickname: partner.nickname,
             avatar: partner.avatarUrl || partner.avatar,
+            isBlocked: conv.isBlocked || false,
           }
           : null
       );
@@ -377,7 +378,7 @@ export default function MessengerModal({
       const nickname = partnerPayload.nickname || "Диалог";
       const avatar = partnerPayload.avatar || null;
 
-      setSelectedPartner({ odlerId, nickname, avatar });
+      setSelectedPartner({ odlerId, nickname, avatar, isBlocked: false });
       setSelectedConversationId(null);
       setMessages([]);
       setHasMore(false);
@@ -390,6 +391,11 @@ export default function MessengerModal({
           setHasMore(!!res.hasMore);
           if (res.conversationId) {
             setSelectedConversationId(res.conversationId);
+            
+            // Получаем статус блокировки из conversation
+            if (res.isBlocked !== undefined) {
+              setSelectedPartner(prev => prev ? { ...prev, isBlocked: res.isBlocked } : prev);
+            }
           } else {
             refreshUnread();
             loadConversations(true);
@@ -754,8 +760,18 @@ export default function MessengerModal({
                 <div ref={messagesEndRef} />
               </div>
 
+              {selectedPartner?.isBlocked && (
+                <div className="messenger-modal__blocked-banner">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                  </svg>
+                  <span>Вы не можете отправлять сообщения этому пользователю</span>
+                </div>
+              )}
+
               <div className="messenger-modal__input">
-                {activeGame && selectedPartner && (
+                {activeGame && selectedPartner && !selectedPartner.isBlocked && (
                   <motion.button
                     className={`messenger-modal__invite-btn ${inviteSent ? "messenger-modal__invite-btn--sent" : ""}`}
                     title={inviteSent ? "Приглашение отправлено!" : "Пригласить в текущую игру"}
@@ -789,11 +805,11 @@ export default function MessengerModal({
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder={selectedPartner ? "Сообщение..." : "Выберите диалог"}
-                  disabled={!selectedPartner}
+                  placeholder={selectedPartner ? (selectedPartner.isBlocked ? "" : "Сообщение...") : "Выберите диалог"}
+                  disabled={!selectedPartner || selectedPartner.isBlocked}
                   rows={1}
                 />
-                <button onClick={handleSend} disabled={!selectedPartner || !newMessage.trim()} type="button">
+                <button onClick={handleSend} disabled={!selectedPartner || selectedPartner.isBlocked || !newMessage.trim()} type="button">
                   ➤
                 </button>
               </div>

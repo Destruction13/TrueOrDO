@@ -12,6 +12,7 @@
 
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const { getFriendshipStatus } = require("./friends");
 
 // ============================================
 // Константы
@@ -150,6 +151,29 @@ async function getFullProfile(targetUserId, currentUserId) {
       },
     });
     userNote = note?.note || null;
+  }
+
+  // Получаем статус дружбы (если есть currentUserId)
+  let friendStatus = "none";
+  let friendRequestId = null;
+  if (currentUserId && currentUserId !== resolvedUserId) {
+    const statusResult = await getFriendshipStatus(prisma, currentUserId, resolvedUserId);
+    friendStatus = statusResult?.status || "none";
+    friendRequestId = statusResult?.requestId || null;
+  }
+
+  // Проверяем игнорирование (если есть currentUserId)
+  let isIgnored = false;
+  if (currentUserId && currentUserId !== resolvedUserId) {
+    const ignored = await prisma.ignoredUser.findUnique({
+      where: {
+        userId_ignoredId: {
+          userId: currentUserId,
+          ignoredId: resolvedUserId,
+        },
+      },
+    });
+    isIgnored = !!ignored;
   }
 
   // Группируем игры по типам
@@ -293,6 +317,13 @@ async function getFullProfile(targetUserId, currentUserId) {
       
       // Приватная заметка (только для текущего пользователя)
       userNote,
+      
+      // Статус дружбы (для FriendshipBadge)
+      friendStatus,
+      friendRequestId, // ID заявки для pending_sent/pending_received
+      
+      // Игнорирование (для MoreMenuButton)
+      isIgnored,
     },
   };
 }

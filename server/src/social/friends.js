@@ -890,6 +890,7 @@ async function getPublicProfile(prisma, viewerId, targetId) {
     }
 
     // Проверяем блокировку (только если viewerId есть)
+    let isBlocked = false;
     if (viewerId) {
       const blocked = await prisma.blockedUser.findFirst({
         where: {
@@ -900,8 +901,62 @@ async function getPublicProfile(prisma, viewerId, targetId) {
         },
       });
 
-      if (blocked) {
-        return { success: false, error: "Профиль недоступен" };
+      isBlocked = !!blocked;
+      
+      // Если заблокирован - возвращаем минимальный профиль
+      if (isBlocked) {
+        const minimalUser = await prisma.user.findUnique({
+          where: { id: targetUserId },
+          select: {
+            id: true,
+            nickname: true,
+            tag: true,
+            avatarUrl: true,
+            customization: {
+              select: {
+                frameAll: true,
+                nicknameColorType: true,
+                nicknameCustomColor: true,
+                nicknameGradient: {
+                  select: { cssValue: true },
+                },
+                nicknameGlow: {
+                  select: { cssValue: true },
+                },
+              },
+            },
+          },
+        });
+
+        if (!minimalUser) {
+          return { success: false, error: "Пользователь не найден" };
+        }
+
+        // Определяем статус дружбы
+        const friendshipStatus = await getFriendshipStatus(prisma, viewerId, targetUserId);
+
+        // Формируем nicknameStyle из customization
+        const nicknameStyle = minimalUser.customization ? {
+          colorType: minimalUser.customization.nicknameColorType,
+          customColor: minimalUser.customization.nicknameCustomColor,
+          gradient: minimalUser.customization.nicknameGradient,
+          glow: minimalUser.customization.nicknameGlow,
+        } : null;
+
+        return {
+          success: true,
+          profile: {
+            id: minimalUser.id,
+            nickname: minimalUser.nickname,
+            tag: minimalUser.tag,
+            avatarUrl: minimalUser.avatarUrl,
+            customization: minimalUser.customization,
+            nicknameStyle,
+            friendshipStatus: friendshipStatus.status,
+            isBlocked: true,
+            isSelf: viewerId === targetUserId,
+          },
+        };
       }
     }
 

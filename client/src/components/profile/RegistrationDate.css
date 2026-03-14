@@ -1,0 +1,20 @@
+.registration-date {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.registration-date__title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #B5BAC1;
+  text-transform: none;
+  letter-spacing: 0.5px;
+}
+
+.registration-date__date {
+  font-size: 14px;
+  color: #DBDEE1;
+  font-weight: 400;
+  line-height: 1.4;
+}

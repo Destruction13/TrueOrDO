@@ -8,6 +8,9 @@ export default function ConversationsList({
   currentUserId,
   onOpenProfile,
 }) {
+  // Показываем все диалоги, включая с игнорируемыми пользователями
+  // Убрали фильтрацию для отображения истории переписки
+  
   return (
     <div className="conversations-list">
       {conversations.length === 0 ? (

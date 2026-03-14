@@ -5,7 +5,16 @@ import { useNavigate } from "react-router-dom";
 import AvatarFrame from "../ui/AvatarFrame";
 import StyledNickname from "../ui/StyledNickname";
 import Button from "../ui/Button";
-import { authSocket } from "../../context/AuthContext";
+import MessageButton from "./MessageButton";
+import AddFriendButton from "./AddFriendButton";
+import FriendshipBadge from "./FriendshipBadge";
+import "./CommonTooltip.css";
+import MoreMenuButton from "./MoreMenuButton";
+import FriendNoteField from "./FriendNoteField";
+import RegistrationDate from "./RegistrationDate";
+import { authSocket, useAuth } from "../../context/AuthContext";
+import { useNotification } from "../../context/NotificationContext";
+import { useSocial } from "../social/SocialIntegration";
 import "./FullProfileSidebar.css";
 
 //     
@@ -195,7 +204,7 @@ function TagBadge({ nickname, tag }) {
     
     if (badgeRef.current) {
       const rect = badgeRef.current.getBoundingClientRect();
-      setTooltipPos({ x: rect.right + 8, y: rect.top + rect.height / 2 - 12 });
+      setTooltipPos({ x: rect.right + 8, y: rect.top + rect.height / 2 });
     }
     setShowTooltip(true);
     setShowHoverTooltip(false);
@@ -210,7 +219,6 @@ function TagBadge({ nickname, tag }) {
     if (badgeRef.current && !showTooltip) {
       const rect = badgeRef.current.getBoundingClientRect();
       setHoverTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 35 });
-      //  0.2s   
       hoverTimeoutRef.current = setTimeout(() => {
         setShowHoverTooltip(true);
       }, 800);
@@ -238,23 +246,23 @@ function TagBadge({ nickname, tag }) {
       </button>
       {showHoverTooltip && createPortal(
         <div 
-          className="full-profile-sidebar__tag-tooltip"
-          style={{ left: hoverTooltipPos.x, top: hoverTooltipPos.y }}
+          className="common-tooltip"
+          style={{ left: `${hoverTooltipPos.x}px`, top: `${hoverTooltipPos.y}px` }}
         >
           Скопировать никнейм
         </div>,
         document.body
       )}
       {showTooltip && createPortal(
-        <motion.div 
-          className="full-profile-sidebar__copy-tooltip"
-          style={{ left: tooltipPos.x, top: tooltipPos.y }}
-          initial={{ opacity: 0, x: -5 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0 }}
+        <div 
+          className="common-tooltip common-tooltip--success common-tooltip--notification"
+          style={{ 
+            left: `${tooltipPos.x}px`, 
+            top: `${tooltipPos.y}px`
+          }}
         >
-          {"\u2713"} Скопировано
-        </motion.div>,
+          Никнейм скопирован
+        </div>,
         document.body
       )}
     </>
@@ -277,6 +285,11 @@ function StatusSelector({ currentStatus, onSelect, onClose }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose]);
 
+  const handleStatusClick = useCallback((statusKey) => {
+    onSelect(statusKey);
+    onClose();
+  }, [onSelect, onClose]);
+
   return (
     <motion.div 
       ref={selectorRef}
@@ -293,10 +306,7 @@ function StatusSelector({ currentStatus, onSelect, onClose }) {
           <button
             key={statusKey}
             className={`full-profile-sidebar__status-option ${isActive ? "active" : ""}`}
-            onClick={() => {
-              onSelect(statusKey);
-              onClose();
-            }}
+            onClick={() => handleStatusClick(statusKey)}
           >
             <span className="full-profile-sidebar__status-option-icon">{config.icon}</span>
             <span className="full-profile-sidebar__status-option-label">{config.label}</span>
@@ -309,7 +319,7 @@ function StatusSelector({ currentStatus, onSelect, onClose }) {
 }
 
 /**
- *    " "
+ *     (  )
  * :      (  MiniProfile)
  */
 function BioCloud({ text, isSelf, onEdit, onDelete }) {
@@ -396,7 +406,7 @@ function BioCloud({ text, isSelf, onEdit, onDelete }) {
       )}
       {actionTooltip.visible && createPortal(
         <div 
-          className="full-profile-sidebar__action-tooltip"
+          className="common-tooltip"
           style={{ left: actionTooltip.x, top: actionTooltip.y }}
         >
           {actionTooltip.text}
@@ -430,50 +440,6 @@ function UserRoles({ roles = [] }) {
           </span>
         ))}
       </div>
-    </div>
-  );
-}
-
-/**
- *     (  )
- * : " (  )" (fullprofdoska.png)
- */
-function UserNote({ note, onEdit }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [noteText, setNoteText] = useState(note || "");
-
-  const handleSave = useCallback(() => {
-    onEdit(noteText);
-    setIsEditing(false);
-  }, [noteText, onEdit]);
-
-  return (
-    <div className="full-profile-sidebar__note">
-      <div className="full-profile-sidebar__section-title">
-        Заметка <span className="full-profile-sidebar__note-hint">(видна только вам)</span>
-      </div>
-      {isEditing ? (
-        <div className="full-profile-sidebar__note-edit">
-          <textarea
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Добавьте заметку о пользователе..."
-            maxLength={200}
-            autoFocus
-          />
-          <div className="full-profile-sidebar__note-actions">
-            <button onClick={() => setIsEditing(false)}>Отмена</button>
-            <button onClick={handleSave} className="save">Сохранить</button>
-          </div>
-        </div>
-      ) : (
-        <div 
-          className="full-profile-sidebar__note-content"
-          onClick={() => setIsEditing(true)}
-        >
-          {note || "Нажмите, чтобы добавить заметку"}
-        </div>
-      )}
     </div>
   );
 }
@@ -716,6 +682,16 @@ function BiographyEditor({ value, onChange, onSave, onCancel, maxLength = 200, o
     }, 0);
   }, [onChange, maxLength, htmlToMarkdown]);
 
+  //   
+  const handleToggleEmojiPickerInEditor = useCallback(() => {
+    setShowEmojiPicker(prev => !prev);
+  }, []);
+
+  //   
+  const handleInsertEmoji = useCallback((emoji) => {
+    insertEmoji(emoji);
+  }, [insertEmoji]);
+
   //  
   const handleInput = useCallback(() => {
     const html = contentEditableRef.current?.innerHTML || '';
@@ -750,24 +726,17 @@ function BiographyEditor({ value, onChange, onSave, onCancel, maxLength = 200, o
 
   //   (  )
   const doSave = useCallback(() => {
-    console.log("[BiographyEditor] doSave called, saveCalledRef:", saveCalledRef.current);
     if (saveCalledRef.current) {
-      console.log("[BiographyEditor] Already saved, skipping");
       return;
     }
     saveCalledRef.current = true;
     //     
     const html = contentEditableRef.current?.innerHTML || '';
-    console.log("[BiographyEditor] HTML from editor:", html);
     const markdown = htmlToMarkdown(html);
-    console.log("[BiographyEditor] Converted to markdown:", markdown);
-    console.log("[BiographyEditor] onSaveWithValue exists:", !!onSaveWithValue);
     //     
     if (onSaveWithValue) {
-      console.log("[BiographyEditor] Calling onSaveWithValue");
       onSaveWithValue(markdown);
     } else {
-      console.log("[BiographyEditor] Calling onChange + onSave");
       onChange(markdown);
       onSave();
     }
@@ -897,7 +866,7 @@ function BiographyEditor({ value, onChange, onSave, onCancel, maxLength = 200, o
         {/*     ,    */}
         <button 
           className="bio-editor__emoji-trigger"
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          onClick={handleToggleEmojiPickerInEditor}
           title="Эмодзи"
         >
           {"\uD83D\uDE0A"}
@@ -917,7 +886,7 @@ function BiographyEditor({ value, onChange, onSave, onCancel, maxLength = 200, o
                 <button 
                   key={idx}
                   className="bio-editor__emoji-btn"
-                  onClick={() => insertEmoji(emoji)}
+                  onClick={() => handleInsertEmoji(emoji)}
                 >
                   {emoji}
                 </button>
@@ -1060,7 +1029,7 @@ function DiscordBadge({ discordId, discordUsername }) {
       </button>
       {showTooltip && createPortal(
         <div 
-          className="full-profile-sidebar__action-tooltip"
+          className="common-tooltip"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
           Discord
@@ -1146,7 +1115,7 @@ function BiographyEditButton({ onClick }) {
       </button>
       {showTooltip && createPortal(
         <div 
-          className="full-profile-sidebar__action-tooltip"
+          className="common-tooltip"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
           Редактировать описание
@@ -1161,11 +1130,12 @@ function FullProfileSidebar({
   profileData, 
   isSelf, 
   onProfileUpdate,
-  onOpenChat,
+  onClose,
   onAddFriend,
   onMoreMenu,
   socket,
   onBeforeClose,
+  onReloadProfile,
 }) {
   const [showStatusSelector, setShowStatusSelector] = useState(false);
   const [editingBio, setEditingBio] = useState(false);
@@ -1178,10 +1148,79 @@ function FullProfileSidebar({
   const [reportComment, setReportComment] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [nicknameExpanded, setNicknameExpanded] = useState(false);
+  const [canInviteToClan, setCanInviteToClan] = useState(false);
   const nicknameExpandTimeoutRef = useRef(null);
   const isHoveringNicknameRef = useRef(false);
   const statusButtonRef = useRef(null);
   const navigate = useNavigate();
+  const { addNotification } = useNotification();
+  const { openChat } = useSocial();
+  
+  // Получаем текущего пользователя из AuthContext
+  const { user: currentUser } = useAuth();
+  const currentUserId = currentUser?.id;
+
+  // Проверка прав на приглашение в клан
+  // Загружаем информацию о членстве текущего пользователя в клане
+  useEffect(() => {
+    if (!socket || isSelf) {
+      setCanInviteToClan(false);
+      return;
+    }
+
+    // Запрашиваем информацию о клане текущего пользователя
+    socket.emit('social:clan:my', {}, (response) => {
+      if (response?.success && response?.clan) {
+        // Проверяем роль: leader или moderator могут приглашать
+        const role = response.clan.role;
+        setCanInviteToClan(role === 'leader' || role === 'moderator');
+      } else {
+        setCanInviteToClan(false);
+      }
+    });
+  }, [socket, isSelf]);
+
+  // Слушаем обновления статуса друзей в реальном времени
+  useEffect(() => {
+    if (!socket || !profileData?.id || isSelf) return;
+
+    const targetId = profileData.id;
+
+    const handleFriendsUpdated = (data) => {
+      // Обновляем статус если событие касается этого пользователя
+      if (data.userId === targetId || data.friendId === targetId) {
+        const updates = {
+          friendStatus: data.newStatus || data.status || profileData.friendStatus
+        };
+        if (data.requestId) {
+          updates.friendRequestId = data.requestId;
+        }
+        onProfileUpdate?.(updates);
+      }
+    };
+
+    const handleRequestAccepted = (data) => {
+      if (data.friend?.id === targetId) {
+        onProfileUpdate?.({ friendStatus: "friends", friendRequestId: null });
+      }
+    };
+
+    const handleFriendRemoved = (data) => {
+      if (data.byUserId === targetId || data.userId === targetId) {
+        onProfileUpdate?.({ friendStatus: "none", friendRequestId: null });
+      }
+    };
+
+    socket.on('social:friends:updated', handleFriendsUpdated);
+    socket.on('friends:request:accepted', handleRequestAccepted);
+    socket.on('friends:removed', handleFriendRemoved);
+
+    return () => {
+      socket.off('social:friends:updated', handleFriendsUpdated);
+      socket.off('friends:request:accepted', handleRequestAccepted);
+      socket.off('friends:removed', handleFriendRemoved);
+    };
+  }, [socket, profileData?.id, profileData?.friendStatus, isSelf, onProfileUpdate]);
 
   if (!profileData) return null;
 
@@ -1204,10 +1243,12 @@ function FullProfileSidebar({
     currentGameType,
     currentRoomCode,
     createdAt,
+    memberSince,
     premiumUntil,
     roles = [],
     userNote,
-    friendStatus, // "none" | "pending" | "friend" | "blocked"
+    friendStatus, // "none" | "pending_sent" | "pending_received" | "friends" | "blocked"
+    friendRequestId, // ID заявки для pending статусов
     isIgnored,
   } = profileData;
 
@@ -1281,16 +1322,11 @@ function FullProfileSidebar({
   //  authSocket   
   const handleSaveBiographyWithValue = useCallback((textValue) => {
     const socketToUse = authSocket || socket;
-    console.log("[Biography] handleSaveBiographyWithValue called with:", textValue);
-    console.log("[Biography] socket:", socketToUse, "connected:", socketToUse?.connected);
     if (!socketToUse) {
-      console.log("[Biography] No socket, returning");
       return;
     }
     const textToSave = (textValue || "").trim();
-    console.log("[Biography] Emitting social:biography:set with:", textToSave);
     socketToUse.emit("social:biography:set", { biography: textToSave }, (response) => {
-      console.log("[Biography] Response:", response, "success:", response?.success, "ok:", response?.ok, "error:", response?.error);
       if (response?.success || response?.ok) {
         onProfileUpdate?.({ biography: textToSave });
         setEditingBiography(false);
@@ -1304,6 +1340,95 @@ function FullProfileSidebar({
     setBiographyText(biography || "");
     setEditingBiography(false);
   }, [biography]);
+
+  //   Bio ( )
+  const handleCancelBioEditing = useCallback(() => {
+    setEditingBio(false);
+  }, []);
+
+  //   
+  const handleToggleStatusSelector = useCallback(() => {
+    if (isSelf) {
+      setShowStatusSelector(prev => !prev);
+    }
+  }, [isSelf]);
+
+  //   
+  const handleCloseStatusSelector = useCallback(() => {
+    setShowStatusSelector(false);
+  }, []);
+
+  //  Bio 
+  const handleBioTextChange = useCallback((e) => {
+    const newValue = e.target.value;
+    // :  8 
+    const lines = newValue.split('\n');
+    if (lines.length <= 8) {
+      setBioText(newValue);
+    } else {
+      //   8 
+      setBioText(lines.slice(0, 8).join('\n'));
+    }
+  }, []);
+
+  //   
+  const handleNavigateToProfile = useCallback(() => {
+    navigate("/profile");
+  }, [navigate]);
+
+  //   
+  const handleCloseReportModal = useCallback(() => {
+    setShowReportModal(false);
+  }, []);
+
+  //   
+  const handleToggleEmojiPicker = useCallback(() => {
+    setShowEmojiPicker(prev => !prev);
+  }, []);
+
+  //   
+  const handleNicknameMouseLeave = useCallback(() => {
+    //    
+    if (nicknameExpandTimeoutRef.current) {
+      clearTimeout(nicknameExpandTimeoutRef.current);
+      nicknameExpandTimeoutRef.current = null;
+    }
+    setNicknameExpanded(false);
+  }, []);
+
+  //   
+  const handleNicknameWrapperMouseEnter = useCallback(() => {
+    if (nickname?.length > 12) {
+      isHoveringNicknameRef.current = true;
+      //  0.8s  
+      nicknameExpandTimeoutRef.current = setTimeout(() => {
+        // ,      
+        if (isHoveringNicknameRef.current) {
+          setNicknameExpanded(true);
+        }
+      }, 800);
+    }
+  }, [nickname]);
+
+  //   
+  const handleNicknameWrapperMouseLeave = useCallback(() => {
+    //     
+    isHoveringNicknameRef.current = false;
+    if (nicknameExpandTimeoutRef.current) {
+      clearTimeout(nicknameExpandTimeoutRef.current);
+      nicknameExpandTimeoutRef.current = null;
+    }
+  }, []);
+
+  //    
+  const handleNicknameBadgesMouseEnter = useCallback(() => {
+    //     -     
+    isHoveringNicknameRef.current = false;
+    if (nicknameExpandTimeoutRef.current) {
+      clearTimeout(nicknameExpandTimeoutRef.current);
+      nicknameExpandTimeoutRef.current = null;
+    }
+  }, []);
 
   //      
   useEffect(() => {
@@ -1326,9 +1451,17 @@ function FullProfileSidebar({
     }
   }, [onBeforeClose, editingBiography, biography, socket, onProfileUpdate]);
 
-  // 
+  // Игнорирование
   const handleIgnore = useCallback(() => {
-    if (!socket || !id) return;
+    if (!socket || !id) {
+      console.error('[FullProfileSidebar] handleIgnore: missing socket or id', { socket: !!socket, id });
+      addNotification({
+        type: 'error',
+        message: 'Ошибка: нет соединения или ID пользователя',
+        duration: 3000
+      });
+      return;
+    }
     
     const event = isIgnored ? "social:ignore:remove" : "social:ignore:add";
     
@@ -1337,13 +1470,32 @@ function FullProfileSidebar({
       setActionLoading(null);
       if (response.ok) {
         onProfileUpdate?.({ isIgnored: !isIgnored });
+        addNotification({
+          type: 'success',
+          message: isIgnored ? 'Пользователь убран из игнора' : 'Пользователь добавлен в игнор',
+          duration: 2500
+        });
+      } else {
+        addNotification({
+          type: 'error',
+          message: response.error || 'Не удалось выполнить действие',
+          duration: 3000
+        });
       }
     });
-  }, [socket, id, isIgnored, onProfileUpdate]);
+  }, [socket, id, isIgnored, onProfileUpdate, addNotification]);
 
-  // 
+  // Блокировка
   const handleBlock = useCallback(() => {
-    if (!socket || !id) return;
+    if (!socket || !id) {
+      console.error('[FullProfileSidebar] handleBlock: missing socket or id', { socket: !!socket, id });
+      addNotification({
+        type: 'error',
+        message: 'Ошибка: нет соединения или ID пользователя',
+        duration: 3000
+      });
+      return;
+    }
     
     const isBlocked = friendStatus === "blocked";
     const event = isBlocked ? "friends:unblock" : "friends:block";
@@ -1353,16 +1505,27 @@ function FullProfileSidebar({
       setActionLoading(null);
       if (response.success || response.ok) {
         onProfileUpdate?.({ friendStatus: isBlocked ? "none" : "blocked" });
+        addNotification({
+          type: 'success',
+          message: isBlocked ? 'Пользователь разблокирован' : 'Пользователь заблокирован',
+          duration: 2500
+        });
+      } else {
+        addNotification({
+          type: 'error',
+          message: response.error || 'Не удалось выполнить действие',
+          duration: 3000
+        });
       }
     });
-  }, [socket, id, friendStatus, onProfileUpdate]);
+  }, [socket, id, friendStatus, onProfileUpdate, addNotification]);
 
-  // 
+  // Жалоба
   const handleReport = useCallback(() => {
     setShowReportModal(true);
   }, []);
 
-  //  
+  // Отправка жалобы
   const handleSubmitReport = useCallback(() => {
     if (!socket || !id || !reportReason) return;
     
@@ -1377,9 +1540,20 @@ function FullProfileSidebar({
         setShowReportModal(false);
         setReportReason("");
         setReportComment("");
+        addNotification({
+          type: 'success',
+          message: 'Жалоба успешно отправлена',
+          duration: 3000
+        });
+      } else {
+        addNotification({
+          type: 'error',
+          message: response.error || 'Не удалось отправить жалобу',
+          duration: 4000
+        });
       }
     });
-  }, [socket, id, reportReason, reportComment]);
+  }, [socket, id, reportReason, reportComment, addNotification]);
 
   //   
   const handleStatusChange = useCallback((newStatus) => {
@@ -1391,17 +1565,6 @@ function FullProfileSidebar({
       });
     }
   }, [socket, onProfileUpdate]);
-
-  //  
-  const handleNoteEdit = useCallback((newNote) => {
-    if (socket) {
-      socket.emit("social:note:set", { targetUserId: id, note: newNote }, (response) => {
-        if (response.success) {
-          onProfileUpdate?.({ userNote: newNote });
-        }
-      });
-    }
-  }, [socket, id, onProfileUpdate]);
 
   //  " "
   const handleFriendAction = useCallback(() => {
@@ -1458,7 +1621,7 @@ function FullProfileSidebar({
               ref={statusButtonRef}
               className={`full-profile-sidebar__status-indicator ${isSelf ? "full-profile-sidebar__status-indicator--clickable" : ""}`}
               style={{ backgroundColor: statusConfig.color }}
-              onClick={() => isSelf && setShowStatusSelector(!showStatusSelector)}
+              onClick={handleToggleStatusSelector}
               title={isSelf ? " " : statusConfig.label}
             >
               {onlineStatus === "invisible" && isSelf && "??"}
@@ -1473,17 +1636,7 @@ function FullProfileSidebar({
               <textarea
                 className="full-profile-sidebar__bio-input"
                 value={bioText}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  // :  8 
-                  const lines = newValue.split('\n');
-                  if (lines.length <= 8) {
-                    setBioText(newValue);
-                  } else {
-                    //   8 
-                    setBioText(lines.slice(0, 8).join('\n'));
-                  }
-                }}
+                onChange={handleBioTextChange}
                 placeholder="  ..."
                 maxLength={200}
                 autoFocus
@@ -1498,7 +1651,7 @@ function FullProfileSidebar({
                 </button>
                 <button 
                   className="full-profile-sidebar__bio-editor-btn full-profile-sidebar__bio-editor-btn--cancel"
-                  onClick={() => setEditingBio(false)}
+                  onClick={handleCancelBioEditing}
                 >
                   {"\u2715"}
                 </button>
@@ -1520,7 +1673,7 @@ function FullProfileSidebar({
             <>
               <div 
                 className="full-profile-sidebar__status-overlay"
-                onClick={() => setShowStatusSelector(false)}
+                onClick={handleCloseStatusSelector}
               />
               <div className="full-profile-sidebar__status-selector-container">
                 <StatusSelector
@@ -1538,39 +1691,15 @@ function FullProfileSidebar({
       <div className="full-profile-sidebar__nickname-section">
         <div 
           className={`full-profile-sidebar__nickname-row ${nickname?.length > 12 ? "full-profile-sidebar__nickname-row--long" : ""} ${nicknameExpanded ? "full-profile-sidebar__nickname-row--expanded" : ""}`}
-          onMouseLeave={() => {
-            //    
-            if (nicknameExpandTimeoutRef.current) {
-              clearTimeout(nicknameExpandTimeoutRef.current);
-              nicknameExpandTimeoutRef.current = null;
-            }
-            setNicknameExpanded(false);
-          }}
+          onMouseLeave={handleNicknameMouseLeave}
         >
           <div 
             className="full-profile-sidebar__nickname-wrapper"
-            onMouseEnter={() => {
-              if (nickname?.length > 12) {
-                isHoveringNicknameRef.current = true;
-                //  0.8s  
-                nicknameExpandTimeoutRef.current = setTimeout(() => {
-                  // ,      
-                  if (isHoveringNicknameRef.current) {
-                    setNicknameExpanded(true);
-                  }
-                }, 800);
-              }
-            }}
-            onMouseLeave={() => {
-              //     
-              isHoveringNicknameRef.current = false;
-              if (nicknameExpandTimeoutRef.current) {
-                clearTimeout(nicknameExpandTimeoutRef.current);
-                nicknameExpandTimeoutRef.current = null;
-              }
-            }}
+            onMouseEnter={handleNicknameWrapperMouseEnter}
+            onMouseLeave={handleNicknameWrapperMouseLeave}
           >
             <StyledNickname
+              id="profile-modal-title"
               name={nickname}
               customization={nicknameStyle}
               className="full-profile-sidebar__nickname"
@@ -1579,14 +1708,7 @@ function FullProfileSidebar({
           {(tag || discordId) && (
             <div 
               className="full-profile-sidebar__nickname-badges"
-              onMouseEnter={() => {
-                //     -     
-                isHoveringNicknameRef.current = false;
-                if (nicknameExpandTimeoutRef.current) {
-                  clearTimeout(nicknameExpandTimeoutRef.current);
-                  nicknameExpandTimeoutRef.current = null;
-                }
-              }}
+              onMouseEnter={handleNicknameBadgesMouseEnter}
             >
               {tag && <TagBadge nickname={nickname} tag={tag} />}
               {discordId && (
@@ -1616,24 +1738,71 @@ function FullProfileSidebar({
         )}
       </div>
 
-      {/*   */}
+      {/* Кнопки действий */}
       <div className="full-profile-sidebar__actions">
         {isSelf ? (
           <button 
             className="full-profile-sidebar__edit-btn"
-            onClick={() => navigate("/profile")}
+            onClick={handleNavigateToProfile}
           >
             Редактировать профиль
           </button>
         ) : (
-          <>
-            <button 
-              className="full-profile-sidebar__message-btn"
-              onClick={() => onOpenChat?.(id)}
-            >
-              Написать
-            </button>
-          </>
+          <div className="full-profile-sidebar__action-row">
+            {/* Если друзья или отправлена заявка - показываем полноразмерную кнопку "Написать" + бейджик статуса */}
+            {friendStatus === "friends" || friendStatus === "pending_sent" ? (
+              <>
+                <button
+                  className="full-profile-sidebar__message-btn-full"
+                  onClick={() => {
+                    if (openChat) {
+                      openChat(id, nickname, avatarSrc);
+                      onClose?.();
+                    }
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  Написать
+                </button>
+                <FriendshipBadge
+                  targetUserId={id}
+                  currentUserId={currentUserId}
+                  socket={socket}
+                  initialStatus={friendStatus}
+                  friendRequestId={friendRequestId}
+                  onReloadProfile={onReloadProfile}
+                />
+              </>
+            ) : (
+              /* Если не друзья и нет заявки - показываем кнопку "Добавить в друзья" + круглый бейджик сообщения */
+              <>
+                <AddFriendButton
+                  targetUserId={id}
+                  socket={socket}
+                  onSuccess={onReloadProfile}
+                />
+                <MessageButton 
+                  targetUserId={id}
+                  nickname={nickname}
+                  avatar={avatarSrc}
+                  onClose={onClose}
+                />
+              </>
+            )}
+            <MoreMenuButton
+              targetUserId={id}
+              socket={socket}
+              isIgnored={isIgnored}
+              isBlocked={friendStatus === "blocked"}
+              canInviteToClan={canInviteToClan}
+              onIgnore={handleIgnore}
+              onBlock={handleBlock}
+              onReport={handleReport}
+              onReloadProfile={onReloadProfile}
+            />
+          </div>
         )}
       </div>
 
@@ -1673,48 +1842,29 @@ function FullProfileSidebar({
         )}
       </div>
 
-      {/*    (  ) */}
-      {!isSelf && (
-        <div className="full-profile-sidebar__profile-actions">
-          <button 
-            className="full-profile-sidebar__profile-action-btn"
-            onClick={handleIgnore}
-            disabled={actionLoading === "ignore"}
-          >
-            {actionLoading === "ignore" ? "..." : isIgnored ? "Убрать из игнора" : "Игнорировать"}
-          </button>
-          <button 
-            className="full-profile-sidebar__profile-action-btn full-profile-sidebar__profile-action-btn--danger"
-            onClick={handleBlock}
-            disabled={actionLoading === "block"}
-          >
-            {actionLoading === "block" ? "..." : friendStatus === "blocked" ? "Разблокировать" : "Заблокировать"}
-          </button>
-          <button 
-            className="full-profile-sidebar__profile-action-btn"
-            onClick={handleReport}
-          >
-            Пожаловаться
-          </button>
-        </div>
-      )}
+
 
       {/*  "   " */}
-      <div className="full-profile-sidebar__member-since">
-        <div className="full-profile-sidebar__section-title">В числе участников с</div>
-        <div className="full-profile-sidebar__dates">
-          <span className="full-profile-sidebar__date-item">
-            {formatMemberSince(createdAt)}
-          </span>
+      {(memberSince || createdAt) && (
+        <div className="full-profile-sidebar__member-since">
+          <RegistrationDate createdAt={memberSince || createdAt} />
         </div>
-      </div>
+      )}
 
       {/*  */}
       <UserRoles roles={roles} />
 
       {/*  (  ) */}
-      {!isSelf && (
-        <UserNote note={userNote} onEdit={handleNoteEdit} />
+      {!isSelf && friendStatus === "friend" && (
+        <div className="full-profile-sidebar__friend-note-section">
+          <FriendNoteField
+            targetUserId={id}
+            initialNote={userNote}
+            socket={socket}
+            onSave={(newNote) => onProfileUpdate?.({ userNote: newNote })}
+            onReloadProfile={onReloadProfile}
+          />
+        </div>
       )}
 
       {/*    */}
@@ -1725,7 +1875,7 @@ function FullProfileSidebar({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setShowReportModal(false)}
+            onClick={handleCloseReportModal}
           >
             <motion.div
               className="full-profile-sidebar__report-modal"
@@ -1741,10 +1891,10 @@ function FullProfileSidebar({
                 onChange={(e) => setReportReason(e.target.value)}
               >
                 <option value="">Выберите причину</option>
+                <option value="offensive_avatar">Оскорбительный аватар</option>
+                <option value="offensive_nickname">Оскорбительный никнейм</option>
+                <option value="offensive_bio">Оскорбительный статус/биография</option>
                 <option value="spam">Спам</option>
-                <option value="offensive">Оскорбительный контент</option>
-                <option value="harassment">Преследование</option>
-                <option value="fake">Фейковый аккаунт</option>
                 <option value="other">Другое</option>
               </select>
               <textarea
@@ -1757,7 +1907,7 @@ function FullProfileSidebar({
               <div className="full-profile-sidebar__report-actions">
                 <button
                   className="full-profile-sidebar__report-btn full-profile-sidebar__report-btn--cancel"
-                  onClick={() => setShowReportModal(false)}
+                  onClick={handleCloseReportModal}
                 >
                   Отмена
                 </button>

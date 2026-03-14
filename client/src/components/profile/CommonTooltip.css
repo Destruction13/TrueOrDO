@@ -1,0 +1,116 @@
+/* ============================================
+   Общие стили для всплывающих подсказок (Tooltips)
+   Используется во всех компонентах профиля и приложения
+   ============================================ */
+
+/* Базовый hover tooltip (появляется при наведении) */
+.common-tooltip {
+  position: fixed;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(45, 35, 65, 0.8) 0%, rgba(30, 25, 50, 0.8) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+}
+
+/* Стрелочка снизу tooltip */
+.common-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(38, 30, 55, 0.8);
+}
+
+/* При рендере через JS (createPortal) - всегда видимый */
+div.common-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Tooltip для успешных действий (зеленый) */
+.common-tooltip--success {
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+  border-color: rgba(46, 204, 113, 0.5);
+  color: #fff;
+  font-weight: 600;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+.common-tooltip--success::after {
+  border-top-color: #27ae60;
+}
+
+/* Tooltip для ошибок (красный) */
+.common-tooltip--error {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  border-color: rgba(231, 76, 60, 0.5);
+  color: #fff;
+  font-weight: 600;
+}
+
+.common-tooltip--error::after {
+  border-top-color: #c0392b;
+}
+
+/* Tooltip для кнопок действий (более крупный) */
+.common-tooltip--action {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+/* Tooltip для уведомлений о копировании (без стрелки, справа от элемента) */
+.common-tooltip--notification {
+  transform: translateY(-50%) translateX(0);
+  animation: notificationFadeIn 0.15s ease-out;
+}
+
+.common-tooltip--notification::after {
+  display: none;
+}
+
+/* Анимация появления */
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Анимация появления для уведомлений (только opacity, без движения) */
+@keyframes notificationFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Анимация исчезновения */
+@keyframes tooltipFadeOut {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-5px);
+  }
+}
+

@@ -1,0 +1,56 @@
+/* ============================================
+   MessageBadge — Бейджик "Сообщение"
+   ============================================ */
+
+.message-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  max-width: 32px;
+  max-height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.5);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.3) 0%, rgba(157, 78, 221, 0.3) 100%);
+  color: #a8b4ff;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  user-select: none;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.message-badge svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.message-badge:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.5) 0%, rgba(157, 78, 221, 0.5) 100%);
+  border-color: rgba(157, 78, 221, 0.7);
+  color: #c5d0ff;
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.message-badge:active:not(:disabled) {
+  transform: scale(0.95);
+  box-shadow: 0 1px 4px rgba(102, 126, 234, 0.3);
+}
+
+.message-badge:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Keyboard focus styles */
+.message-badge:focus-visible {
+  outline: 2px solid #00A8FC;
+  outline-offset: 2px;
+}

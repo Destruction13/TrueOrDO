@@ -175,7 +175,12 @@ async function sendMessage(prisma, senderId, receiverId, content, type = "text",
     });
 
     if (blocked) {
-      return { success: false, error: "Невозможно отправить сообщение" };
+      // Проверяем, кто заблокировал
+      if (blocked.userId === receiverId) {
+        return { success: false, error: "Пользователь внёс тебя в чёрный список. Ты не можешь ему написать" };
+      } else {
+        return { success: false, error: "Невозможно отправить сообщение заблокированному пользователю" };
+      }
     }
 
     // Получаем или создаём диалог
@@ -282,6 +287,16 @@ async function getMessages(prisma, userId, conversationId, options = {}) {
       return { success: false, error: "Диалог не найден" };
     }
 
+    // Получаем ID собеседника
+    const partnerId = conversation.participant1Id === userId 
+      ? conversation.participant2Id 
+      : conversation.participant1Id;
+
+    // Проверяем, игнорируется ли собеседник
+    const isPartnerIgnored = await prisma.ignoredUser.findUnique({
+      where: { userId_ignoredId: { userId, ignoredId: partnerId } }
+    });
+
     // Формируем условия запроса
     const whereClause = {
       conversationId,
@@ -332,11 +347,12 @@ async function getMessages(prisma, userId, conversationId, options = {}) {
     // Переворачиваем для правильного порядка (старые сверху)
     messages.reverse();
 
-    // Парсим metadata
+    // Парсим metadata и добавляем флаг игнорирования
     const parsedMessages = messages.map((m) => ({
       ...m,
       sender: toPublicUser(m.sender),
       metadata: m.metadata ? JSON.parse(m.metadata) : null,
+      isIgnored: isPartnerIgnored && m.senderId === partnerId,
     }));
 
     return { success: true, messages: parsedMessages, hasMore };
@@ -371,11 +387,23 @@ async function getMessagesByPartner(prisma, userId, partnerId, options = {}) {
     });
 
     if (!conversation) {
-      return { success: true, messages: [], conversationId: null, hasMore: false };
+      return { success: true, messages: [], conversationId: null, hasMore: false, isBlocked: false };
     }
 
+    // Проверяем блокировку
+    const blocked = await prisma.blockedUser.findFirst({
+      where: {
+        OR: [
+          { userId: userId, blockedId: partnerId },
+          { userId: partnerId, blockedId: userId },
+        ],
+      },
+    });
+
+    const isBlocked = !!blocked;
+
     const result = await getMessages(prisma, userId, conversation.id, options);
-    return { ...result, conversationId: conversation.id };
+    return { ...result, conversationId: conversation.id, isBlocked };
   } catch (error) {
     console.error("[messages] getMessagesByPartner error:", error);
     return { success: false, error: "Ошибка при загрузке сообщений" };
@@ -446,6 +474,13 @@ async function getConversations(prisma, userId, options = {}) {
   try {
     const { limit = 20, offset = 0 } = options;
 
+    // Получаем список игнорируемых пользователей
+    const ignoredUsers = await prisma.ignoredUser.findMany({
+      where: { userId },
+      select: { ignoredId: true }
+    });
+    const ignoredIds = ignoredUsers.map(i => i.ignoredId);
+
     // Получаем диалоги с последним сообщением
     const conversations = await prisma.conversation.findMany({
       where: {
@@ -512,6 +547,23 @@ async function getConversations(prisma, userId, options = {}) {
     // Подсчитываем непрочитанные сообщения для каждого диалога
     const conversationsWithUnread = await Promise.all(
       conversations.map(async (conv) => {
+        // Определяем собеседника
+        const partner = conv.participant1Id === userId ? conv.participant2 : conv.participant1;
+        
+        // Проверяем, игнорируется ли собеседник
+        const isIgnored = ignoredIds.includes(partner.id);
+
+        // Проверяем, заблокирован ли собеседник
+        const blocked = await prisma.blockedUser.findFirst({
+          where: {
+            OR: [
+              { userId: userId, blockedId: partner.id },
+              { userId: partner.id, blockedId: userId },
+            ],
+          },
+        });
+        const isBlocked = !!blocked;
+
         const unreadCount = await prisma.message.count({
           where: {
             conversationId: conv.id,
@@ -520,8 +572,6 @@ async function getConversations(prisma, userId, options = {}) {
           },
         });
 
-        // Определяем собеседника
-        const partner = conv.participant1Id === userId ? conv.participant2 : conv.participant1;
         const lastMessage = conv.messages[0] || null;
 
         return {
@@ -541,6 +591,8 @@ async function getConversations(prisma, userId, options = {}) {
           unreadCount,
           lastMessageAt: conv.lastMessageAt,
           createdAt: conv.createdAt,
+          isIgnored,
+          isBlocked,
         };
       })
     );
@@ -564,6 +616,13 @@ async function getConversations(prisma, userId, options = {}) {
  */
 async function getUnreadCount(prisma, userId) {
   try {
+    // Получаем список игнорируемых пользователей
+    const ignoredUsers = await prisma.ignoredUser.findMany({
+      where: { userId },
+      select: { ignoredId: true }
+    });
+    const ignoredIds = ignoredUsers.map(i => i.ignoredId);
+
     // Получаем ID всех диалогов пользователя
     const conversations = await prisma.conversation.findMany({
       where: {
@@ -572,10 +631,20 @@ async function getUnreadCount(prisma, userId) {
           { participant2Id: userId },
         ],
       },
-      select: { id: true },
+      select: { 
+        id: true,
+        participant1Id: true,
+        participant2Id: true
+      },
     });
 
-    const conversationIds = conversations.map((c) => c.id);
+    // Фильтруем диалоги, исключая игнорируемых пользователей
+    const conversationIds = conversations
+      .filter(conv => {
+        const partnerId = conv.participant1Id === userId ? conv.participant2Id : conv.participant1Id;
+        return !ignoredIds.includes(partnerId);
+      })
+      .map(c => c.id);
 
     if (conversationIds.length === 0) {
       return 0;
@@ -788,3 +857,4 @@ module.exports = {
   // Приглашения в игру
   sendGameInvite,
 };
+"" 

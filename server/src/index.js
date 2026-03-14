@@ -206,6 +206,11 @@ const {
   recordActivity,
 } = require("./social/profile");
 
+// Friends Handlers Module (Socket.IO handlers for friends)
+const {
+  registerFriendsHandlers,
+} = require("./social/friendsHandlers");
+
 // Activity Module (Discord-style activity tracking)
 const {
   startSession: startActivitySession,
@@ -5807,6 +5812,9 @@ io.on("connection", (socket) => {
   // Register profile handlers from profile.js module
   registerProfileHandlers(socket, io);
   registerActivityHandlers(socket, io);
+  
+  // Register friends handlers (social:friends:* events)
+  registerFriendsHandlers(socket, io, prisma);
 
   // ===========================================================================
   // IGNORE EVENTS
@@ -6179,9 +6187,22 @@ io.on("connection", (socket) => {
     const result = await sendMessage(prisma, userId, resolvedReceiverId, content, type, metadata);
 
     if (result.success) {
+      // Проверяем, игнорирует ли получатель отправителя
+      const isIgnored = await prisma.ignoredUser.findUnique({
+        where: { 
+          userId_ignoredId: { 
+            userId: resolvedReceiverId, 
+            ignoredId: userId 
+          } 
+        }
+      });
+
       // Notify receiver in real-time
       emitToSocialUser(resolvedReceiverId, "messages:received", {
-        message: result.message,
+        message: {
+          ...result.message,
+          isIgnored: !!isIgnored, // Добавляем флаг игнорирования
+        },
         conversationId: result.conversationId,
         senderId: userId,
       });
@@ -6346,9 +6367,22 @@ io.on("connection", (socket) => {
     const result = await sendGameInvite(prisma, userId, resolvedReceiverId, gameType, roomCode);
 
     if (result.success) {
+      // Проверяем, игнорирует ли получатель отправителя
+      const isIgnored = await prisma.ignoredUser.findUnique({
+        where: { 
+          userId_ignoredId: { 
+            userId: resolvedReceiverId, 
+            ignoredId: userId 
+          } 
+        }
+      });
+
       // Notify receiver
       emitToSocialUser(resolvedReceiverId, "messages:received", {
-        message: result.message,
+        message: {
+          ...result.message,
+          isIgnored: !!isIgnored, // Добавляем флаг игнорирования
+        },
         conversationId: result.conversationId,
         senderId: userId,
       });
@@ -8039,11 +8073,14 @@ io.on("connection", (socket) => {
       return;
     }
 
-    socket.data.codenamesRoomCode = result.room.code;
+    // Получаем комнату для использования
+    const room = result.room;
+    
+    socket.data.codenamesRoomCode = room.code;
     socket.data.codenamesPlayerId = result.playerId;
     socket.data.visitorId = visitorId; // ��������� ��� ������ ������� ��� ������
     codenamesPlayerSockets.set(result.playerId, socket.id);
-    socket.join(`codenames:${result.room.code}`);
+    socket.join(`codenames:${room.code}`);
     setAutoLeaveTimer(socket);
 
     // ���������� ����� ����� � ���� ��� ����������
@@ -8053,7 +8090,6 @@ io.on("connection", (socket) => {
     }
 
     // ���������� ��������� ���� �������
-    const room = result.room;
     room.players.forEach(p => {
       const socketId = codenamesPlayerSockets.get(p.id);
       if (socketId) {
@@ -9025,7 +9061,6 @@ io.on("connection", (socket) => {
     }
 
     // ��������� ��������� ������ � ���������� ��������
-    const room = result.room;
     if (room.guessTimerEndsAt) {
       const remainingMs = room.guessTimerEndsAt - Date.now();
       if (remainingMs > 0) {
@@ -9292,3 +9327,4 @@ process.on("SIGTERM", async () => {
   await prisma.$disconnect();
   process.exit(0);
 });
+"" 

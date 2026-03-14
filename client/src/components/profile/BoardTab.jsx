@@ -1,8 +1,10 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence, Reorder, useDragControls } from "framer-motion";
 import GameTagsPopover, { TAG_CONFIG, getTagById } from "./GameTagsPopover";
 import AddWidgetModal from "./AddWidgetModal";
 import "./BoardTab.css";
+import "./CommonTooltip.css";
 
 // ============================================
 // Константы
@@ -331,10 +333,37 @@ function CurrentGameItem({ game, index, isSelf, onRemove, onRemoveTag, onOpenTag
 function CurrentGameCard({ game, index, isSelf, onRemove, onRemoveTag, onOpenTagSelector }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
+  const [showMoreTooltip, setShowMoreTooltip] = useState(false);
+  const [collapseTooltip, setCollapseTooltip] = useState(false);
+  const [removeTagTooltip, setRemoveTagTooltip] = useState({ show: false, x: 0, y: 0 });
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const showMoreBtnRef = useRef(null);
+  const collapseBtnRef = useRef(null);
+  const moreTooltipTimeoutRef = useRef(null);
+  const collapseTooltipTimeoutRef = useRef(null);
+  const removeTagTooltipTimeoutRef = useRef(null);
   const [deleteTooltip, setDeleteTooltip] = useState({ show: false, x: 0, y: 0 });
   const deleteTooltipTimeoutRef = useRef(null);
   const tagBtnRef = useRef(null);
   const tagsContainerRef = useRef(null);
+
+  // Cleanup таймаутов при размонтировании
+  useEffect(() => {
+    return () => {
+      if (moreTooltipTimeoutRef.current) {
+        clearTimeout(moreTooltipTimeoutRef.current);
+      }
+      if (collapseTooltipTimeoutRef.current) {
+        clearTimeout(collapseTooltipTimeoutRef.current);
+      }
+      if (deleteTooltipTimeoutRef.current) {
+        clearTimeout(deleteTooltipTimeoutRef.current);
+      }
+      if (removeTagTooltipTimeoutRef.current) {
+        clearTimeout(removeTagTooltipTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Преобразуем gameTags в массив тегов для отображения
   const displayTags = [];
@@ -392,10 +421,31 @@ function CurrentGameCard({ game, index, isSelf, onRemove, onRemoveTag, onOpenTag
                 {isSelf && (
                   <button 
                     className="board-tab__tag-remove"
-                    onClick={() => onRemoveTag?.(game.id, tag.id, tag.category)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (removeTagTooltipTimeoutRef.current) {
+                        clearTimeout(removeTagTooltipTimeoutRef.current);
+                        removeTagTooltipTimeoutRef.current = null;
+                      }
+                      setRemoveTagTooltip({ show: false, x: 0, y: 0 });
+                      onRemoveTag?.(game.id, tag.id, tag.category);
+                    }}
+                    onMouseEnter={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const pos = { x: rect.left + rect.width / 2, y: rect.top - 35 };
+                      removeTagTooltipTimeoutRef.current = setTimeout(() => {
+                        setRemoveTagTooltip({ show: true, ...pos });
+                      }, 800);
+                    }}
+                    onMouseLeave={() => {
+                      if (removeTagTooltipTimeoutRef.current) {
+                        clearTimeout(removeTagTooltipTimeoutRef.current);
+                        removeTagTooltipTimeoutRef.current = null;
+                      }
+                      setRemoveTagTooltip({ show: false, x: 0, y: 0 });
+                    }}
                   >
                     ×
-                    <span className="board-tab__tag-tooltip">Удалить тег</span>
                   </button>
                 )}
               </span>
@@ -403,22 +453,102 @@ function CurrentGameCard({ game, index, isSelf, onRemove, onRemoveTag, onOpenTag
           {/* Кнопка +N для скрытых тегов */}
           {hiddenCount > 0 && !showAllTags && (
             <button 
+              ref={showMoreBtnRef}
               className="board-tab__tag board-tab__tag--more"
-              onClick={() => setShowAllTags(true)}
+              onClick={() => {
+                if (moreTooltipTimeoutRef.current) {
+                  clearTimeout(moreTooltipTimeoutRef.current);
+                  moreTooltipTimeoutRef.current = null;
+                }
+                setShowMoreTooltip(false);
+                setShowAllTags(true);
+              }}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 35 });
+                moreTooltipTimeoutRef.current = setTimeout(() => {
+                  setShowMoreTooltip(true);
+                }, 800);
+              }}
+              onMouseLeave={() => {
+                if (moreTooltipTimeoutRef.current) {
+                  clearTimeout(moreTooltipTimeoutRef.current);
+                  moreTooltipTimeoutRef.current = null;
+                }
+                setShowMoreTooltip(false);
+              }}
             >
               +{hiddenCount}
-              <span className="board-tab__tag-tooltip">Посмотреть все теги игры</span>
             </button>
           )}
           {/* Кнопка скрыть при раскрытых тегах */}
           {showAllTags && hiddenCount > 0 && (
             <button 
+              ref={collapseBtnRef}
               className="board-tab__tag board-tab__tag--collapse"
-              onClick={() => setShowAllTags(false)}
+              onClick={() => {
+                if (collapseTooltipTimeoutRef.current) {
+                  clearTimeout(collapseTooltipTimeoutRef.current);
+                  collapseTooltipTimeoutRef.current = null;
+                }
+                setCollapseTooltip(false);
+                setShowAllTags(false);
+              }}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 35 });
+                collapseTooltipTimeoutRef.current = setTimeout(() => {
+                  setCollapseTooltip(true);
+                }, 800);
+              }}
+              onMouseLeave={() => {
+                if (collapseTooltipTimeoutRef.current) {
+                  clearTimeout(collapseTooltipTimeoutRef.current);
+                  collapseTooltipTimeoutRef.current = null;
+                }
+                setCollapseTooltip(false);
+              }}
             >
               &lt;
-              <span className="board-tab__tag-tooltip">Свернуть теги игры</span>
             </button>
+          )}
+          
+          {/* Всплывашки через портал */}
+          {showMoreTooltip && createPortal(
+            <div 
+              className="common-tooltip"
+              style={{
+                left: `${tooltipPos.x}px`,
+                top: `${tooltipPos.y}px`,
+              }}
+            >
+              Посмотреть все теги игры
+            </div>,
+            document.body
+          )}
+          {collapseTooltip && createPortal(
+            <div 
+              className="common-tooltip"
+              style={{
+                left: `${tooltipPos.x}px`,
+                top: `${tooltipPos.y}px`,
+              }}
+            >
+              Свернуть теги игры
+            </div>,
+            document.body
+          )}
+          {removeTagTooltip.show && createPortal(
+            <div 
+              className="common-tooltip"
+              style={{
+                left: `${removeTagTooltip.x}px`,
+                top: `${removeTagTooltip.y}px`,
+              }}
+            >
+              Удалить тег
+            </div>,
+            document.body
           )}
           {isSelf && (
             <button 
@@ -553,9 +683,18 @@ function FavoriteGameWidget({
   const [comment, setComment] = useState(favoriteGame?.comment || "");
   const [isEditingComment, setIsEditingComment] = useState(false);
   const [deleteTooltip, setDeleteTooltip] = useState({ show: false, x: 0, y: 0 });
+  const [showMoreTooltip, setShowMoreTooltip] = useState(false);
+  const [collapseTooltip, setCollapseTooltip] = useState(false);
+  const [removeTagTooltip, setRemoveTagTooltip] = useState({ show: false, x: 0, y: 0 });
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const deleteTooltipTimeoutRef = useRef(null);
+  const moreTooltipTimeoutRef = useRef(null);
+  const collapseTooltipTimeoutRef = useRef(null);
+  const removeTagTooltipTimeoutRef = useRef(null);
   const tagBtnRef = useRef(null);
   const commentTextareaRef = useRef(null);
+  const showMoreBtnRef = useRef(null);
+  const collapseBtnRef = useRef(null);
 
   // Синхронизируем локальный комментарий с данными игры
   useEffect(() => {
@@ -571,6 +710,21 @@ function FavoriteGameWidget({
       commentTextareaRef.current.setSelectionRange(len, len);
     }
   }, [isEditingComment]);
+
+  // Cleanup таймаутов при размонтировании
+  useEffect(() => {
+    return () => {
+      if (moreTooltipTimeoutRef.current) {
+        clearTimeout(moreTooltipTimeoutRef.current);
+      }
+      if (collapseTooltipTimeoutRef.current) {
+        clearTimeout(collapseTooltipTimeoutRef.current);
+      }
+      if (removeTagTooltipTimeoutRef.current) {
+        clearTimeout(removeTagTooltipTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Преобразуем gameTags в массив тегов для отображения
   const displayTags = [];
@@ -731,30 +885,93 @@ function FavoriteGameWidget({
                     {isSelf && (
                       <button 
                         className="board-tab__tag-remove"
-                        onClick={() => onRemoveTag?.(tag.id, tag.category)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (removeTagTooltipTimeoutRef.current) {
+                            clearTimeout(removeTagTooltipTimeoutRef.current);
+                            removeTagTooltipTimeoutRef.current = null;
+                          }
+                          setRemoveTagTooltip({ show: false, x: 0, y: 0 });
+                          onRemoveTag?.(tag.id, tag.category);
+                        }}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const pos = { x: rect.left + rect.width / 2, y: rect.top - 35 };
+                          removeTagTooltipTimeoutRef.current = setTimeout(() => {
+                            setRemoveTagTooltip({ show: true, ...pos });
+                          }, 800);
+                        }}
+                        onMouseLeave={() => {
+                          if (removeTagTooltipTimeoutRef.current) {
+                            clearTimeout(removeTagTooltipTimeoutRef.current);
+                            removeTagTooltipTimeoutRef.current = null;
+                          }
+                          setRemoveTagTooltip({ show: false, x: 0, y: 0 });
+                        }}
                       >
                         ×
-                        <span className="board-tab__tag-tooltip">Удалить тег</span>
                       </button>
                     )}
                   </span>
                 ))}
                 {hiddenCount > 0 && !showAllTags && (
                   <button 
+                    ref={showMoreBtnRef}
                     className="board-tab__tag board-tab__tag--more"
-                    onClick={() => setShowAllTags(true)}
+                    onClick={() => {
+                      if (moreTooltipTimeoutRef.current) {
+                        clearTimeout(moreTooltipTimeoutRef.current);
+                        moreTooltipTimeoutRef.current = null;
+                      }
+                      setShowMoreTooltip(false);
+                      setShowAllTags(true);
+                    }}
+                    onMouseEnter={(e) => {
+                      const rect = showMoreBtnRef.current.getBoundingClientRect();
+                      setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 35 });
+                      moreTooltipTimeoutRef.current = setTimeout(() => {
+                        setShowMoreTooltip(true);
+                      }, 800);
+                    }}
+                    onMouseLeave={() => {
+                      if (moreTooltipTimeoutRef.current) {
+                        clearTimeout(moreTooltipTimeoutRef.current);
+                        moreTooltipTimeoutRef.current = null;
+                      }
+                      setShowMoreTooltip(false);
+                    }}
                   >
                     +{hiddenCount}
-                    <span className="board-tab__tag-tooltip">Посмотреть все теги игры</span>
                   </button>
                 )}
                 {showAllTags && hiddenCount > 0 && (
                   <button 
+                    ref={collapseBtnRef}
                     className="board-tab__tag board-tab__tag--collapse"
-                    onClick={() => setShowAllTags(false)}
+                    onClick={() => {
+                      if (collapseTooltipTimeoutRef.current) {
+                        clearTimeout(collapseTooltipTimeoutRef.current);
+                        collapseTooltipTimeoutRef.current = null;
+                      }
+                      setCollapseTooltip(false);
+                      setShowAllTags(false);
+                    }}
+                    onMouseEnter={(e) => {
+                      const rect = collapseBtnRef.current.getBoundingClientRect();
+                      setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 35 });
+                      collapseTooltipTimeoutRef.current = setTimeout(() => {
+                        setCollapseTooltip(true);
+                      }, 800);
+                    }}
+                    onMouseLeave={() => {
+                      if (collapseTooltipTimeoutRef.current) {
+                        clearTimeout(collapseTooltipTimeoutRef.current);
+                        collapseTooltipTimeoutRef.current = null;
+                      }
+                      setCollapseTooltip(false);
+                    }}
                   >
                     &lt;
-                    <span className="board-tab__tag-tooltip">Свернуть теги игры</span>
                   </button>
                 )}
                 {isSelf && (
@@ -841,6 +1058,35 @@ function FavoriteGameWidget({
           anchorRef={tagSelectorAnchor}
           gameName={favoriteGame?.name || "игры"}
         />
+      )}
+
+      {/* Tooltips через createPortal */}
+      {showMoreTooltip && createPortal(
+        <div 
+          className="common-tooltip"
+          style={{ left: tooltipPos.x, top: tooltipPos.y }}
+        >
+          Посмотреть все теги игры
+        </div>,
+        document.body
+      )}
+      {collapseTooltip && createPortal(
+        <div 
+          className="common-tooltip"
+          style={{ left: tooltipPos.x, top: tooltipPos.y }}
+        >
+          Свернуть теги игры
+        </div>,
+        document.body
+      )}
+      {removeTagTooltip.show && createPortal(
+        <div 
+          className="common-tooltip"
+          style={{ left: removeTagTooltip.x, top: removeTagTooltip.y }}
+        >
+          Удалить тег
+        </div>,
+        document.body
       )}
     </>
   );
@@ -964,6 +1210,9 @@ function WidgetItem({
   
   // Функция для начала drag виджета (вызывается из drag-зоны)
   const startDrag = useCallback((e) => {
+    // Не разрешаем drag в чужих профилях
+    if (!isSelf) return;
+    
     // Используем ref для мгновенной проверки
     // Небольшая задержка чтобы сетка успела установить блок
     requestAnimationFrame(() => {
@@ -971,7 +1220,7 @@ function WidgetItem({
         dragControls.start(e);
       }
     });
-  }, [dragControls]);
+  }, [dragControls, isSelf]);
   
   return (
     <Reorder.Item
@@ -1013,11 +1262,11 @@ function WidgetItem({
           </span>
         </div>
       )}
-      {/* Section виджета — drag инициируется по pointerDown */}
+      {/* Section виджета — drag инициируется по pointerDown только в своём профиле */}
       <section 
         className={`board-tab__section board-tab__section--${widgetType.replace("_", "-")}`}
-        onPointerDown={startDrag}
-        style={{ touchAction: "none" }}
+        onPointerDown={isSelf ? startDrag : undefined}
+        style={{ touchAction: isSelf ? "none" : "auto" }}
       >
         {renderWidgetContent(widgetType)}
       </section>

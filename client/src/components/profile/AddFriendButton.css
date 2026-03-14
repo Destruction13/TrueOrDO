@@ -1,0 +1,58 @@
+/* ============================================
+   AddFriendButton — Кнопка "Добавить в друзья"
+   ============================================ */
+
+.add-friend-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 2px 16px;
+  background: #5865F2;
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16px;
+  cursor: pointer;
+  transition: background-color 0.17s ease;
+  user-select: none;
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.add-friend-button svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.add-friend-button:hover:not(:disabled) {
+  background: #4752C4;
+}
+
+.add-friend-button:active:not(:disabled) {
+  background: #3C45A5;
+}
+
+.add-friend-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-friend-button--loading {
+  pointer-events: none;
+}
+
+/* Mobile: минимум 44x44px для touch */
+@media (hover: none) and (pointer: coarse) {
+  .add-friend-button {
+    min-height: 44px;
+    padding: 0 18px;
+  }
+}
